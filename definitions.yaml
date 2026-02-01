@@ -1,0 +1,69 @@
+# Domain: Construction Management System ERP
+# Problem Statement: Unified Construction Management ERP Platform
+# Last Updated: 2026-02-01
+
+Project:
+  definition: >
+    A construction initiative undertaken to build, renovate, or maintain
+    infrastructure within an agreed scope, schedule, cost, and quality.
+  examples:
+    - Residential apartment construction project
+    - Government road expansion project
+  aliases:
+    - Construction Project
+    - Job
+
+Stakeholder:
+  definition: >
+    A role representing a real-world participant responsible for planning,
+    executing, supervising, or approving construction work within a project.
+  examples:
+    - Project Manager approving a milestone
+    - Site Engineer recording daily progress
+  aliases:
+    - Participant
+    - Project Role
+
+Task:
+  definition: >
+    A defined unit of construction work that contributes directly to
+    the completion of a project.
+  examples:
+    - Foundation excavation
+    - Plastering of first floor
+  aliases:
+    - Activity
+    - Work Item
+
+Resource:
+  definition: >
+    Any labor, material, machinery, or equipment required to perform
+    construction work.
+  examples:
+    - Cement and steel for slab construction
+    - Excavator used for earthwork
+  aliases:
+    - Asset
+    - Construction Resource
+
+ProgressReport:
+  definition: >
+    A structured record describing the current state of construction work,
+    including completed activities, delays, and site observations.
+  examples:
+    - Daily site progress report
+    - Weekly project status update
+  aliases:
+    - Status Report
+    - Work Progress
+
+Invoice:
+  definition: >
+    A financial claim raised for completed construction work or supplied
+    materials, used for payment settlement.
+  examples:
+    - Contractor invoice for completed brickwork
+    - Material supplier billing statement
+  aliases:
+    - Bill
+    - Payment Claim
