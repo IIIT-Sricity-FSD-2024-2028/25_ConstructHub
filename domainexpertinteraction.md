@@ -9,6 +9,7 @@
 - **Mode of Interaction:** Online video call (Google Meet)  
 - **Duration (in minutes):** 20  
 - **Publicly Accessible Video Link:** [Link](https://drive.google.com/file/d/1rUiSh4LtuSz1HXQcFCez_XDQxSuC46zu/view?usp=drivesdk)
+> **Note:** Due to a technical issue, audio was not recorded for the initial approximately 2–3 minutes of the interaction. The issue was identified and resolved early in the session, and the remainder of the discussion was recorded clearly and in full. We apologize for the inconvenience.
 
 ---
 
