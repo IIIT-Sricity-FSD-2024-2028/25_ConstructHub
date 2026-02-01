@@ -8,7 +8,7 @@
 - **Date of Interaction:** 2026-02-01  
 - **Mode of Interaction:** Online video call (Google Meet)  
 - **Duration (in minutes):** 20  
-- **Publicly Accessible Video Link:** Not publicly shared  
+- **Publicly Accessible Video Link:** [Link](https://drive.google.com/file/d/1rUiSh4LtuSz1HXQcFCez_XDQxSuC46zu/view?usp=drivesdk)
 
 ---
 
