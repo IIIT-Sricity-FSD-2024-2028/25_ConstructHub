@@ -1,15 +1,15 @@
 # Team Name : 25_ConstructHub
 
----
+
 
 ## Domain : Construction Management – Enterprise Resource Planning (ERP)
 
----
+
 
 ## Problem Statement :
-Unified Construction Management ERP System
+To develop a Unified Construction Management ERP system that integrates task management, project scheduling, site reporting, budgeting, billing, and payment approval into a single platform, enabling efficient coordination, real-time monitoring, and streamlined decision-making among all system users.
 
----
+
 
 ## Problem Description :
 
@@ -25,7 +25,7 @@ Currently, these activities are handled using multiple tools or manual processes
 
 This project aims to develop a **single integrated ERP platform** that centralizes project execution, monitoring, and financial management to improve efficiency, transparency, and decision-making.
 
----
+
 
 ## Identified Actors :
 
@@ -37,11 +37,11 @@ The system supports the following primary actors:
 - Finance Manager  
 - Client  
 
----
+
 
 ## Planned Features and Use Cases
 
----
+
 
 ### Admin
 
