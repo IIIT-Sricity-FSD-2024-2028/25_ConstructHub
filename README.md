@@ -31,11 +31,16 @@ This project aims to develop a **single integrated ERP platform** that centraliz
 
 The system supports the following primary actors:
 
-- Admin  
-- Project Manager  
-- Site Engineer  
-- Finance Manager  
-- Client  
+- Admin
+  - Responsible for configuring, controlling, and maintaining the ERP platform, including user management, system configuration, and master data governance.
+- Project Manager
+  - Responsible for planning, executing, and monitoring construction activities, including task allocation and project schedule control.
+- Site Engineer
+  - An operational user responsible for executing assigned tasks, reporting daily site progress, and updating work status.  
+- Finance Manager
+  - Responsible for managing project budgets, tracking expenses, generating bills, and coordinating the payment workflow.
+- Client
+  - An external stakeholder responsible for reviewing project progress and approving payments based on completed work.
 
 
 
