@@ -1,6 +1,6 @@
 # Domain: Construction Management System ERP
 # Problem Statement: Unified Construction Management ERP Platform
-# Last Updated: 2026-02-01
+# Last Updated: 2026-03-03
 
 Project:
   definition: >
@@ -46,7 +46,7 @@ Resource:
     - Asset
     - Construction Resource
 
-ProgressReport:
+Progress Report:
   definition: >
     A structured record describing the current state of construction work,
     including completed activities, delays, and site observations.
@@ -57,13 +57,162 @@ ProgressReport:
     - Status Report
     - Work Progress
 
-Invoice:
+Milestone:
   definition: >
-    A financial claim raised for completed construction work or supplied
-    materials, used for payment settlement.
+    A significant checkpoint or event in a construction project that marks
+    the completion of a major phase of work.
   examples:
-    - Contractor invoice for completed brickwork
-    - Material supplier billing statement
+    - Completion of foundation work
+    - Structural framework finalized
   aliases:
-    - Bill
-    - Payment Claim
+    - Phase Completion
+    - Key Event
+
+Schedule:
+  definition: >
+    A structured timeline outlining planned start and end dates for
+    project tasks, phases, and milestones.
+  examples:
+    - Project Gantt chart
+    - Monthly execution plan
+  aliases:
+    - Timeline
+    - Project Plan
+
+Budget:
+  definition: >
+    The approved financial allocation for executing a construction project,
+    including labor, materials, and overhead costs.
+  examples:
+    - Initial project cost estimate
+    - Revised budget after scope change
+  aliases:
+    - Cost Plan
+    - Financial Plan
+
+Expense:
+  definition: >
+    An actual cost incurred during project execution for resources,
+    services, or operational activities.
+  examples:
+    - Payment for construction materials
+    - Equipment rental charges
+  aliases:
+    - Project Cost
+    - Expenditure
+
+Payment:
+  definition: >
+    The transfer of funds made to settle approved invoices or financial
+    claims related to a project.
+  examples:
+    - Client payment for completed milestone
+    - Advance payment to contractor
+  aliases:
+    - Disbursement
+    - Settlement
+
+Approval:
+  definition: >
+    An authorized confirmation or consent required before proceeding
+    with specific project activities or payments.
+  examples:
+    - Client approval of invoice
+    - Manager approval of budget revision
+  aliases:
+    - Authorization
+    - Confirmation
+
+Document:
+  definition: >
+    Any project-related file or record stored within the ERP system
+    for reference, compliance, or communication.
+  examples:
+    - Blueprint drawing
+    - Signed contract copy
+  aliases:
+    - File
+    - Record
+
+Dashboard:
+  definition: >
+    A visual interface that displays key project metrics, progress
+    indicators, and financial summaries in real time.
+  examples:
+    - Project progress overview
+    - Budget utilization chart
+  aliases:
+    - Overview Panel
+    - Control Panel
+
+Feedback:
+  definition: >
+    Comments, suggestions, or observations provided by users such as
+    clients or project managers regarding project progress, task
+    completion, or system performance.
+  examples:
+    - Client commenting on project progress
+    - Project manager reviewing task completion feedback
+  aliases:
+    - Review
+    - Response
+
+Constraint Management:
+  definition: >
+    The process of identifying, monitoring, and handling project
+    limitations such as budget limits, deadlines, resource
+    availability, or regulatory requirements that may affect
+    project execution.
+  examples:
+    - Managing budget limits for a project
+    - Adjusting schedule due to resource shortage
+  aliases:
+    - Limitation Management
+    - Project Constraints Handling
+
+Dependencies:
+  definition: >
+    Relationships between project tasks where the execution or
+    completion of one task relies on the completion of another task.
+  examples:
+    - Foundation work must finish before wall construction
+    - Material procurement required before installation
+  aliases:
+    - Task Dependencies
+    - Task Relationships
+
+Auditing:
+  definition: >
+    The process of reviewing and tracking system activities such as
+    task updates, report submissions, and financial transactions to
+    ensure transparency and accountability.
+  examples:
+    - Reviewing expense records
+    - Checking report submission history
+  aliases:
+    - Activity Tracking
+    - System Audit
+
+Financial Visibility:
+  definition: >
+    The ability for authorized users to view and monitor project
+    budgets, expenses, and billing information in order to maintain
+    financial transparency.
+  examples:
+    - Viewing project expense summaries
+    - Monitoring budget utilization
+  aliases:
+    - Budget Transparency
+    - Financial Monitoring
+
+Technical Feasibility:
+  definition: >
+    An evaluation of whether the proposed system can be successfully
+    developed and implemented using the available technologies,
+    tools, infrastructure, and technical resources.
+  examples:
+    - Evaluating if the system can run on cloud infrastructure
+    - Checking compatibility with existing software tools
+  aliases:
+    - Technology Feasibility
+    - Implementation Feasibility
