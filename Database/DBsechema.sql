@@ -33,9 +33,9 @@ CREATE TABLE Project (
     end_date DATE,
     progress_percentage INT,
     status_id INT,
-    client_id INT,
+    user_id INT,
     FOREIGN KEY (status_id) REFERENCES Project_Status(status_id),
-    FOREIGN KEY (client_id) REFERENCES User(user_id)
+    FOREIGN KEY (user_id) REFERENCES User(user_id)
 );
 
 CREATE TABLE Project_Member (
@@ -228,3 +228,4 @@ CREATE TABLE Notification (
     FOREIGN KEY (setting_id) REFERENCES User_Notification_Setting(setting_id),
     FOREIGN KEY (user_id) REFERENCES User(user_id)
 );
+
