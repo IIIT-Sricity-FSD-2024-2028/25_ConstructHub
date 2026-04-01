@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings – ConstructHub</title>
+<link rel="stylesheet" href="../../css/main.css">
+</head>
+<body>
+<div class="app-layout">
+  <nav class="navbar" id="navbar"></nav>
+  <div class="app-body">
+    <aside class="sidebar" id="sidebar">
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" ><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
+        <a href="my-tasks.html"><img src="../../icons/CheckCircle2.svg" class="nav-icon" width="18" height="18" alt="✅" style="vertical-align:middle;margin-right:8px;"> My Tasks</a>
+        <a href="update-task.html"><img src="../../icons/feature.icon.svg" class="nav-icon" width="18" height="18" alt="📝" style="vertical-align:middle;margin-right:8px;"> Update Task Status</a>
+        <a href="submit-report.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📋" style="vertical-align:middle;margin-right:8px;"> Submit Site Report</a>
+        <a href="messages.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Messages <span class="badge-count" id="msg-count">4</span></a>
+        <div class="sidebar-divider"></div>
+        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header"><h1>Settings</h1><p>Manage your account preferences and settings</p></div>
+
+      <!-- Profile Section -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <div style="background:#fff3eb;padding:10px;border-radius:10px;font-size:20px"><img src="../../icons/User.svg" alt="👤" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div>
+          <h3 style="font-family:var(--font-head);font-weight:700;font-size:16px">Profile Information</h3>
+        </div>
+        <div id="profile-section">
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">First Name <span class="req">*</span></label><input id="s-fname" class="form-input" data-required data-maxlen="50" inputmode="text" autocomplete="given-name"></div>
+            <div class="form-group"><label class="form-label">Last Name <span class="req">*</span></label><input id="s-lname" class="form-input" data-required data-maxlen="50" inputmode="text" autocomplete="family-name"></div>
+          </div>
+          <div class="form-group"><label class="form-label">Email <span class="req">*</span></label><input id="s-email" class="form-input" type="email" data-required data-email></div>
+          <div class="form-group"><label class="form-label">Phone Number</label><input id="s-phone" class="form-input" placeholder="10-digit phone number" inputmode="numeric" maxlength="10" autocomplete="tel"></div>
+          <div style="display:flex;justify-content:flex-end">
+            <button onclick="saveProfile()" class="btn btn-primary">Save Changes</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications Section -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <div style="background:#dbeafe;padding:10px;border-radius:10px;font-size:20px"><img src="../../icons/Bell.svg" alt="🔔" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div>
+          <h3 style="font-family:var(--font-head);font-weight:700;font-size:16px">Notifications</h3>
+        </div>
+        <div class="notif-row">
+          <div class="notif-row-info"><strong>Email Notifications</strong><span>Receive email updates about your projects</span></div>
+          <label class="toggle-switch"><input type="checkbox" id="notif-email" checked><span class="toggle-slider"></span></label>
+        </div>
+        <div class="notif-row">
+          <div class="notif-row-info"><strong>Task Reminders</strong><span>Get notified about upcoming task deadlines</span></div>
+          <label class="toggle-switch"><input type="checkbox" id="notif-tasks" checked><span class="toggle-slider"></span></label>
+        </div>
+        <div class="notif-row">
+          <div class="notif-row-info"><strong>Budget Alerts</strong><span>Alerts when budget thresholds are reached</span></div>
+          <label class="toggle-switch"><input type="checkbox" id="notif-budget" checked><span class="toggle-slider"></span></label>
+        </div>
+        <div class="notif-row">
+          <div class="notif-row-info"><strong>Team Updates</strong><span>Notifications about team member activities</span></div>
+          <label class="toggle-switch"><input type="checkbox" id="notif-team"><span class="toggle-slider"></span></label>
+        </div>
+      </div>
+
+      <!-- Security Section -->
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <div style="background:#dcfce7;padding:10px;border-radius:10px;font-size:20px"><img src="../../icons/Shield.svg" alt="🔒" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div>
+          <h3 style="font-family:var(--font-head);font-weight:700;font-size:16px">Security</h3>
+        </div>
+        <div class="form-group"><label class="form-label">Current Password <span class="req">*</span></label><input id="s-cur-pw" type="password" class="form-input" placeholder="Enter current password"></div>
+        <div class="form-group"><label class="form-label">New Password <span class="req">*</span></label><input id="s-new-pw" type="password" class="form-input" placeholder="Enter new password (min 6 chars)"></div>
+        <div class="form-group"><label class="form-label">Confirm New Password <span class="req">*</span></label><input id="s-conf-pw" type="password" class="form-input" placeholder="Confirm new password"></div>
+        <div id="pw-error" style="display:none" class="field-error"></div>
+        <div style="display:flex;justify-content:flex-end">
+          <button onclick="updatePassword()" class="btn btn-primary">Update Password</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Success Modal -->
+<div id="save-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:340px;text-align:center">
+    <div style="width:60px;height:60px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px">✅</div>
+    <h2 style="font-family:var(--font-head);margin-bottom:8px" id="save-modal-title">Changes Saved Successfully</h2>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px" id="save-modal-msg">Your changes have been saved.</p>
+    <button onclick="closeModal('save-modal')" class="btn btn-success btn-full">Done</button>
+  </div>
+</div>
+
+<script src="../../js/data.js"></script>
+<script src="../../js/utils.js"></script>
+<script>
+let user;
+function sanitizeName(value) {
+  return value.replace(/[^A-Za-z\s]/g, '').replace(/\s{2,}/g, ' ');
+}
+
+function sanitizePhone(value) {
+  return value.replace(/\D/g, '').slice(0, 10);
+}
+
+function isValidName(value) {
+  return /^[A-Za-z]+(?:\s+[A-Za-z]+)*$/.test(value);
+}
+
+function isValidPhone(value) {
+  return /^\d{10}$/.test(value) && value !== '0000000000';
+}
+
+const SIDEBARS = {
+  project_manager: [
+    {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'projects.html',icon:'📁',label:'Projects'},
+    {href:'tasks.html',icon:'✅',label:'Tasks'},
+    {href:'reports.html',icon:'📋',label:'View Site Reports'},{href:'messages.html',icon:'💬',label:'Messages'},
+    {href:'settings.html',icon:'⚙️',label:'Settings',active:true},
+  ],
+  site_engineer: [
+    {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'my-tasks.html',icon:'✅',label:'My Tasks'},
+    {href:'update-task.html',icon:'<img src="../../icons/Edit.svg" alt="📝" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">',label:'Update Task Status'},{href:'submit-report.html',icon:'📋',label:'Submit Site Report'},
+    {href:'messages.html',icon:'💬',label:'Messages'},{href:'settings.html',icon:'⚙️',label:'Settings',active:true},
+  ],
+  finance_manager: [
+    {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'project-budget.html',icon:'💵',label:'Project Budget'},
+    {href:'expenses.html',icon:'💸',label:'Expenses'},{href:'generate-bills.html',icon:'📄',label:'Generate Bills'},
+    {href:'bill-decisions.html',icon:'✅',label:'Bill Payment Decisions'},{href:'messages.html',icon:'💬',label:'Messages'},
+    {href:'settings.html',icon:'⚙️',label:'Settings',active:true},
+  ],
+  client: [
+    {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'project-progress.html',icon:'<img src="../../icons/TrendingUp.svg" alt="📊" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">',label:'Project Progress'},
+    {href:'reports.html',icon:'📋',label:'Reports'},{href:'pending-bills.html',icon:'💵',label:'Pending Bills'},
+    {href:'payment-decisions.html',icon:'💳',label:'Payment Decisions'},{href:'feedback.html',icon:'💬',label:'Feedback'},
+    {href:'messages.html',icon:'<img src="../../icons/Send.svg" alt="📩" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">',label:'Messages'},{href:'profile.html',icon:'<img src="../../icons/User.svg" alt="👤" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">',label:'Profile'},
+    {href:'settings.html',icon:'⚙️',label:'Settings',active:true},
+  ],
+  superuser: [
+    {href:'dashboard.html',icon:'🛡',label:'Super User Panel'},
+    {href:'settings.html',icon:'⚙️',label:'Settings',active:true},
+  ]
+};
+
+window.onload = () => {
+  initDB();
+  user = requireAuth(['project_manager','site_engineer','finance_manager','client','superuser']);
+  if (!user) return;
+  renderNavbar(user);
+  renderSidebar();
+  loadProfile();
+};
+
+function renderSidebar() {
+  document.getElementById('sidebar').innerHTML = `
+    <nav class="sidebar-nav">
+      <a href="dashboard.html"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="Dashboard" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
+      <a href="my-tasks.html"><img src="../../icons/CheckCircle2.svg" class="nav-icon" width="18" height="18" alt="My Tasks" style="vertical-align:middle;margin-right:8px;"> My Tasks</a>
+      <a href="update-task.html"><img src="../../icons/feature.icon.svg" class="nav-icon" width="18" height="18" alt="Update Task Status" style="vertical-align:middle;margin-right:8px;"> Update Task Status</a>
+      <a href="submit-report.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="Submit Site Report" style="vertical-align:middle;margin-right:8px;"> Submit Site Report</a>
+      <a href="messages.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="Messages" style="vertical-align:middle;margin-right:8px;"> Messages <span class="badge-count" id="msg-count">4</span></a>
+      <div class="sidebar-divider"></div>
+      <a href="settings.html" class="active"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="Settings" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+    </nav>`;
+}
+
+function loadProfile() {
+  const parts = user.name.split(' ');
+  document.getElementById('s-fname').value = parts[0] || '';
+  document.getElementById('s-lname').value = parts.slice(1).join(' ') || '';
+  document.getElementById('s-email').value = user.email || '';
+  document.getElementById('s-phone').value = user.phone || '';
+  attachProfileValidation();
+}
+
+function attachProfileValidation() {
+  const fnameEl = document.getElementById('s-fname');
+  const lnameEl = document.getElementById('s-lname');
+  const phoneEl = document.getElementById('s-phone');
+
+  [fnameEl, lnameEl].forEach(el => {
+    if (!el || el.dataset.validationAttached) return;
+    el.dataset.validationAttached = 'true';
+    el.addEventListener('input', () => {
+      const sanitized = sanitizeName(el.value);
+      if (el.value !== sanitized) el.value = sanitized;
+      clearError(el);
+    });
+  });
+
+  if (phoneEl && !phoneEl.dataset.validationAttached) {
+    phoneEl.dataset.validationAttached = 'true';
+    phoneEl.addEventListener('input', () => {
+      const sanitized = sanitizePhone(phoneEl.value);
+      if (phoneEl.value !== sanitized) phoneEl.value = sanitized;
+      clearError(phoneEl);
+    });
+  }
+}
+
+function saveProfile() {
+  const fnEl = document.getElementById('s-fname');
+  const lnEl = document.getElementById('s-lname');
+  const phEl = document.getElementById('s-phone');
+
+  fnEl.value = sanitizeName(fnEl.value);
+  lnEl.value = sanitizeName(lnEl.value);
+  phEl.value = sanitizePhone(phEl.value);
+
+  const fname = fnEl.value.trim();
+  const lname = lnEl.value.trim();
+  const email = document.getElementById('s-email').value.trim();
+  const phone = phEl.value.trim();
+
+  const emEl = document.getElementById('s-email');
+  clearError(fnEl); clearError(lnEl); clearError(emEl); clearError(phEl);
+  let valid = true;
+  if (!fname) { showError(fnEl,'First name is required'); valid=false; }
+  else if (!isValidName(fname)) { showError(fnEl,'First name should contain alphabets only'); valid=false; }
+  if (lname && !isValidName(lname)) { showError(lnEl,'Last name should contain alphabets only'); valid=false; }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError(emEl,'Valid email required'); valid=false; }
+  if (phone && !isValidPhone(phone)) { showError(phEl,'Phone number must be 10 digits and cannot be 0000000000'); valid=false; }
+  if (!valid) return;
+
+  // Check duplicate email
+  const dup = getAll('users').find(u => u.email === email && u.id !== user.id);
+  if (dup) { showError(emEl,'Email already in use'); return; }
+
+  const fullName = lname ? `${fname} ${lname}` : fname;
+  update('users', user.id, { name: fullName, email, phone, avatar: fullName.substring(0,2).toUpperCase() });
+  const updated = getById('users', user.id);
+  setCurrentUser(updated);
+  user = updated;
+  renderNavbar(user);
+
+  document.getElementById('save-modal-title').textContent = 'Changes Saved Successfully';
+  document.getElementById('save-modal-msg').textContent = 'Your profile has been updated.';
+  openModal('save-modal');
+}
+
+function updatePassword() {
+  const cur = document.getElementById('s-cur-pw').value;
+  const newPw = document.getElementById('s-new-pw').value;
+  const conf = document.getElementById('s-conf-pw').value;
+  const errEl = document.getElementById('pw-error');
+  errEl.style.display = 'none';
+
+  const curEl = document.getElementById('s-cur-pw');
+  const newEl = document.getElementById('s-new-pw');
+  const confEl = document.getElementById('s-conf-pw');
+  clearError(curEl); clearError(newEl); clearError(confEl);
+
+  let valid = true;
+  if (!cur) { showError(curEl,'Current password is required'); valid=false; }
+  if (!newPw) { showError(newEl,'New password is required'); valid=false; }
+  else if (newPw.length < 6) { showError(newEl,'Min 6 characters'); valid=false; }
+  if (!conf) { showError(confEl,'Please confirm your password'); valid=false; }
+  else if (newPw !== conf) { showError(confEl,'Passwords do not match'); valid=false; }
+  if (!valid) return;
+
+  const freshUser = getById('users', user.id);
+  if (freshUser.password !== cur) {
+    showError(curEl,'Incorrect current password');
+    return;
+  }
+  if (newPw === cur) { showError(newEl,'New password must be different'); return; }
+
+  update('users', user.id, { password: newPw });
+  document.getElementById('s-cur-pw').value = '';
+  document.getElementById('s-new-pw').value = '';
+  document.getElementById('s-conf-pw').value = '';
+
+  document.getElementById('save-modal-title').textContent = 'Password Updated';
+  document.getElementById('save-modal-msg').textContent = 'Your password has been changed successfully.';
+  openModal('save-modal');
+}
+</script>
+</body>
+</html>

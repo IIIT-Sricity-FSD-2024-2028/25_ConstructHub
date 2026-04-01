@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Task Details – ConstructHub</title>
+<link rel="stylesheet" href="../../css/main.css">
+</head>
+<body>
+<div class="app-layout">
+  <nav class="navbar" id="navbar"></nav>
+  <div class="app-body">
+    <aside class="sidebar" id="sidebar-nav"></aside>
+    <main class="main-content">
+      <div class="back-btn" onclick="history.back()">← Back</div>
+      <div id="task-detail-content"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Update Status Modal (for site engineer) -->
+<div id="update-status-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div><h2>Update Task Status</h2><p>Update progress and completion status</p></div>
+      <button class="modal-close" onclick="closeModal('update-status-modal')"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></button>
+    </div>
+    <div class="form-group"><label class="form-label">Completion Percentage <span class="req">*</span></label><input id="u-progress" type="number" class="form-input" min="0" max="100" placeholder="0-100" data-required data-min="0"></div>
+    <div class="form-group"><label class="form-label">Status <span class="req">*</span></label><select id="u-status" class="form-select" data-required><option value="">Select status</option><option>Pending</option><option>In Progress</option><option>Completed</option></select></div>
+    <div class="form-group"><label class="form-label">Remarks</label><textarea id="u-remarks" class="form-textarea" placeholder="Add any notes or updates..."></textarea></div>
+    <div class="modal-footer">
+      <button onclick="closeModal('update-status-modal')" class="btn btn-secondary">Cancel</button>
+      <button onclick="updateStatus()" class="btn btn-primary">✓ Update Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Success Modal -->
+<div id="success-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:380px;text-align:center">
+    <div style="width:60px;height:60px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px">✅</div>
+    <h2 style="font-family:var(--font-head);font-size:20px;margin-bottom:8px">Task Status Updated</h2>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px" id="success-msg">Foundation work has been marked as completed. The project manager will review it shortly.</p>
+    <button onclick="closeModal('success-modal');history.back()" class="btn btn-success btn-full">View All Tasks</button>
+  </div>
+</div>
+
+<script src="../../js/data.js"></script>
+<script src="../../js/utils.js"></script>
+<script>
+let user, task;
+window.onload = () => {
+  initDB();
+  user = requireAuth(['project_manager','site_engineer','finance_manager','superuser']);
+  if (!user) return;
+  renderNavbar(user);
+  renderSidebar();
+
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  task = getById('tasks', id);
+  if (!task) { document.getElementById('task-detail-content').innerHTML = '<div class="empty-state"><div class="empty-icon"><img src="../../icons/X.svg" alt="❌" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><h3>Task not found</h3></div>'; return; }
+  renderDetail();
+};
+
+function renderSidebar() {
+  const links = {
+    project_manager: [
+      {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'projects.html',icon:'📁',label:'Projects'},
+      {href:'tasks.html',icon:'✅',label:'Tasks',active:true},
+      {href:'reports.html',icon:'📋',label:'View Site Reports'},{href:'messages.html',icon:'💬',label:'Messages'},
+      {href:'settings.html',icon:'⚙️',label:'Settings'}
+    ],
+    site_engineer: [
+      {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'my-tasks.html',icon:'✅',label:'My Tasks',active:true},
+      {href:'update-task.html',icon:'<img src="../../icons/Edit.svg" alt="📝" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">',label:'Update Task Status'},{href:'submit-report.html',icon:'📋',label:'Submit Site Report'},
+      {href:'messages.html',icon:'💬',label:'Messages'},{href:'settings.html',icon:'⚙️',label:'Settings'}
+    ]
+  };
+  const roleLinks = links[user.role] || links.project_manager;
+  const sidebar = document.getElementById('sidebar-nav');
+  sidebar.innerHTML = `<nav class="sidebar-nav">${roleLinks.map(l=>`<a href="${l.href}" class="${l.active?'active':''}"><span class="nav-icon">${l.icon}</span> ${l.label}</a>`).join('<div class="sidebar-divider" style="display:${l===roleLinks[roleLinks.length-2]?'block':'none'}"></div>')}</nav>`;
+}
+
+function renderDetail() {
+  const isSE = user.role === 'site_engineer';
+  const isPM = user.role === 'project_manager' || user.role === 'superuser';
+  document.getElementById('task-detail-content').innerHTML = `
+    <div class="page-header-row">
+      <div class="page-header">
+        <h1>${task.title}</h1>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">${priorityBadge(task.priority)} ${statusBadge(task.status)}</div>
+      </div>
+      <div style="display:flex;gap:10px">
+        ${isSE ? `<button onclick="openModal('update-status-modal')" class="btn btn-primary">Update Status</button>` : ''}
+        ${isPM ? `<button onclick="window.location.href='tasks.html'" class="btn btn-secondary">← All Tasks</button>` : ''}
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:20px">
+      <div class="detail-section">
+        <h3>Task Information</h3>
+        <div class="detail-grid">
+          <div class="detail-item"><label>Task ID</label><span>${task.id}</span></div>
+          <div class="detail-item"><label>Project</label><span>${task.projectName}</span></div>
+          <div class="detail-item"><label>Assigned To</label><span>${task.assignedName}</span></div>
+          <div class="detail-item"><label>Priority</label><span>${priorityBadge(task.priority)}</span></div>
+          <div class="detail-item"><label>Start Date</label><span>${formatDate(task.startDate)}</span></div>
+          <div class="detail-item"><label>Deadline</label><span>${formatDate(task.deadline)}</span></div>
+        </div>
+      </div>
+      <div class="detail-section">
+        <h3>Progress</h3>
+        <div style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:13px;color:var(--text-muted)">Completion</span>
+            <span style="font-family:var(--font-head);font-weight:700;font-size:18px">${task.progress}%</span>
+          </div>
+          ${progressBar(task.progress)}
+        </div>
+        <div class="detail-item"><label>Current Status</label><span>${statusBadge(task.status)}</span></div>
+        ${task.remarks ? `<div class="detail-item" style="margin-top:12px"><label>Last Remarks</label><span>${task.remarks}</span></div>` : ''}
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <h3>Description</h3>
+      <p style="font-size:13.5px;line-height:1.7;color:var(--text-muted)">${task.description || 'No description provided.'}</p>
+    </div>
+
+    ${isSE ? `
+    <div class="detail-section" style="background:var(--primary-light);border:1px solid #fdba74">
+      <h3 style="color:var(--primary)">Quick Update</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Update your progress on this task</p>
+      <button onclick="openModal('update-status-modal')" class="btn btn-primary">Update Task Status</button>
+    </div>` : ''}
+  `;
+
+  // Pre-fill update modal
+  document.getElementById('u-progress').value = task.progress;
+  document.getElementById('u-status').value = task.status;
+  document.getElementById('u-remarks').value = task.remarks || '';
+}
+
+function updateStatus() {
+  const progress = document.getElementById('u-progress').value;
+  const status = document.getElementById('u-status').value;
+  const remarks = document.getElementById('u-remarks').value.trim();
+
+  // Validation
+  let valid = true;
+  const progEl = document.getElementById('u-progress');
+  const statEl = document.getElementById('u-status');
+  clearError(progEl); clearError(statEl);
+
+  if (!progress && progress !== '0') { showError(progEl, 'Please enter completion percentage'); valid = false; }
+  else if (Number(progress) < 0 || Number(progress) > 100) { showError(progEl, 'Progress must be between 0 and 100'); valid = false; }
+  if (!status) { showError(statEl, 'Please select a status'); valid = false; }
+  if (!valid) return;
+
+  update('tasks', task.id, { progress: Number(progress), status, remarks });
+  task = getById('tasks', task.id);
+  closeModal('update-status-modal');
+  document.getElementById('success-msg').textContent = `Task progress updated to ${progress}%. ${status === 'Completed' ? 'Task marked as completed.' : 'The project manager has been notified.'}`;
+  openModal('success-modal');
+  renderDetail();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Tasks – ConstructHub</title>
+<link rel="stylesheet" href="../../css/main.css">
+</head>
+<body>
+<div class="app-layout">
+  <nav class="navbar" id="navbar"></nav>
+  <div class="app-body">
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <a href="dashboard.html"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
+        <a href="my-tasks.html" class="active"><img src="../../icons/CheckCircle2.svg" class="nav-icon" width="18" height="18" alt="✅" style="vertical-align:middle;margin-right:8px;"> My Tasks</a>
+        <a href="update-task.html"><img src="../../icons/feature.icon.svg" class="nav-icon" width="18" height="18" alt="📝" style="vertical-align:middle;margin-right:8px;"> Update Task Status</a>
+        <a href="submit-report.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📋" style="vertical-align:middle;margin-right:8px;"> Submit Site Report</a>
+        <a href="messages.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Messages</a>
+        <div class="sidebar-divider"></div>
+        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header"><h1>My Tasks</h1><p>View and manage your assigned tasks</p></div>
+      <div class="filter-bar">
+        <input type="text" id="search" class="form-input" placeholder="Search tasks..." oninput="renderTasks()">
+        <select id="filter-status" class="form-select" onchange="renderTasks()">
+          <option value="">All Status</option><option>Pending</option><option>In Progress</option><option>Completed</option>
+        </select>
+        <select id="filter-priority" class="form-select" onchange="renderTasks()">
+          <option value="">All Priority</option><option>High</option><option>Medium</option><option>Low</option>
+        </select>
+      </div>
+      <div id="tasks-list"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Update Status Modal -->
+<div id="update-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div><h2>Update Task Status</h2><p>Update progress and completion status</p></div>
+      <button class="modal-close" onclick="closeModal('update-modal')"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></button>
+    </div>
+    <input type="hidden" id="u-task-id">
+    <div class="form-group"><label class="form-label">Task Name</label><input id="u-task-name" class="form-input" disabled></div>
+    <div class="form-group"><label class="form-label">Completion Percentage <span class="req">*</span></label><input id="u-progress" type="number" class="form-input" min="0" max="100" placeholder="0-100" data-required></div>
+    <div class="form-group"><label class="form-label">Status <span class="req">*</span></label><select id="u-status" class="form-select" data-required><option value="">Select status</option><option>Pending</option><option>In Progress</option><option>Completed</option></select></div>
+    <div class="form-group"><label class="form-label">Remarks</label><textarea id="u-remarks" class="form-textarea" placeholder="Add any notes or updates..."></textarea></div>
+    <div class="modal-footer">
+      <button onclick="closeModal('update-modal')" class="btn btn-secondary">Cancel</button>
+      <button onclick="submitUpdate()" class="btn btn-primary">✓ Update Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Success Modal -->
+<div id="success-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:380px;text-align:center">
+    <div style="width:60px;height:60px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px">✅</div>
+    <h2 style="font-family:var(--font-head);margin-bottom:8px">Task Status Updated</h2>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px">The project manager has been notified of your update.</p>
+    <button onclick="closeModal('success-modal')" class="btn btn-success btn-full">View All Tasks</button>
+  </div>
+</div>
+
+<script src="../../js/data.js"></script>
+<script src="../../js/utils.js"></script>
+<script>
+let user;
+window.onload = () => {
+  initDB();
+  user = requireAuth(['site_engineer']);
+  if (!user) return;
+  renderNavbar(user);
+  renderTasks();
+};
+
+function renderTasks() {
+  let tasks = getAll('tasks').filter(t => t.assignedTo === user.id);
+  const q = document.getElementById('search').value.toLowerCase();
+  const st = document.getElementById('filter-status').value;
+  const pr = document.getElementById('filter-priority').value;
+  if (q) tasks = tasks.filter(t => t.title.toLowerCase().includes(q) || t.projectName.toLowerCase().includes(q));
+  if (st) tasks = tasks.filter(t => t.status === st);
+  if (pr) tasks = tasks.filter(t => t.priority === pr);
+
+  const el = document.getElementById('tasks-list');
+  if (!tasks.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><h3>No tasks found</h3><p>Try adjusting your filters or check back later</p></div>'; return; }
+
+  el.innerHTML = tasks.map(t => `
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <strong style="font-size:15px">${t.title}</strong>
+            ${statusBadge(t.status)}
+          </div>
+          <div style="font-size:12.5px;color:var(--text-muted)">Project: ${t.projectName} &nbsp;·&nbsp; Task ID: ${t.id}</div>
+        </div>
+        ${priorityBadge(t.priority)}
+      </div>
+
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12.5px">
+          <strong>Progress</strong><span>${t.progress}%</span>
+        </div>
+        ${progressBar(t.progress)}
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;color:var(--text-muted)"><img src="../../icons/Clock.svg" alt="🕐" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> Due: ${formatDate(t.deadline)}</span>
+        <div style="display:flex;gap:8px">
+          <button onclick="openUpdate('${t.id}')" class="btn btn-primary btn-sm">Update Status</button>
+          <button onclick="window.location.href='task-detail.html?id=${t.id}'" class="btn btn-secondary btn-sm">View Details</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function openUpdate(taskId) {
+  const t = getById('tasks', taskId);
+  if (!t) return;
+  if (t.status === 'Completed') { showToast('This task is already completed.', 'info'); return; }
+  document.getElementById('u-task-id').value = t.id;
+  document.getElementById('u-task-name').value = t.title;
+  document.getElementById('u-progress').value = t.progress;
+  document.getElementById('u-status').value = t.status;
+  document.getElementById('u-remarks').value = t.remarks || '';
+  openModal('update-modal');
+}
+
+function submitUpdate() {
+  const progress = document.getElementById('u-progress').value;
+  const status = document.getElementById('u-status').value;
+  let valid = true;
+  const progEl = document.getElementById('u-progress');
+  const statEl = document.getElementById('u-status');
+  clearError(progEl); clearError(statEl);
+
+  if (progress === '') { showError(progEl, 'Please enter completion percentage'); valid = false; }
+  else if (Number(progress) < 0 || Number(progress) > 100) { showError(progEl, 'Must be between 0 and 100'); valid = false; }
+  if (!status) { showError(statEl, 'Please select a status'); valid = false; }
+  if (status === 'Completed' && Number(progress) < 100) {
+    if (!confirm('Mark as completed with less than 100% progress?')) return;
+  }
+  if (!valid) return;
+
+  const id = document.getElementById('u-task-id').value;
+  update('tasks', id, { progress: Number(progress), status, remarks: document.getElementById('u-remarks').value.trim() });
+  closeModal('update-modal');
+  openModal('success-modal');
+  renderTasks();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Payment Decisions – ConstructHub</title>
+<link rel="stylesheet" href="../../css/main.css">
+</head>
+<body>
+<div class="app-layout">
+  <nav class="navbar" id="navbar"></nav>
+  <div class="app-body">
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <a href="dashboard.html"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
+        <a href="project-progress.html"><span class="nav-icon"><img src="../../icons/TrendingUp.svg" alt="📊" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Project Progress</a>
+        <a href="reports.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📋" style="vertical-align:middle;margin-right:8px;"> Reports</a>
+        <a href="pending-bills.html"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="💵" style="vertical-align:middle;margin-right:8px;"> Pending Bills</a>
+        <a href="payment-decisions.html" class="active"><span class="nav-icon">💳</span> Payment Decisions</a>
+        <a href="feedback.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Feedback</a>
+        <a href="messages.html"><span class="nav-icon"><img src="../../icons/Send.svg" alt="📩" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Messages</a>
+        
+        <div class="sidebar-divider"></div>
+        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="back-btn" onclick="history.back()">← Back</div>
+      <div class="page-header"><h1>Payment Decisions</h1><p>View status of all payment decisions</p></div>
+      <div class="grid-2" style="margin-bottom:20px" id="summary-cards"></div>
+      <div id="decisions-list"></div>
+    </main>
+  </div>
+</div>
+<div id="detail-modal" class="modal-overlay">
+  <div class="modal-box modal-lg">
+    <div class="modal-header"><div><h2 id="d-id">Bill Details</h2></div><button class="modal-close" onclick="closeModal('detail-modal')"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></button></div>
+    <div id="d-content"></div>
+    <div class="modal-footer"><button onclick="closeModal('detail-modal')" class="btn btn-secondary">Close</button></div>
+  </div>
+</div>
+<script src="../../js/data.js"></script>
+<script src="../../js/utils.js"></script>
+<script>
+let user;
+window.onload = () => {
+  initDB();
+  user = requireAuth(['client']);
+  if (!user) return;
+  renderNavbar(user);
+  const bills = getAll('bills').filter(b => b.clientId === user.id);
+  const approved = bills.filter(b=>b.status==='Approved');
+  const rejected = bills.filter(b=>b.status==='Rejected');
+  document.getElementById('summary-cards').innerHTML = `
+    <div class="card" style="text-align:center"><div style="font-family:var(--font-head);font-size:36px;font-weight:800;color:var(--green)">${approved.length}</div><div style="color:var(--text-muted)">Approved Bills</div></div>
+    <div class="card" style="text-align:center"><div style="font-family:var(--font-head);font-size:36px;font-weight:800;color:var(--red)">${rejected.length}</div><div style="color:var(--text-muted)">Rejected Bills</div></div>`;
+  document.getElementById('decisions-list').innerHTML = bills.map(b=>`
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <div style="background:var(--bg);padding:8px;border-radius:8px;font-size:18px">💵</div>
+            <div><strong>Bill ID: ${b.id}</strong><div style="font-size:12px;color:var(--text-muted)">${b.projectName}</div></div>
+          </div>
+          <div class="detail-grid" style="grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:8px">
+            <div class="detail-item"><label>Amount</label><span style="color:var(--primary);font-weight:700">${formatCurrency(b.amount)}</span></div>
+            <div class="detail-item"><label>Decision Status</label><span>${statusBadge(b.status)}</span></div>
+            <div class="detail-item"><label>Decision Date</label><span>${b.decisionDate?formatDate(b.decisionDate):'Pending'}</span></div>
+          </div>
+        </div>
+        <button onclick="viewDetail('${b.id}')" class="btn btn-secondary btn-sm"><img src="../../icons/Eye.svg" alt="👁" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> View Details</button>
+      </div>
+    </div>`).join('') || '<div class="empty-state"><div class="empty-icon">💳</div><h3>No payment decisions yet</h3></div>';
+};
+
+function viewDetail(id) {
+  const b = getById('bills', id);
+  document.getElementById('d-id').textContent = b.id;
+  document.getElementById('d-content').innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-item"><label>Project</label><span>${b.projectName}</span></div>
+      <div class="detail-item"><label>Milestone</label><span>${b.milestone}</span></div>
+      <div class="detail-item"><label>Amount</label><span style="color:var(--primary);font-weight:700;font-size:18px">${formatCurrency(b.amount)}</span></div>
+      <div class="detail-item"><label>Status</label><span>${statusBadge(b.status)}</span></div>
+      <div class="detail-item"><label>Due Date</label><span>${formatDate(b.dueDate)}</span></div>
+      <div class="detail-item"><label>Decision Date</label><span>${b.decisionDate?formatDate(b.decisionDate):'—'}</span></div>
+    </div>
+    ${b.rejectionReason?`<div style="background:#fee2e2;border-radius:8px;padding:12px;margin-top:12px"><strong style="color:var(--red)">Rejection Reason:</strong><p style="margin-top:4px;font-size:13px">${b.rejectionReason}</p></div>`:''}
+    ${b.description?`<div class="divider"></div><p style="font-size:13.5px;color:var(--text-muted)">${b.description}</p>`:''}`;
+  openModal('detail-modal');
+}
+</script>
+</body>
+</html>

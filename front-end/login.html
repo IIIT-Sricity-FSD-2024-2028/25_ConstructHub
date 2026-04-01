@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign In - ConstructHub</title>
+<link rel="stylesheet" href="css/main.css">
+<style>
+body { background: white; }
+.login-layout { min-height: 100vh; display: grid; grid-template-columns: minmax(420px, 520px) 1fr; }
+.login-left { padding: 48px 64px; display: flex; flex-direction: column; justify-content: center; }
+.login-panel { width: 100%; max-width: 420px; }
+.login-right { background: linear-gradient(160deg, #0f172a 0%, #1e293b 55%, #334155 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 56px; color: white; position: relative; overflow: hidden; }
+.login-right::before { content: ''; position: absolute; width: 320px; height: 320px; border-radius: 50%; background: rgba(249,115,22,0.12); top: -80px; right: -100px; }
+.login-right::after { content: ''; position: absolute; width: 240px; height: 240px; border-radius: 50%; background: rgba(59,130,246,0.12); bottom: -70px; left: -80px; }
+.back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); margin-bottom: 36px; cursor: pointer; text-decoration: none; }
+.back-link:hover { color: var(--text); }
+.login-title { font-family: var(--font-head); font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+.login-sub { color: var(--text-muted); font-size: 14px; margin-bottom: 28px; }
+.login-form-card { background: white; border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 28px; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); }
+.login-helper { display: flex; align-items: center; gap: 10px; background: var(--bg); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 24px; font-size: 12.5px; color: var(--text-muted); }
+.login-helper strong { display: block; color: var(--text); font-size: 12.5px; margin-bottom: 2px; }
+.error-msg { background: #fee2e2; border: 1px solid #fecaca; color: var(--red); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 16px; display: none; }
+</style>
+</head>
+<body>
+<div class="login-layout">
+  <div class="login-left">
+    <div class="login-panel">
+      <a href="index.html" class="back-link">← Back to Home</a>
+      <h1 class="login-title">Sign in to your account</h1>
+      <p class="login-sub">Enter your email and password to continue to your workspace.</p>
+
+      <div class="login-form-card">
+        <div class="login-helper">
+          <img src="icons/Shield.svg" alt="Secure Login" style="width:18px;height:18px">
+          <div><strong>Secure access</strong>Your credentials are required to open your role dashboard.</div>
+        </div>
+
+        <div id="error-msg" class="error-msg"></div>
+
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" id="email" class="form-input" placeholder="your.email@company.com" data-required data-email>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <div style="position:relative">
+            <input type="password" id="password" class="form-input" placeholder="Enter your password" data-required>
+            <span id="pw-toggle" onclick="togglePw()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--text-muted)"><img src="icons/Eye.svg" alt="Toggle password" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="remember"> Remember me
+          </label>
+          <span onclick="openForgot()" style="color:var(--primary);font-size:13px;font-weight:600;cursor:pointer">Forgot Password?</span>
+        </div>
+        <button onclick="handleLogin()" class="btn btn-primary btn-full" style="padding:12px">Sign In</button>
+        <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--text-muted)">Don't have an account? <a href="pages/contact.html" style="color:var(--primary);font-weight:600">Contact Sales</a></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="login-right">
+    <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center">
+      <div style="margin-bottom:16px"><img src="icons/HardHat.svg" width="56" height="56" alt="logo"></div>
+      <h2 style="font-family:var(--font-head);font-size:34px;font-weight:800;margin-bottom:8px">ConstructHub</h2>
+      <div style="font-size:18px;font-weight:600;text-align:center;line-height:1.8;opacity:0.9">Build Smarter.<br>Manage Better.<br>Deliver Faster.</div>
+      <p style="color:rgba(255,255,255,0.55);font-size:13.5px;margin-top:20px;max-width:320px;text-align:center;line-height:1.7">The all-in-one construction management platform designed to streamline your projects from planning to completion.</p>
+      <div style="display:flex;gap:36px;margin-top:44px">
+        <div style="text-align:center"><div style="font-family:var(--font-head);font-size:28px;font-weight:800;color:var(--primary)">500+</div><div style="font-size:12px;opacity:0.6;margin-top:2px">Projects</div></div>
+        <div style="text-align:center"><div style="font-family:var(--font-head);font-size:28px;font-weight:800;color:#3b82f6">98%</div><div style="font-size:12px;opacity:0.6;margin-top:2px">On Time</div></div>
+        <div style="text-align:center"><div style="font-family:var(--font-head);font-size:28px;font-weight:800;color:#10b981">50K+</div><div style="font-size:12px;opacity:0.6;margin-top:2px">Users</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="forgot-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:400px;text-align:center">
+    <div style="font-size:40px;margin-bottom:12px">💬</div>
+    <h2 style="font-family:var(--font-head);font-size:20px;margin-bottom:8px">Get Password Reset Mail</h2>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px">Enter your Mail ID below and we'll send you a link to reset your password.</p>
+    <div class="form-group" style="text-align:left">
+      <label class="form-label">Email Address <span class="req">*</span></label>
+      <input type="email" id="forgot-email" class="form-input" placeholder="your.email@company.com">
+      <span id="forgot-error" class="field-error" style="display:none">Please enter a valid email address</span>
+    </div>
+    <button onclick="submitForgot()" class="btn btn-primary btn-full" style="margin-bottom:10px">Submit</button>
+    <button onclick="closeModal('forgot-modal')" class="btn btn-secondary btn-full">Dismiss</button>
+  </div>
+</div>
+
+<div id="mailsent-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:380px;text-align:center">
+    <div style="width:60px;height:60px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px">✓</div>
+    <h2 style="font-family:var(--font-head);font-size:20px;margin-bottom:8px">Mail Sent Successfully!</h2>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px">Check your inbox for the password reset link.</p>
+    <button onclick="closeModal('mailsent-modal');window.location.href='login.html'" class="btn btn-success btn-full">Go to Login page</button>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/utils.js"></script>
+<script>
+function togglePw() {
+  const input = document.getElementById('password');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+function handleLogin() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value.trim();
+  const errEl = document.getElementById('error-msg');
+  errEl.style.display = 'none';
+
+  if (!email || !password) {
+    errEl.textContent = 'Please enter both email and password.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errEl.textContent = 'Please enter a valid email address.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const users = getAll('users');
+  const user = users.find(u => u.email === email && u.password === password);
+
+  if (!user) {
+    errEl.textContent = 'Invalid email or password. Please try again.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (user.status === 'inactive') {
+    errEl.textContent = 'Your account is inactive. Please contact admin.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  setCurrentUser(user);
+  redirectByRole(user.role);
+}
+
+function redirectByRole(role) {
+  const map = {
+    'superuser': 'pages/superuser/dashboard.html',
+    'project_manager': 'pages/project-manager/dashboard.html',
+    'site_engineer': 'pages/site-engineer/dashboard.html',
+    'finance_manager': 'pages/finance-manager/dashboard.html',
+    'client': 'pages/client/dashboard.html'
+  };
+  window.location.href = map[role] || 'login.html';
+}
+
+function openForgot() { openModal('forgot-modal'); }
+
+function submitForgot() {
+  const email = document.getElementById('forgot-email').value.trim();
+  const errEl = document.getElementById('forgot-error');
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+  closeModal('forgot-modal');
+  openModal('mailsent-modal');
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+</script>
+</body>
+</html>
