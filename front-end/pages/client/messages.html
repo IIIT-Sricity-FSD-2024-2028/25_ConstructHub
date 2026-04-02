@@ -87,7 +87,7 @@ function renderSidebar() {
 }
 
 function getContacts() {
-  const users = getAll('users').filter(u => u.id !== user.id && u.status === 'active');
+  const users = getAll('users').filter(u => u.id !== user.id && u.status === 'active' && u.role !== 'superuser');
   return users;
 }
 

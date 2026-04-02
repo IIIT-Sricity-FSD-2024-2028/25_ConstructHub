@@ -1288,6 +1288,15 @@ function saveProject() {
   const pStatus = document.getElementById('p-status');
   const pProgress = document.getElementById('p-progress');
 
+  if (pProgress) {
+    clearError(pProgress);
+    const pVal = Number(pProgress.value);
+    if (pProgress.value !== '' && (Number.isNaN(pVal) || pVal < 0 || pVal > 100)) {
+      showError(pProgress, 'Progress must be between 0 and 100');
+      return;
+    }
+  }
+
   const data = {
     name,
     clientId: clientId,
@@ -1361,6 +1370,18 @@ function saveBillSU() {
   const projEl = document.getElementById('b-project');
   if (projEl) clearError(projEl);
   if (projEl && !projEl.value) { showError(projEl,'Required'); return; }
+
+  let pId = null;
+  if (editingId) pId = getById('bills', editingId)?.projectId;
+  else if (projEl) pId = projEl.value;
+
+  if (pId) {
+    const proj = getById('projects', pId);
+    if (proj && amount > Number(proj.budget || 0)) {
+      showError(amountEl, `Bill amount cannot exceed project budget (${formatCurrency(proj.budget)})`);
+      return;
+    }
+  }
 
   const data = {
     amount,
