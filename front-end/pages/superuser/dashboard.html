@@ -333,6 +333,7 @@ function openAddUser() {
   editingId = null;
   document.getElementById('su-modal-title').textContent = 'Add New User';
   document.getElementById('su-save-btn').textContent = 'Add User';
+  document.getElementById('su-save-btn').style.display = 'block';
   document.getElementById('su-modal-body').innerHTML = `
     <div class="form-row">
       <div class="form-group"><label class="form-label">Full Name <span class="req">*</span></label><input id="u-name" class="form-input" placeholder="Full name" data-required inputmode="text" autocomplete="name"></div>
@@ -369,6 +370,7 @@ function editUser(id) {
   editingId = id;
   document.getElementById('su-modal-title').textContent = 'Edit User';
   document.getElementById('su-save-btn').textContent = 'Save Changes';
+  document.getElementById('su-save-btn').style.display = 'block';
   document.getElementById('su-modal-body').innerHTML = `
     <div class="form-row">
       <div class="form-group"><label class="form-label">Full Name <span class="req">*</span></label><input id="u-name" class="form-input" value="${u.name}" data-required inputmode="text" autocomplete="name"></div>
@@ -481,7 +483,7 @@ function projectForm(p, isEdit=false) {
       <div class="form-group"><label class="form-label">Client Phone <span class="req">*</span></label><input id="p-client-phone" class="form-input" value="${client?client.phone:''}" data-required inputmode="numeric" maxlength="10" autocomplete="tel"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Client Password</label><input id="p-client-password" type="password" class="form-input" placeholder="${isEdit ? 'Leave blank to keep current' : 'Min 6 chars'}"></div>
+      <div class="form-group" style="display:${isEdit ? 'none' : 'block'}"><label class="form-label">Client Password</label><input id="p-client-password" type="password" class="form-input" placeholder="Min 6 chars"></div>
       <div class="form-group"><label class="form-label">Location <span class="req">*</span></label><input id="p-location" class="form-input" value="${p.location||''}" data-required></div>
     </div>
       ${isEdit ? `
@@ -499,10 +501,11 @@ function projectForm(p, isEdit=false) {
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Budget (₹) <span class="req">*</span></label><input id="p-budget" type="number" class="form-input" value="${p.budget||''}" data-required data-min="1" min="1"></div>
+      <div class="form-group"><label class="form-label">Team Size</label><input id="p-team" type="number" class="form-input" value="${p.teamSize||''}" placeholder="e.g., 20" min="1"></div>
+    </div>
       ${isEdit ? `
       <div class="form-group"><label class="form-label">Progress (%)</label><input id="p-progress" type="number" class="form-input" value="${p.progress||0}" min="0" max="100"></div>
       ` : '<div class="form-group"></div>'}
-    </div>
     <div class="form-group"><label class="form-label">Description</label><textarea id="p-desc" class="form-textarea">${p.description||''}</textarea></div>`;
 }
 
@@ -1293,6 +1296,7 @@ function saveProject() {
     startDate: document.getElementById('p-start').value,
     endDate: document.getElementById('p-end').value,
     budget: Number(budgetEl.value),
+    teamSize: Number(document.getElementById('p-team').value) || 1,
     description: document.getElementById('p-desc').value.trim(),
     spent: 0
   };

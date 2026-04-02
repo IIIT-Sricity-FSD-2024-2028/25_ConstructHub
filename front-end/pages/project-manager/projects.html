@@ -126,6 +126,7 @@ function openAddProjectModal() {
   document.getElementById('p-client-phone').value = '';
   document.getElementById('p-client-password').value = '';
   document.getElementById('p-client-password').placeholder = 'Min 6 chars';
+  document.getElementById('p-client-password').parentElement.style.display = 'block';
   document.getElementById('p-location').value = '';
   document.getElementById('p-start').value = '';
   document.getElementById('p-end').value = '';
@@ -202,6 +203,7 @@ function editProject(id) {
   document.getElementById('p-client-phone').value = client ? client.phone : '';
   document.getElementById('p-client-password').value = '';
   document.getElementById('p-client-password').placeholder = 'Leave blank to keep current';
+  document.getElementById('p-client-password').parentElement.style.display = 'none';
   document.getElementById('p-status').parentElement.style.display = 'block';
   document.getElementById('p-progress').parentElement.style.display = 'block';
   attachProjectValidation();

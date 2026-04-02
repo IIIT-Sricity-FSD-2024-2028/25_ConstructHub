@@ -56,11 +56,7 @@ function renderStats() {
   const expenses = getAll('expenses') || [];
   
   const totalBudget = projects.reduce((s,p) => s + p.budget, 0);
-  const utilized = projects.reduce((s,p) => {
-    const pBills = bills.filter(b => b.projectId === p.id && b.status === 'Approved').reduce((sum, b) => sum + b.amount, 0);
-    const pExp = expenses.filter(e => e.projectId === p.id).reduce((sum, e) => sum + e.amount, 0);
-    return s + pBills + pExp;
-  }, 0);
+  const utilized = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const percentUtilized = totalBudget ? Math.round((utilized/totalBudget)*100) : 0;
 
   const pending = bills.filter(b => b.status === 'Pending').length;

@@ -5,16 +5,16 @@
 // ─── Seed Data ────────────────────────────────────────────────────────────────
 const SEED = {
   users: [
-    { id:"U001", name:"Super Admin",   email:"super@constructhub.com",  password:"123456", role:"superuser",       phone:"+91 98000 00001", avatar:"SA", status:"active",   createdAt:"2026-01-01" },
-    { id:"U002", name:"Rajesh Kumar",  email:"rajesh@constructhub.com", password:"123456", role:"project_manager", phone:"+91 98765 43210", avatar:"RK", status:"active",   createdAt:"2026-01-05" },
-    { id:"U003", name:"Priya Sharma",  email:"priya@constructhub.com",  password:"123456", role:"site_engineer",   phone:"+91 98765 43211", avatar:"PS", status:"active",   createdAt:"2026-01-06" },
-    { id:"U004", name:"Amit Verma",    email:"amit@constructhub.com",   password:"123456", role:"finance_manager", phone:"+91 98765 43212", avatar:"AV", status:"active",   createdAt:"2026-01-07" },
-    { id:"U005", name:"Vikram Patel",  email:"vikram@constructhub.com", password:"123456", role:"client",          phone:"+91 98765 43213", avatar:"VP", status:"active",   createdAt:"2026-01-10" },
-    { id:"U006", name:"Amit Sharma",   email:"amits@constructhub.com",  password:"123456", role:"site_engineer",   phone:"+91 98765 43214", avatar:"AS", status:"active",   createdAt:"2026-01-12" },
-    { id:"U007", name:"John Doe",      email:"john@example.com",        password:"123456", role:"client",          phone:"+91 98765 43215", avatar:"JD", status:"inactive", createdAt:"2026-01-15" },
+    { id:"U001", name:"Super Admin",   email:"super@ch.com",  password:"123456", role:"superuser",       phone:"+91 98000 00001", avatar:"SA", status:"active",   createdAt:"2026-01-01" },
+    { id:"U002", name:"Rajesh Kumar",  email:"rajesh@ch.com", password:"123456", role:"project_manager", phone:"+91 98765 43210", avatar:"RK", status:"active",   createdAt:"2026-01-05" },
+    { id:"U003", name:"Priya Sharma",  email:"priya@ch.com",  password:"123456", role:"site_engineer",   phone:"+91 98765 43211", avatar:"PS", status:"active",   createdAt:"2026-01-06" },
+    { id:"U004", name:"Amit Verma",    email:"amit@ch.com",   password:"123456", role:"finance_manager", phone:"+91 98765 43212", avatar:"AV", status:"active",   createdAt:"2026-01-07" },
+    { id:"U005", name:"Vikram Patel",  email:"vikram@ch.com", password:"123456", role:"client",          phone:"+91 98765 43213", avatar:"VP", status:"active",   createdAt:"2026-01-10" },
+    { id:"U006", name:"Amit Sharma",   email:"amits@ch.com",  password:"123456", role:"site_engineer",   phone:"+91 98765 43214", avatar:"AS", status:"active",   createdAt:"2026-01-12" },
+    { id:"U007", name:"John Doe",      email:"john@ch.com",        password:"123456", role:"client",          phone:"+91 98765 43215", avatar:"JD", status:"inactive", createdAt:"2026-01-15" },
 
-    { id:"U008", name:"Sanjay Verma",  email:"sanjay@constructhub.com", password:"123456", role:"client",          phone:"+91 98765 88811", avatar:"SV", status:"active",   createdAt:"2026-02-10" },
-    { id:"U009", name:"Priya Menon",   email:"priyam@constructhub.com", password:"123456", role:"client",          phone:"+91 98765 99922", avatar:"PM", status:"active",   createdAt:"2026-02-12" }
+    { id:"U008", name:"Sanjay Verma",  email:"sanjay@ch.com", password:"123456", role:"client",          phone:"+91 98765 88811", avatar:"SV", status:"active",   createdAt:"2026-02-10" },
+    { id:"U009", name:"Priya Menon",   email:"priyam@ch.com", password:"123456", role:"client",          phone:"+91 98765 99922", avatar:"PM", status:"active",   createdAt:"2026-02-12" }
   ],
   projects: [
     { id:"P001", name:"Skyline Tower",         location:"Mumbai, Maharashtra",  clientId:"U005", clientName:"Vikram Patel", managerId:"U002", budget:25000000, spent:18750000, progress:75, status:"On Track", startDate:"2026-01-01", endDate:"2026-04-30", teamSize:24, allocations: {Materials:12000000, Labor:8000000, Equipment:3000000, Other:2000000}, description:"Residential high-rise construction project in South Mumbai." },
@@ -42,8 +42,8 @@ const SEED = {
   bills: [
     { id:"BILL-2024-001", projectId:"P001", projectName:"Skyline Tower",          clientId:"U005", clientName:"Vikram Patel", amount:2500000, milestone:"Foundation Complete",    description:"Billing for completed foundation work including materials and labor.", generatedBy:"U004", status:"Approved", decisionDate:"2026-03-05", dueDate:"2026-03-11", rejectionReason:"" },
     { id:"BILL-2024-002", projectId:"P002", projectName:"Metro Plaza",            clientId:"U007", clientName:"John Doe",     amount:3750000, milestone:"Structure Phase 1",      description:"Billing for completed structural work phase 1.",                      generatedBy:"U004", status:"Pending",  decisionDate:"",           dueDate:"2026-03-12", rejectionReason:"" },
-    { id:"BILL-2024-003", projectId:"P003", projectName:"Green Valley Residency", clientId:"U005", clientName:"Vikram Patel", amount:1800000, milestone:"Foundation & Site Prep", description:"Site preparation and foundation billing.",                            generatedBy:"U004", status:"Approved", decisionDate:"2026-03-02", dueDate:"2026-03-08", rejectionReason:"" },
-    { id:"BILL-2024-004", projectId:"P004", projectName:"Tech Park Complex",      clientId:"U007", clientName:"John Doe",     amount:4200000, milestone:"Site Clearing",          description:"Site clearing and initial groundwork.",                               generatedBy:"U004", status:"Rejected", decisionDate:"2026-03-01", dueDate:"2026-03-07", rejectionReason:"Amount disputed. Requesting revised invoice." },
+    { id:"BILL-2024-003", projectId:"P003", projectName:"Green Valley Residency", clientId:"U008", clientName:"Sanjay Verma", amount:1800000, milestone:"Foundation & Site Prep", description:"Site preparation and foundation billing.",                            generatedBy:"U004", status:"Approved", decisionDate:"2026-03-02", dueDate:"2026-03-08", rejectionReason:"" },
+    { id:"BILL-2024-004", projectId:"P004", projectName:"Tech Park Complex",      clientId:"U009", clientName:"Priya Menon",     amount:4200000, milestone:"Site Clearing",          description:"Site clearing and initial groundwork.",                               generatedBy:"U004", status:"Rejected", decisionDate:"2026-03-01", dueDate:"2026-03-07", rejectionReason:"Amount disputed. Requesting revised invoice." },
     { id:"BILL-2024-005", projectId:"P002", projectName:"Metro Plaza",            clientId:"U007", clientName:"John Doe",     amount:5600000, milestone:"Structure Phase 2",      description:"Billing for structure phase 2 completion.",                           generatedBy:"U004", status:"Pending",  decisionDate:"",           dueDate:"2026-03-18", rejectionReason:"" }
   ],
   expenses: [
