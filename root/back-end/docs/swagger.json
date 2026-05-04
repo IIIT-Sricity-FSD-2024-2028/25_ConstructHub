@@ -1,0 +1,2662 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "AppController_getHello",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/users": {
+      "get": {
+        "operationId": "UsersController_findAll",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Required for all endpoints except GET /users login lookup.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all users."
+          }
+        },
+        "summary": "Retrieve all users",
+        "tags": [
+          "users"
+        ]
+      },
+      "post": {
+        "operationId": "UsersController_create",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Required for all endpoints except GET /users login lookup.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The user has been successfully created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateUserDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input."
+          },
+          "403": {
+            "description": "Forbidden."
+          }
+        },
+        "summary": "Create a new user (Superuser, Project Manager)",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "operationId": "UsersController_findOne",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Required for all endpoints except GET /users login lookup.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The user details."
+          },
+          "404": {
+            "description": "User not found."
+          }
+        },
+        "summary": "Retrieve a specific user by ID",
+        "tags": [
+          "users"
+        ]
+      },
+      "patch": {
+        "operationId": "UsersController_update",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Required for all endpoints except GET /users login lookup.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The user has been successfully updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateUserDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "User not found."
+          }
+        },
+        "summary": "Update an existing user (All authenticated roles)",
+        "tags": [
+          "users"
+        ]
+      },
+      "delete": {
+        "operationId": "UsersController_remove",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Required for all endpoints except GET /users login lookup.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The user has been successfully deleted."
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "User not found."
+          }
+        },
+        "summary": "Delete a user (Superuser only)",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/projects": {
+      "get": {
+        "operationId": "ProjectsController_findAll",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all projects."
+          }
+        },
+        "summary": "Retrieve all projects",
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "operationId": "ProjectsController_create",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The project has been successfully created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateProjectDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input."
+          },
+          "403": {
+            "description": "Forbidden."
+          }
+        },
+        "summary": "Create a new project (Superuser, Project Manager)",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/{id}": {
+      "get": {
+        "operationId": "ProjectsController_findOne",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project details."
+          },
+          "404": {
+            "description": "Project not found."
+          }
+        },
+        "summary": "Retrieve a specific project by ID",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "operationId": "ProjectsController_update",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The project has been successfully updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateProjectDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Project not found."
+          }
+        },
+        "summary": "Update an existing project (Superuser, Project Manager, Site Engineer, Finance Manager)",
+        "tags": [
+          "projects"
+        ]
+      },
+      "delete": {
+        "operationId": "ProjectsController_remove",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project has been successfully deleted."
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Project not found."
+          }
+        },
+        "summary": "Delete a project (Superuser, Project Manager)",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/tasks": {
+      "get": {
+        "operationId": "TasksController_findAll",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all tasks."
+          }
+        },
+        "summary": "Retrieve all tasks",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "post": {
+        "operationId": "TasksController_create",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The task has been successfully created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateTaskDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input."
+          },
+          "403": {
+            "description": "Forbidden."
+          }
+        },
+        "summary": "Create a new task (Superuser, Project Manager)",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/tasks/{id}": {
+      "get": {
+        "operationId": "TasksController_findOne",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The task details."
+          },
+          "404": {
+            "description": "Task not found."
+          }
+        },
+        "summary": "Retrieve a specific task by ID",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "patch": {
+        "operationId": "TasksController_update",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The task has been successfully updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateTaskDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Task not found."
+          }
+        },
+        "summary": "Update an existing task (Superuser, Project Manager, Site Engineer)",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "delete": {
+        "operationId": "TasksController_remove",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The task has been successfully deleted."
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Task not found."
+          }
+        },
+        "summary": "Delete a task (Superuser, Project Manager)",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/reports": {
+      "get": {
+        "operationId": "ReportsController_findAll",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all reports."
+          }
+        },
+        "summary": "Retrieve all reports",
+        "tags": [
+          "reports"
+        ]
+      },
+      "post": {
+        "operationId": "ReportsController_create",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The report has been successfully created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateReportDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input."
+          },
+          "403": {
+            "description": "Forbidden."
+          }
+        },
+        "summary": "Create a new report (Superuser, Project Manager, Site Engineer)",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/{id}": {
+      "get": {
+        "operationId": "ReportsController_findOne",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report details."
+          },
+          "404": {
+            "description": "Report not found."
+          }
+        },
+        "summary": "Retrieve a specific report by ID",
+        "tags": [
+          "reports"
+        ]
+      },
+      "patch": {
+        "operationId": "ReportsController_update",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The report has been successfully updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateReportDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Report not found."
+          }
+        },
+        "summary": "Update an existing report (Superuser, Project Manager, Site Engineer)",
+        "tags": [
+          "reports"
+        ]
+      },
+      "delete": {
+        "operationId": "ReportsController_remove",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report has been successfully deleted."
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Report not found."
+          }
+        },
+        "summary": "Delete a report (Superuser, Project Manager)",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/bills": {
+      "get": {
+        "operationId": "BillsController_findAll",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all bills."
+          }
+        },
+        "summary": "Retrieve all bills",
+        "tags": [
+          "bills"
+        ]
+      },
+      "post": {
+        "operationId": "BillsController_create",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBillDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The bill has been successfully created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateBillDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input."
+          },
+          "403": {
+            "description": "Forbidden."
+          }
+        },
+        "summary": "Create a new bill (Superuser, Finance Manager, Project Manager)",
+        "tags": [
+          "bills"
+        ]
+      }
+    },
+    "/bills/{id}": {
+      "get": {
+        "operationId": "BillsController_findOne",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bill details."
+          },
+          "404": {
+            "description": "Bill not found."
+          }
+        },
+        "summary": "Retrieve a specific bill by ID",
+        "tags": [
+          "bills"
+        ]
+      },
+      "patch": {
+        "operationId": "BillsController_update",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBillDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The bill has been successfully updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateBillDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Bill not found."
+          }
+        },
+        "summary": "Update an existing bill (Superuser, Finance Manager, Project Manager, Client)",
+        "tags": [
+          "bills"
+        ]
+      },
+      "delete": {
+        "operationId": "BillsController_remove",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bill has been successfully deleted."
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Bill not found."
+          }
+        },
+        "summary": "Delete a bill (Superuser, Finance Manager)",
+        "tags": [
+          "bills"
+        ]
+      }
+    },
+    "/expenses": {
+      "get": {
+        "operationId": "ExpensesController_findAll",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all expenses."
+          }
+        },
+        "summary": "Retrieve all expenses",
+        "tags": [
+          "expenses"
+        ]
+      },
+      "post": {
+        "operationId": "ExpensesController_create",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExpenseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The expense has been successfully created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateExpenseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input."
+          },
+          "403": {
+            "description": "Forbidden."
+          }
+        },
+        "summary": "Create a new expense (Superuser, Finance Manager)",
+        "tags": [
+          "expenses"
+        ]
+      }
+    },
+    "/expenses/{id}": {
+      "get": {
+        "operationId": "ExpensesController_findOne",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The expense details."
+          },
+          "404": {
+            "description": "Expense not found."
+          }
+        },
+        "summary": "Retrieve a specific expense by ID",
+        "tags": [
+          "expenses"
+        ]
+      },
+      "patch": {
+        "operationId": "ExpensesController_update",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateExpenseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The expense has been successfully updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateExpenseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Expense not found."
+          }
+        },
+        "summary": "Update an existing expense (Superuser, Finance Manager)",
+        "tags": [
+          "expenses"
+        ]
+      },
+      "delete": {
+        "operationId": "ExpensesController_remove",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The expense has been successfully deleted."
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Expense not found."
+          }
+        },
+        "summary": "Delete an expense (Superuser, Finance Manager)",
+        "tags": [
+          "expenses"
+        ]
+      }
+    },
+    "/messages": {
+      "get": {
+        "operationId": "MessagesController_findAll",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all messages."
+          }
+        },
+        "summary": "Retrieve all messages",
+        "tags": [
+          "messages"
+        ]
+      },
+      "post": {
+        "operationId": "MessagesController_create",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The message has been successfully created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateMessageDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input."
+          },
+          "403": {
+            "description": "Forbidden."
+          }
+        },
+        "summary": "Create a new message",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/messages/{id}": {
+      "get": {
+        "operationId": "MessagesController_findOne",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The message details."
+          },
+          "404": {
+            "description": "Message not found."
+          }
+        },
+        "summary": "Retrieve a specific message by ID",
+        "tags": [
+          "messages"
+        ]
+      },
+      "patch": {
+        "operationId": "MessagesController_update",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The message has been successfully updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateMessageDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Message not found."
+          }
+        },
+        "summary": "Update an existing message",
+        "tags": [
+          "messages"
+        ]
+      },
+      "delete": {
+        "operationId": "MessagesController_remove",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The message has been successfully deleted."
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Message not found."
+          }
+        },
+        "summary": "Delete a message",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/notifications": {
+      "get": {
+        "operationId": "NotificationsController_findAll",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all notifications."
+          }
+        },
+        "summary": "Retrieve all notifications",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "post": {
+        "operationId": "NotificationsController_create",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNotificationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The notification has been successfully created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateNotificationDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input."
+          },
+          "403": {
+            "description": "Forbidden."
+          }
+        },
+        "summary": "Create a new notification",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/notifications/{id}": {
+      "get": {
+        "operationId": "NotificationsController_findOne",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The notification details."
+          },
+          "404": {
+            "description": "Notification not found."
+          }
+        },
+        "summary": "Retrieve a specific notification by ID",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "patch": {
+        "operationId": "NotificationsController_update",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNotificationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The notification has been successfully updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateNotificationDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Notification not found."
+          }
+        },
+        "summary": "Update an existing notification",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "delete": {
+        "operationId": "NotificationsController_remove",
+        "parameters": [
+          {
+            "name": "x-role",
+            "in": "header",
+            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The notification has been successfully deleted."
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Notification not found."
+          }
+        },
+        "summary": "Delete a notification",
+        "tags": [
+          "notifications"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "ConstructHub API",
+    "description": "ConstructHub Construction Management Platform API.\n\n**How to use:** Click \"Try it out\" on any endpoint, fill in the `x-role` header field with one of: `superuser`, `project_manager`, `site_engineer`, `finance_manager`, `client`, then click Execute.",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "schemas": {
+      "CreateUserDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Full name of the user",
+            "example": "Rajesh Kumar"
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address of the user",
+            "example": "rajesh@ch.com"
+          },
+          "password": {
+            "type": "string",
+            "description": "Password for the user",
+            "example": "123456"
+          },
+          "role": {
+            "type": "string",
+            "description": "Role of the user",
+            "enum": [
+              "superuser",
+              "project_manager",
+              "site_engineer",
+              "finance_manager",
+              "client"
+            ]
+          },
+          "phone": {
+            "type": "string",
+            "description": "Phone number of the user",
+            "example": "+91 98765 43210"
+          },
+          "avatar": {
+            "type": "string",
+            "description": "Avatar initials or URL",
+            "example": "RK"
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the user",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "default": "active"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Date of creation",
+            "example": "2026-01-05"
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "password",
+          "role",
+          "phone",
+          "status"
+        ]
+      },
+      "UpdateUserDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Full name of the user",
+            "example": "Rajesh Kumar"
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address of the user",
+            "example": "rajesh@ch.com"
+          },
+          "password": {
+            "type": "string",
+            "description": "Password for the user",
+            "example": "123456"
+          },
+          "role": {
+            "type": "string",
+            "description": "Role of the user",
+            "enum": [
+              "superuser",
+              "project_manager",
+              "site_engineer",
+              "finance_manager",
+              "client"
+            ]
+          },
+          "phone": {
+            "type": "string",
+            "description": "Phone number of the user",
+            "example": "+91 98765 43210"
+          },
+          "avatar": {
+            "type": "string",
+            "description": "Avatar initials or URL",
+            "example": "RK"
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the user",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "default": "active"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Date of creation",
+            "example": "2026-01-05"
+          }
+        }
+      },
+      "CreateProjectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the project",
+            "example": "Skyline Tower"
+          },
+          "location": {
+            "type": "string",
+            "description": "Location of the project",
+            "example": "Mumbai, Maharashtra"
+          },
+          "clientId": {
+            "type": "string",
+            "description": "Client ID associated with the project",
+            "example": "U005"
+          },
+          "clientName": {
+            "type": "string",
+            "description": "Name of the client",
+            "example": "Vikram Patel"
+          },
+          "managerId": {
+            "type": "string",
+            "description": "Manager ID associated with the project",
+            "example": "U002"
+          },
+          "budget": {
+            "type": "number",
+            "description": "Total budget of the project",
+            "example": 25000000
+          },
+          "spent": {
+            "type": "number",
+            "description": "Amount spent so far",
+            "example": 18750000
+          },
+          "progress": {
+            "type": "number",
+            "description": "Progress percentage",
+            "example": 75
+          },
+          "status": {
+            "type": "string",
+            "description": "Current status of the project",
+            "example": "On Track"
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Start date of the project",
+            "example": "2026-01-01"
+          },
+          "endDate": {
+            "type": "string",
+            "description": "End date of the project",
+            "example": "2026-04-30"
+          },
+          "teamSize": {
+            "type": "number",
+            "description": "Total team size",
+            "example": 24
+          },
+          "allocations": {
+            "type": "object",
+            "description": "Budget allocations",
+            "example": {
+              "Materials": 12000000,
+              "Labor": 8000000
+            }
+          },
+          "description": {
+            "type": "string",
+            "description": "Project description",
+            "example": "Residential high-rise"
+          }
+        },
+        "required": [
+          "name",
+          "location",
+          "clientId",
+          "managerId",
+          "budget",
+          "spent",
+          "progress",
+          "status",
+          "startDate",
+          "endDate",
+          "teamSize",
+          "allocations",
+          "description"
+        ]
+      },
+      "UpdateProjectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the project",
+            "example": "Skyline Tower"
+          },
+          "location": {
+            "type": "string",
+            "description": "Location of the project",
+            "example": "Mumbai, Maharashtra"
+          },
+          "clientId": {
+            "type": "string",
+            "description": "Client ID associated with the project",
+            "example": "U005"
+          },
+          "clientName": {
+            "type": "string",
+            "description": "Name of the client",
+            "example": "Vikram Patel"
+          },
+          "managerId": {
+            "type": "string",
+            "description": "Manager ID associated with the project",
+            "example": "U002"
+          },
+          "budget": {
+            "type": "number",
+            "description": "Total budget of the project",
+            "example": 25000000
+          },
+          "spent": {
+            "type": "number",
+            "description": "Amount spent so far",
+            "example": 18750000
+          },
+          "progress": {
+            "type": "number",
+            "description": "Progress percentage",
+            "example": 75
+          },
+          "status": {
+            "type": "string",
+            "description": "Current status of the project",
+            "example": "On Track"
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Start date of the project",
+            "example": "2026-01-01"
+          },
+          "endDate": {
+            "type": "string",
+            "description": "End date of the project",
+            "example": "2026-04-30"
+          },
+          "teamSize": {
+            "type": "number",
+            "description": "Total team size",
+            "example": 24
+          },
+          "allocations": {
+            "type": "object",
+            "description": "Budget allocations",
+            "example": {
+              "Materials": 12000000,
+              "Labor": 8000000
+            }
+          },
+          "description": {
+            "type": "string",
+            "description": "Project description",
+            "example": "Residential high-rise"
+          }
+        }
+      },
+      "CreateTaskDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title of the task",
+            "example": "Foundation Concrete Pouring"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "ID of the project this task belongs to",
+            "example": "P001"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "Name of the project",
+            "example": "Skyline Tower"
+          },
+          "assignedTo": {
+            "type": "string",
+            "description": "ID of the user assigned to this task",
+            "example": "U003"
+          },
+          "assignedName": {
+            "type": "string",
+            "description": "Name of the assigned user",
+            "example": "Priya Sharma"
+          },
+          "priority": {
+            "type": "string",
+            "description": "Priority of the task",
+            "example": "High"
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the task",
+            "example": "In Progress"
+          },
+          "progress": {
+            "type": "number",
+            "description": "Progress percentage",
+            "example": 75
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Start date",
+            "example": "2026-03-01"
+          },
+          "deadline": {
+            "type": "string",
+            "description": "Deadline date",
+            "example": "2026-03-08"
+          },
+          "description": {
+            "type": "string",
+            "description": "Task description",
+            "example": "Complete the foundation..."
+          },
+          "remarks": {
+            "type": "string",
+            "description": "Remarks or comments",
+            "example": "75% done..."
+          }
+        },
+        "required": [
+          "title",
+          "projectId",
+          "assignedTo",
+          "priority",
+          "status",
+          "progress",
+          "startDate",
+          "deadline",
+          "description"
+        ]
+      },
+      "UpdateTaskDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title of the task",
+            "example": "Foundation Concrete Pouring"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "ID of the project this task belongs to",
+            "example": "P001"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "Name of the project",
+            "example": "Skyline Tower"
+          },
+          "assignedTo": {
+            "type": "string",
+            "description": "ID of the user assigned to this task",
+            "example": "U003"
+          },
+          "assignedName": {
+            "type": "string",
+            "description": "Name of the assigned user",
+            "example": "Priya Sharma"
+          },
+          "priority": {
+            "type": "string",
+            "description": "Priority of the task",
+            "example": "High"
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the task",
+            "example": "In Progress"
+          },
+          "progress": {
+            "type": "number",
+            "description": "Progress percentage",
+            "example": 75
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Start date",
+            "example": "2026-03-01"
+          },
+          "deadline": {
+            "type": "string",
+            "description": "Deadline date",
+            "example": "2026-03-08"
+          },
+          "description": {
+            "type": "string",
+            "description": "Task description",
+            "example": "Complete the foundation..."
+          },
+          "remarks": {
+            "type": "string",
+            "description": "Remarks or comments",
+            "example": "75% done..."
+          }
+        }
+      },
+      "MaterialDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Cement"
+          },
+          "qty": {
+            "type": "number",
+            "example": 50
+          },
+          "unit": {
+            "type": "string",
+            "example": "bags"
+          }
+        },
+        "required": [
+          "name",
+          "qty",
+          "unit"
+        ]
+      },
+      "CreateReportDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title of the report",
+            "example": "Foundation Inspection Report"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "ID of the project",
+            "example": "P001"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "Name of the project",
+            "example": "Skyline Tower"
+          },
+          "submittedBy": {
+            "type": "string",
+            "description": "ID of user who submitted the report",
+            "example": "U006"
+          },
+          "submittedName": {
+            "type": "string",
+            "description": "Name of user who submitted",
+            "example": "Amit Sharma"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date of the report",
+            "example": "2026-03-06"
+          },
+          "progress": {
+            "type": "number",
+            "description": "Progress percentage",
+            "example": 75
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the report/work",
+            "example": "Completed"
+          },
+          "workDone": {
+            "type": "string",
+            "description": "Details of work done",
+            "example": "Completed foundation inspection..."
+          },
+          "issues": {
+            "type": "string",
+            "description": "Issues encountered",
+            "example": "Minor crack found..."
+          },
+          "priority": {
+            "type": "string",
+            "description": "Priority level",
+            "example": "Medium"
+          },
+          "materials": {
+            "description": "List of materials used",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaterialDto"
+            }
+          },
+          "photos": {
+            "type": "number",
+            "description": "Number of photos attached",
+            "example": 8
+          },
+          "photoUrls": {
+            "description": "Photo URLs or data URLs attached to the report",
+            "example": [
+              "data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\"%3E%3C/svg%3E"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "photoDescription": {
+            "type": "string",
+            "description": "Optional description for uploaded photos",
+            "example": "Foundation and slab progress photos."
+          },
+          "remarks": {
+            "type": "string",
+            "description": "Additional remarks",
+            "example": "Overall progress satisfactory."
+          }
+        },
+        "required": [
+          "title",
+          "projectId",
+          "submittedBy",
+          "date",
+          "progress",
+          "status",
+          "workDone",
+          "priority",
+          "materials",
+          "photos"
+        ]
+      },
+      "UpdateReportDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title of the report",
+            "example": "Foundation Inspection Report"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "ID of the project",
+            "example": "P001"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "Name of the project",
+            "example": "Skyline Tower"
+          },
+          "submittedBy": {
+            "type": "string",
+            "description": "ID of user who submitted the report",
+            "example": "U006"
+          },
+          "submittedName": {
+            "type": "string",
+            "description": "Name of user who submitted",
+            "example": "Amit Sharma"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date of the report",
+            "example": "2026-03-06"
+          },
+          "progress": {
+            "type": "number",
+            "description": "Progress percentage",
+            "example": 75
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the report/work",
+            "example": "Completed"
+          },
+          "workDone": {
+            "type": "string",
+            "description": "Details of work done",
+            "example": "Completed foundation inspection..."
+          },
+          "issues": {
+            "type": "string",
+            "description": "Issues encountered",
+            "example": "Minor crack found..."
+          },
+          "priority": {
+            "type": "string",
+            "description": "Priority level",
+            "example": "Medium"
+          },
+          "materials": {
+            "description": "List of materials used",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaterialDto"
+            }
+          },
+          "photos": {
+            "type": "number",
+            "description": "Number of photos attached",
+            "example": 8
+          },
+          "photoUrls": {
+            "description": "Photo URLs or data URLs attached to the report",
+            "example": [
+              "data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\"%3E%3C/svg%3E"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "photoDescription": {
+            "type": "string",
+            "description": "Optional description for uploaded photos",
+            "example": "Foundation and slab progress photos."
+          },
+          "remarks": {
+            "type": "string",
+            "description": "Additional remarks",
+            "example": "Overall progress satisfactory."
+          }
+        }
+      },
+      "CreateBillDto": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "description": "ID of the project",
+            "example": "P001"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "Name of the project",
+            "example": "Skyline Tower"
+          },
+          "clientId": {
+            "type": "string",
+            "description": "Client ID",
+            "example": "U005"
+          },
+          "clientName": {
+            "type": "string",
+            "description": "Client name",
+            "example": "Vikram Patel"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Bill amount",
+            "example": 2500000
+          },
+          "milestone": {
+            "type": "string",
+            "description": "Milestone associated with the bill",
+            "example": "Foundation Complete"
+          },
+          "description": {
+            "type": "string",
+            "description": "Bill description",
+            "example": "Billing for completed foundation work..."
+          },
+          "generatedBy": {
+            "type": "string",
+            "description": "ID of the user who generated the bill",
+            "example": "U004"
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the bill",
+            "example": "Approved"
+          },
+          "decisionDate": {
+            "type": "string",
+            "description": "Date of decision",
+            "example": "2026-03-05"
+          },
+          "dueDate": {
+            "type": "string",
+            "description": "Due date for the bill",
+            "example": "2026-03-11"
+          },
+          "rejectionReason": {
+            "type": "string",
+            "description": "Reason for rejection if any",
+            "example": ""
+          }
+        },
+        "required": [
+          "projectId",
+          "clientId",
+          "amount",
+          "milestone",
+          "description",
+          "generatedBy",
+          "status",
+          "dueDate"
+        ]
+      },
+      "UpdateBillDto": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "description": "ID of the project",
+            "example": "P001"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "Name of the project",
+            "example": "Skyline Tower"
+          },
+          "clientId": {
+            "type": "string",
+            "description": "Client ID",
+            "example": "U005"
+          },
+          "clientName": {
+            "type": "string",
+            "description": "Client name",
+            "example": "Vikram Patel"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Bill amount",
+            "example": 2500000
+          },
+          "milestone": {
+            "type": "string",
+            "description": "Milestone associated with the bill",
+            "example": "Foundation Complete"
+          },
+          "description": {
+            "type": "string",
+            "description": "Bill description",
+            "example": "Billing for completed foundation work..."
+          },
+          "generatedBy": {
+            "type": "string",
+            "description": "ID of the user who generated the bill",
+            "example": "U004"
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the bill",
+            "example": "Approved"
+          },
+          "decisionDate": {
+            "type": "string",
+            "description": "Date of decision",
+            "example": "2026-03-05"
+          },
+          "dueDate": {
+            "type": "string",
+            "description": "Due date for the bill",
+            "example": "2026-03-11"
+          },
+          "rejectionReason": {
+            "type": "string",
+            "description": "Reason for rejection if any",
+            "example": ""
+          }
+        }
+      },
+      "CreateExpenseDto": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "description": "ID of the project",
+            "example": "P001"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "Name of the project",
+            "example": "Skyline Tower"
+          },
+          "category": {
+            "type": "string",
+            "description": "Expense category",
+            "example": "Materials"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Expense amount",
+            "example": 850000
+          },
+          "description": {
+            "type": "string",
+            "description": "Expense description",
+            "example": "Cement and steel for foundation"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date of expense",
+            "example": "2026-03-01"
+          },
+          "recordedBy": {
+            "type": "string",
+            "description": "ID of user who recorded expense",
+            "example": "U004"
+          },
+          "receipt": {
+            "type": "string",
+            "description": "Receipt file name or URL",
+            "example": "receipt_001.pdf"
+          }
+        },
+        "required": [
+          "projectId",
+          "category",
+          "amount",
+          "description",
+          "date",
+          "recordedBy"
+        ]
+      },
+      "UpdateExpenseDto": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "description": "ID of the project",
+            "example": "P001"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "Name of the project",
+            "example": "Skyline Tower"
+          },
+          "category": {
+            "type": "string",
+            "description": "Expense category",
+            "example": "Materials"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Expense amount",
+            "example": 850000
+          },
+          "description": {
+            "type": "string",
+            "description": "Expense description",
+            "example": "Cement and steel for foundation"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date of expense",
+            "example": "2026-03-01"
+          },
+          "recordedBy": {
+            "type": "string",
+            "description": "ID of user who recorded expense",
+            "example": "U004"
+          },
+          "receipt": {
+            "type": "string",
+            "description": "Receipt file name or URL",
+            "example": "receipt_001.pdf"
+          }
+        }
+      },
+      "CreateMessageDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "ID of the sender",
+            "example": "U002"
+          },
+          "fromName": {
+            "type": "string",
+            "description": "Name of the sender",
+            "example": "Rajesh Kumar"
+          },
+          "to": {
+            "type": "string",
+            "description": "ID of the recipient",
+            "example": "U003"
+          },
+          "toName": {
+            "type": "string",
+            "description": "Name of the recipient",
+            "example": "Priya Sharma"
+          },
+          "text": {
+            "type": "string",
+            "description": "Message text content",
+            "example": "Please review the updated project timeline."
+          },
+          "time": {
+            "type": "string",
+            "description": "Time message was sent",
+            "example": "10:30 AM"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date message was sent",
+            "example": "2026-03-24"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "text"
+        ]
+      },
+      "UpdateMessageDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "ID of the sender",
+            "example": "U002"
+          },
+          "fromName": {
+            "type": "string",
+            "description": "Name of the sender",
+            "example": "Rajesh Kumar"
+          },
+          "to": {
+            "type": "string",
+            "description": "ID of the recipient",
+            "example": "U003"
+          },
+          "toName": {
+            "type": "string",
+            "description": "Name of the recipient",
+            "example": "Priya Sharma"
+          },
+          "text": {
+            "type": "string",
+            "description": "Message text content",
+            "example": "Please review the updated project timeline."
+          },
+          "time": {
+            "type": "string",
+            "description": "Time message was sent",
+            "example": "10:30 AM"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date message was sent",
+            "example": "2026-03-24"
+          }
+        }
+      },
+      "CreateNotificationDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "ID of the user this notification belongs to",
+            "example": "U002"
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of notification",
+            "example": "task"
+          },
+          "title": {
+            "type": "string",
+            "description": "Notification title",
+            "example": "Task Completed"
+          },
+          "body": {
+            "type": "string",
+            "description": "Notification body text",
+            "example": "Foundation work has been completed"
+          },
+          "time": {
+            "type": "string",
+            "description": "Time description",
+            "example": "2 hours ago"
+          },
+          "read": {
+            "type": "boolean",
+            "description": "Read status",
+            "example": false
+          }
+        },
+        "required": [
+          "userId",
+          "type",
+          "title",
+          "body"
+        ]
+      },
+      "UpdateNotificationDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "ID of the user this notification belongs to",
+            "example": "U002"
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of notification",
+            "example": "task"
+          },
+          "title": {
+            "type": "string",
+            "description": "Notification title",
+            "example": "Task Completed"
+          },
+          "body": {
+            "type": "string",
+            "description": "Notification body text",
+            "example": "Foundation work has been completed"
+          },
+          "time": {
+            "type": "string",
+            "description": "Time description",
+            "example": "2 hours ago"
+          },
+          "read": {
+            "type": "boolean",
+            "description": "Read status",
+            "example": false
+          }
+        }
+      }
+    }
+  }
+}
