@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Report Details – ConstructHub</title>
+<link rel="stylesheet" href="../../css/main.css">
+</head>
+<body>
+<div class="app-layout">
+  <nav class="navbar" id="navbar"></nav>
+  <div class="app-body">
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <a href="dashboard.html"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
+        <a href="project-progress.html"><span class="nav-icon"><img src="../../icons/TrendingUp.svg" alt="📊" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Project Details</a>
+        <a href="reports.html" class="active"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📋" style="vertical-align:middle;margin-right:8px;"> Reports</a>
+        <a href="pending-bills.html"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="💵" style="vertical-align:middle;margin-right:8px;"> Pending Bills</a>
+        <a href="payment-decisions.html"><span class="nav-icon">💳</span> Payment Decisions</a>
+        <a href="feedback.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Feedback</a>
+        <a href="messages.html"><span class="nav-icon"><img src="../../icons/Send.svg" alt="📩" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Messages</a>
+        
+        <div class="sidebar-divider"></div>
+        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="back-btn" onclick="history.back()">← Back to Reports</div>
+      <div id="report-content"></div>
+    </main>
+  </div>
+</div>
+<script src="../../js/data.js"></script>
+<script src="../../js/utils.js"></script>
+<script>
+let user, report;
+window.onload = () => {
+  initDB();
+  user = requireAuth(['client', 'project_manager', 'superuser']);
+  if (!user) return;
+  renderNavbar(user);
+  const id = new URLSearchParams(window.location.search).get('id');
+  report = getById('reports', id);
+  if (!report) { document.getElementById('report-content').innerHTML = '<div class="empty-state"><h3>Report not found</h3></div>'; return; }
+  renderReport();
+};
+
+function renderReport() {
+  const photoUrls = Array.isArray(report.photoUrls) ? report.photoUrls : [];
+  const photoCount = photoUrls.length || report.photos || 0;
+  document.getElementById('report-content').innerHTML = `
+    <div class="page-header-row">
+      <div>
+        <h1 style="font-family:var(--font-head);font-size:24px;font-weight:700">${report.title}</h1>
+        <div style="display:flex;gap:8px;margin-top:6px">${statusBadge(report.status)} ${report.priority ? priorityBadge(report.priority) : ''}</div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:16px">
+      <div class="detail-section">
+        <h3>Report Information</h3>
+        <div class="detail-grid">
+          <div class="detail-item"><label>Report ID</label><span>${report.id}</span></div>
+          <div class="detail-item"><label>Project</label><span>${report.projectName}</span></div>
+          <div class="detail-item"><label>Submitted By</label><span>${report.submittedName}</span></div>
+          <div class="detail-item"><label>Date</label><span>${formatDate(report.date)}</span></div>
+          <div class="detail-item"><label>Status</label><span>${statusBadge(report.status)}</span></div>
+          <div class="detail-item"><label>Photos</label><span><img src="../../icons/Camera.svg" alt="Photo" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> ${photoCount}</span></div>
+        </div>
+      </div>
+      <div class="detail-section">
+        <h3>Progress</h3>
+        <div style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:13px;color:var(--text-muted)">Overall Progress</span>
+            <span style="font-family:var(--font-head);font-weight:700;font-size:22px;color:var(--primary)">${report.progress}%</span>
+          </div>
+          ${progressBar(report.progress)}
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-section" style="margin-bottom:16px">
+      <h3>Work Completed</h3>
+      <p style="font-size:13.5px;line-height:1.7;color:var(--text-muted)">${report.workDone || 'No details.'}</p>
+    </div>
+
+    ${report.issues ? `
+    <div class="detail-section" style="margin-bottom:16px;border-left:3px solid var(--orange)">
+      <h3>Issues & Challenges</h3>
+      <p style="font-size:13.5px;line-height:1.7;color:var(--text-muted)">${report.issues}</p>
+    </div>` : ''}
+
+    ${report.materials && report.materials.length ? `
+    <div class="detail-section" style="margin-bottom:16px">
+      <h3>Materials Used</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Material</th><th>Quantity</th><th>Unit</th></tr></thead>
+          <tbody>${report.materials.map(m => `<tr><td>${m.name}</td><td>${m.qty}</td><td>${m.unit}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>` : ''}
+
+    <div class="detail-section">
+      <h3>Site Photos (${photoCount})</h3>
+      ${photoUrls.length ? `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        ${photoUrls.slice(0, 8).map((url,i) => `<img src="${url}" alt="Site photo ${i+1}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border);background:var(--bg)">`).join('')}
+      </div>
+      ${report.photoDescription ? `<p style="font-size:12px;color:var(--text-muted);margin-top:8px">${report.photoDescription}</p>` : ''}` :
+      photoCount > 0 ? `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        ${Array.from({length: Math.min(photoCount, 8)}).map((_,i) => `
+          <div style="aspect-ratio:1;background:var(--bg);border-radius:8px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)">
+            <div style="text-align:center"><div style="font-size:24px"><img src="../../icons/Camera.svg" alt="📸" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><div style="font-size:11px;color:var(--text-muted);margin-top:4px">Photo ${i+1}</div></div>
+          </div>`).join('')}
+      </div>` : '<p style="color:var(--text-muted);font-size:13px">No photos attached</p>'}
+    </div>
+  `;
+}
+</script>
+</body>
+</html>

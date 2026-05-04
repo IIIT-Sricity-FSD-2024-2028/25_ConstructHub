@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bill Details – ConstructHub</title>
+<link rel="stylesheet" href="../../css/main.css">
+</head>
+<body>
+<div class="app-layout">
+  <nav class="navbar" id="navbar"></nav>
+  <div class="app-body">
+    <aside class="sidebar" id="role-sidebar"></aside>
+    <main class="main-content">
+      <div class="back-btn" onclick="history.back()">← Back</div>
+      <div id="bill-content"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Reject Reason Modal -->
+<div id="reject-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:420px">
+    <div class="modal-header">
+      <div><h2>Reject Bill</h2><p>Please provide a reason for rejection</p></div>
+      <button class="modal-close" onclick="closeModal('reject-modal')"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Rejection Reason <span class="req">*</span></label>
+      <textarea id="reject-reason" class="form-textarea" placeholder="Describe why this bill is being rejected..." rows="4"></textarea>
+      <span id="reject-error" class="field-error" style="display:none">Please provide a reason for rejection</span>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('reject-modal')" class="btn btn-secondary">Cancel</button>
+      <button onclick="confirmReject()" class="btn btn-danger">Reject Bill</button>
+    </div>
+  </div>
+</div>
+
+<!-- Payment Approved Modal -->
+<div id="approved-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:380px;text-align:center">
+    <div style="width:60px;height:60px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px">✅</div>
+    <h2 style="font-family:var(--font-head);margin-bottom:8px">Payment Approved!</h2>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px">The payment will be processed within 2–3 business days. The finance manager has been notified.</p>
+    <button onclick="closeModal('approved-modal');renderBill()" class="btn btn-success btn-full">View Payment History</button>
+  </div>
+</div>
+
+<!-- Payment Rejected Modal -->
+<div id="rejected-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:380px;text-align:center">
+    <div style="width:60px;height:60px;background:#fee2e2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px"><img src="../../icons/X.svg" alt="❌" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div>
+    <h2 style="font-family:var(--font-head);margin-bottom:8px">Payment Rejected</h2>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px">The rejection has been recorded. The finance manager has been notified.</p>
+    <button onclick="closeModal('rejected-modal');renderBill()" class="btn btn-danger btn-full">See Pending Bills</button>
+  </div>
+</div>
+
+<script src="../../js/data.js"></script>
+<script src="../../js/utils.js"></script>
+<script>
+let user, bill;
+
+window.onload = () => {
+  initDB();
+  user = requireAuth(['finance_manager', 'client', 'superuser']);
+  if (!user) return;
+  renderNavbar(user);
+  renderSidebar();
+  const id = new URLSearchParams(window.location.search).get('id');
+  bill = getById('bills', id);
+  if (!bill) {
+    document.getElementById('bill-content').innerHTML = '<div class="empty-state"><div class="empty-icon">📄</div><h3>Bill not found</h3></div>';
+    return;
+  }
+  renderBill();
+};
+
+function renderSidebar() {
+  const fmLinks = `
+    <a href="dashboard.html"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
+    <a href="project-budget.html"><span class="nav-icon"><img src="../../icons/DollarSign.svg" alt="💲" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Project Budget</a>
+    <a href="expenses.html"><span class="nav-icon"><img src="../../icons/DollarSign.svg" alt="💲" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Expenses</a>
+    <a href="generate-bills.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📄" style="vertical-align:middle;margin-right:8px;"> Generate Bills</a>
+    <a href="bill-decisions.html" class="active"><img src="../../icons/CheckCircle2.svg" class="nav-icon" width="18" height="18" alt="✅" style="vertical-align:middle;margin-right:8px;"> Bill Payment Decisions</a>
+    <a href="messages.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Messages</a>
+    <div class="sidebar-divider"></div>
+    <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>`;
+
+  const clientLinks = `
+    <a href="dashboard.html"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
+    <a href="project-progress.html"><span class="nav-icon"><img src="../../icons/TrendingUp.svg" alt="📊" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Project Progress</a>
+    <a href="reports.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📋" style="vertical-align:middle;margin-right:8px;"> Reports</a>
+    <a href="pending-bills.html" class="active"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="💵" style="vertical-align:middle;margin-right:8px;"> Pending Bills</a>
+    <a href="payment-decisions.html"><span class="nav-icon">💳</span> Payment Decisions</a>
+    <a href="feedback.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Feedback</a>
+    <a href="messages.html"><span class="nav-icon"><img src="../../icons/Send.svg" alt="📩" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Messages</a>
+    
+    <div class="sidebar-divider"></div>
+    <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>`;
+
+  document.getElementById('role-sidebar').innerHTML = `<nav class="sidebar-nav">${user.role === 'client' ? clientLinks : fmLinks}</nav>`;
+}
+
+function renderBill() {
+  bill = getById('bills', bill.id);
+  const isClient = user.role === 'client';
+  const canDecide = isClient && bill.status === 'Pending';
+
+  document.getElementById('bill-content').innerHTML = `
+    <div class="page-header-row">
+      <div>
+        <h1 style="font-family:var(--font-head);font-size:24px;font-weight:700">${bill.id}</h1>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+          ${statusBadge(bill.status)}
+          <span style="font-size:13px;color:var(--text-muted)">Due: ${formatDate(bill.dueDate)}</span>
+        </div>
+      </div>
+      ${canDecide ? `
+      <div style="display:flex;gap:10px">
+        <button onclick="approveBill()" class="btn btn-success">✓ Approve Payment</button>
+        <button onclick="openModal('reject-modal')" class="btn btn-danger"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> Reject</button>
+      </div>` : ''}
+    </div>
+
+    <!-- Amount Banner -->
+    <div style="background:var(--primary-light);border:1px solid #fdba74;border-radius:var(--radius);padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin-bottom:4px">Bill Amount</div>
+        <div style="font-family:var(--font-head);font-size:32px;font-weight:800;color:var(--primary)">${formatCurrency(bill.amount)}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Status</div>
+        ${statusBadge(bill.status)}
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:16px">
+      <div class="detail-section">
+        <h3>Bill Information</h3>
+        <div class="detail-grid">
+          <div class="detail-item"><label>Bill ID</label><span>${bill.id}</span></div>
+          <div class="detail-item"><label>Project</label><span>${bill.projectName}</span></div>
+          <div class="detail-item"><label>Client</label><span>${bill.clientName}</span></div>
+          <div class="detail-item"><label>Milestone</label><span>${bill.milestone}</span></div>
+          <div class="detail-item"><label>Due Date</label><span>${formatDate(bill.dueDate)}</span></div>
+          <div class="detail-item"><label>Status</label><span>${statusBadge(bill.status)}</span></div>
+        </div>
+      </div>
+      <div class="detail-section">
+        <h3>Decision Details</h3>
+        ${bill.decisionDate ? `
+        <div class="detail-item" style="margin-bottom:12px"><label>Decision Date</label><span>${formatDate(bill.decisionDate)}</span></div>
+        ` : '<p style="font-size:13px;color:var(--text-muted)">No decision made yet.</p>'}
+        ${bill.rejectionReason ? `
+        <div style="background:#fee2e2;border-radius:8px;padding:12px;margin-top:8px">
+          <div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;margin-bottom:4px">Rejection Reason</div>
+          <p style="font-size:13px;color:var(--text-muted)">${bill.rejectionReason}</p>
+        </div>` : ''}
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <h3>Description</h3>
+      <p style="font-size:13.5px;line-height:1.7;color:var(--text-muted)">${bill.description || 'No description provided.'}</p>
+    </div>
+
+    ${canDecide ? `
+    <div style="background:var(--primary-light);border:1px solid #fdba74;border-radius:var(--radius);padding:20px;margin-top:16px">
+      <h3 style="font-family:var(--font-head);color:var(--primary);margin-bottom:8px">Action Required</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Please review this bill and make a payment decision.</p>
+      <div style="display:flex;gap:10px">
+        <button onclick="approveBill()" class="btn btn-success">✓ Approve Payment</button>
+        <button onclick="openModal('reject-modal')" class="btn btn-danger"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> Reject</button>
+      </div>
+    </div>` : ''}
+  `;
+}
+
+function approveBill() {
+  update('bills', bill.id, {
+    status: 'Approved',
+    decisionDate: new Date().toISOString().split('T')[0]
+  });
+  openModal('approved-modal');
+}
+
+function confirmReject() {
+  const reason = document.getElementById('reject-reason').value.trim();
+  const errEl = document.getElementById('reject-error');
+  if (!reason) { errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+  update('bills', bill.id, {
+    status: 'Rejected',
+    decisionDate: new Date().toISOString().split('T')[0],
+    rejectionReason: reason
+  });
+  closeModal('reject-modal');
+  openModal('rejected-modal');
+}
+</script>
+</body>
+</html>
