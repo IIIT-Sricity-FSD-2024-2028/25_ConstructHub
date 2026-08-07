@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bill Payment Decisions – ConstructHub</title>
+<link rel="stylesheet" href="../../css/main.css">
+</head>
+<body>
+<div class="app-layout">
+  <nav class="navbar" id="navbar"></nav>
+  <div class="app-body">
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <a href="dashboard.html"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
+        <a href="project-budget.html"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="💵" style="vertical-align:middle;margin-right:8px;"> Project Budget</a>
+        <a href="expenses.html"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="💸" style="vertical-align:middle;margin-right:8px;"> Expenses</a>
+        <a href="generate-bills.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📄" style="vertical-align:middle;margin-right:8px;"> Generate Bills</a>
+        <a href="bill-decisions.html" class="active"><img src="../../icons/CheckCircle2.svg" class="nav-icon" width="18" height="18" alt="✅" style="vertical-align:middle;margin-right:8px;"> Bill Payment Decisions</a>
+        <a href="messages.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Messages</a>
+        <div class="sidebar-divider"></div>
+        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header-row">
+        <div class="page-header"><h1>Bill Payment Decisions</h1><p>Track the status of bills sent to clients</p></div>
+      </div>
+
+      <div class="stats-grid" id="stats-grid" style="grid-template-columns:repeat(4,1fr)"></div>
+
+      <div class="card" style="margin-top:20px">
+        <div class="filter-bar" style="margin-bottom:16px">
+          <input type="text" id="search" class="form-input" placeholder="Search by Bill ID, Project, or Client..." oninput="renderTable()">
+          <select id="filter-status" class="form-select" onchange="renderTable()">
+            <option value="">All Status</option><option>Pending</option><option>Approved</option><option>Rejected</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Bill ID</th><th>Project Name</th><th>Client Name</th><th>Amount</th><th>Payment Status</th><th>Decision Date</th><th>Actions</th></tr></thead>
+            <tbody id="bills-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Edit Bill Modal -->
+<div id="edit-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div><h2>Edit Bill</h2><p>Update bill details</p></div>
+      <button class="modal-close" onclick="closeModal('edit-modal')"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></button>
+    </div>
+    <input type="hidden" id="edit-bill-id">
+    <div class="form-group"><label class="form-label">Milestone <span class="req">*</span></label><input id="edit-milestone" class="form-input" placeholder="e.g., Foundation Complete"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Amount (₹) <span class="req">*</span></label><input id="edit-amount" type="number" class="form-input" min="1"></div>
+      <div class="form-group"><label class="form-label">Due Date <span class="req">*</span></label><input id="edit-due" type="date" class="form-input"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Status</label>
+      <select id="edit-status" class="form-select">
+        <option value="Pending">Pending</option>
+        <option value="Approved">Approved</option>
+        <option value="Rejected">Rejected</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Description</label><textarea id="edit-desc" class="form-textarea" placeholder="Bill details..."></textarea></div>
+    <div class="modal-footer">
+      <button onclick="closeModal('edit-modal')" class="btn btn-secondary">Cancel</button>
+      <button onclick="saveBillEdit()" class="btn btn-primary">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bill Detail Modal -->
+<div id="detail-modal" class="modal-overlay">
+  <div class="modal-box modal-lg">
+    <div class="modal-header">
+      <div><h2 id="detail-bill-id">Bill Details</h2><p id="detail-bill-sub"></p></div>
+      <button class="modal-close" onclick="closeModal('detail-modal')"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></button>
+    </div>
+    <div id="detail-content"></div>
+    <div class="modal-footer">
+      <button onclick="closeModal('detail-modal')" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="../../js/data.js"></script>
+<script src="../../js/utils.js"></script>
+<script>
+let user;
+window.onload = () => {
+  initDB();
+  user = requireAuth(['finance_manager']);
+  if (!user) return;
+  renderNavbar(user);
+  renderStats();
+  renderTable();
+};
+
+window.addEventListener('focus', () => {
+  if (user) {
+    renderNavbar(user);
+    renderStats();
+    renderTable();
+  }
+});
+
+function renderStats() {
+  const bills = getAll('bills');
+  const total = bills.length;
+  const approved = bills.filter(b=>b.status==='Approved').length;
+  const pending = bills.filter(b=>b.status==='Pending').length;
+  const rejected = bills.filter(b=>b.status==='Rejected').length;
+  document.getElementById('stats-grid').innerHTML = `
+    <div class="stat-card"><div class="stat-icon"><img src="../../icons/Eye.svg" alt="👁" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><div class="stat-value">${total}</div><div class="stat-label">Total Bills</div></div>
+    <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" style="color:var(--green)">${approved}</div><div class="stat-label">Approved</div></div>
+    <div class="stat-card"><div class="stat-icon"><img src="../../icons/Clock.svg" alt="🕐" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><div class="stat-value" style="color:var(--orange)">${pending}</div><div class="stat-label">Pending</div></div>
+    <div class="stat-card"><div class="stat-icon"><img src="../../icons/X.svg" alt="❌" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><div class="stat-value" style="color:var(--red)">${rejected}</div><div class="stat-label">Rejected</div></div>
+  `;
+}
+
+function renderTable() {
+  let bills = getAll('bills');
+  const q = document.getElementById('search').value.toLowerCase();
+  const st = document.getElementById('filter-status').value;
+  if (q) bills = bills.filter(b => b.id.toLowerCase().includes(q) || b.projectName.toLowerCase().includes(q) || b.clientName.toLowerCase().includes(q));
+  if (st) bills = bills.filter(b => b.status === st);
+
+  const tbody = document.getElementById('bills-tbody');
+  if (!bills.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><p>No bills found</p></div></td></tr>'; return; }
+  tbody.innerHTML = bills.map(b=>`
+    <tr>
+      <td><strong>${b.id}</strong></td>
+      <td>${b.projectName}</td>
+      <td>${b.clientName}</td>
+      <td style="font-weight:700">${formatCurrency(b.amount)}</td>
+      <td>${statusBadge(b.status)}</td>
+      <td>${b.decisionDate ? formatDate(b.decisionDate) : '—'}</td>
+      <td style="display:flex;gap:6px">
+        <a href="bill-detail.html?id=${b.id}" class="btn btn-outline btn-sm"><img src="../../icons/Eye.svg" alt="👁" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> View</a>
+        ${b.status === 'Pending' ? `
+          <button onclick="openEditBill('${b.id}')" class="btn btn-secondary btn-sm">Edit</button>
+          <button onclick="deleteBill('${b.id}')" class="btn btn-danger btn-sm">Delete</button>
+        ` : `<span style="font-size:11px;color:var(--text-muted);align-self:center">No actions</span>`}
+      </td>
+    </tr>`).join('');
+}
+
+function viewDetail(id) {
+  const b = getById('bills', id);
+  if (!b) return;
+  document.getElementById('detail-bill-id').textContent = b.id;
+  document.getElementById('detail-bill-sub').textContent = `${b.projectName} · ${b.clientName}`;
+  document.getElementById('detail-content').innerHTML = `
+    <div class="detail-grid" style="margin-bottom:16px">
+      <div class="detail-item"><label>Project</label><span>${b.projectName}</span></div>
+      <div class="detail-item"><label>Client</label><span>${b.clientName}</span></div>
+      <div class="detail-item"><label>Milestone</label><span>${b.milestone}</span></div>
+      <div class="detail-item"><label>Amount</label><span style="font-family:var(--font-head);font-weight:700;font-size:18px;color:var(--primary)">${formatCurrency(b.amount)}</span></div>
+      <div class="detail-item"><label>Status</label><span>${statusBadge(b.status)}</span></div>
+      <div class="detail-item"><label>Due Date</label><span>${formatDate(b.dueDate)}</span></div>
+      <div class="detail-item"><label>Decision Date</label><span>${b.decisionDate ? formatDate(b.decisionDate) : '—'}</span></div>
+    </div>
+    ${b.description ? `<div class="divider"></div><div class="detail-item"><label>Description</label><p style="font-size:13.5px;color:var(--text-muted);margin-top:4px">${b.description}</p></div>` : ''}
+    ${b.rejectionReason ? `<div class="divider"></div><div style="background:#fee2e2;border-radius:8px;padding:12px;margin-top:8px"><strong style="color:var(--red)">Rejection Reason:</strong><p style="font-size:13px;margin-top:4px">${b.rejectionReason}</p></div>` : ''}
+  `;
+  openModal('detail-modal');
+}
+
+function openEditBill(id) {
+  const b = getById('bills', id);
+  if (!b) return;
+  document.getElementById('edit-bill-id').value = b.id;
+  document.getElementById('edit-milestone').value = b.milestone || '';
+  document.getElementById('edit-amount').value = b.amount || '';
+  document.getElementById('edit-due').value = b.dueDate || '';
+  document.getElementById('edit-status').value = b.status || 'Pending';
+  document.getElementById('edit-desc').value = b.description || '';
+  openModal('edit-modal');
+}
+
+function saveBillEdit() {
+  const id = document.getElementById('edit-bill-id').value;
+  const milestoneEl = document.getElementById('edit-milestone');
+  const amountEl = document.getElementById('edit-amount');
+  const dueEl = document.getElementById('edit-due');
+  let valid = true;
+  [milestoneEl, amountEl, dueEl].forEach(el => { clearError(el); });
+  if (!milestoneEl.value.trim()) { showError(milestoneEl, 'Milestone is required'); valid = false; }
+  if (!amountEl.value || Number(amountEl.value) <= 0) { showError(amountEl, 'Amount must be greater than 0'); valid = false; }
+  if (!dueEl.value) { showError(dueEl, 'Due date is required'); valid = false; }
+  if (!valid) return;
+  update('bills', id, {
+    milestone: milestoneEl.value.trim(),
+    amount: Number(amountEl.value),
+    dueDate: dueEl.value,
+    status: document.getElementById('edit-status').value,
+    description: document.getElementById('edit-desc').value.trim()
+  });
+  closeModal('edit-modal');
+  showToast('Bill updated successfully!');
+  renderStats();
+  renderTable();
+}
+
+function deleteBill(id) {
+  const b = getById('bills', id);
+  confirmAction(`Delete bill "${b ? b.id : id}"? This cannot be undone.`, () => {
+    remove('bills', id);
+    showToast('Bill deleted', 'info');
+    renderStats();
+    renderTable();
+  });
+}
+
+</script>
+</body>
+</html>
