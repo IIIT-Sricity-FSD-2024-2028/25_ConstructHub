@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sign In - ConstructHub</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f97316' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z'/%3E%3Cpath d='M6 12h12'/%3E%3Cpath d='M6 7h12'/%3E%3Cpath d='M6 17h12'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="css/main.css">
 <style>
 body { background: white; }
@@ -32,7 +33,7 @@ body { background: white; }
 
       <div class="login-form-card">
         <div class="login-helper">
-          <img src="icons/Shield.svg" alt="Secure Login" style="width:18px;height:18px">
+          <div class="icon-box icon-box-orange" style="width:32px;height:32px;"><i data-lucide="shield-check" style="width:18px;height:18px;"></i></div>
           <div><strong>Secure access</strong>Your credentials are required to open your role dashboard.</div>
         </div>
 
@@ -46,7 +47,7 @@ body { background: white; }
           <label class="form-label">Password</label>
           <div style="position:relative">
             <input type="password" id="password" class="form-input" placeholder="Enter your password" data-required>
-            <span id="pw-toggle" onclick="togglePw()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--text-muted)"><img src="icons/Eye.svg" alt="Toggle password" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span>
+            <span id="pw-toggle" onclick="togglePw()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--text-muted)"><i data-lucide="eye" style="width:16px;height:16px;"></i></span>
           </div>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
@@ -56,14 +57,14 @@ body { background: white; }
           <span onclick="openForgot()" style="color:var(--primary);font-size:13px;font-weight:600;cursor:pointer">Forgot Password?</span>
         </div>
         <button onclick="handleLogin()" class="btn btn-primary btn-full" style="padding:12px">Sign In</button>
-        <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--text-muted)">Don't have an account? <a href="pages/contact.html" style="color:var(--primary);font-weight:600">Contact Sales</a></p>
+        <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--text-muted)">Registering a new firm? <a href="register-company.html" style="color:var(--primary);font-weight:600">Register Company Workspace</a></p>
       </div>
     </div>
   </div>
 
   <div class="login-right">
     <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center">
-      <div style="margin-bottom:16px"><img src="icons/HardHat.svg" width="56" height="56" alt="logo"></div>
+      <div style="margin-bottom:16px"><div class="icon-box icon-box-lg icon-box-orange" style="width:64px;height:64px;"><i data-lucide="hard-hat" style="width:36px;height:36px;color:var(--primary);"></i></div></div>
       <h2 style="font-family:var(--font-head);font-size:34px;font-weight:800;margin-bottom:8px">ConstructHub</h2>
       <div style="font-size:18px;font-weight:600;text-align:center;line-height:1.8;opacity:0.9">Build Smarter.<br>Manage Better.<br>Deliver Faster.</div>
       <p style="color:rgba(255,255,255,0.55);font-size:13.5px;margin-top:20px;max-width:320px;text-align:center;line-height:1.7">The all-in-one construction management platform designed to streamline your projects from planning to completion.</p>
@@ -78,7 +79,7 @@ body { background: white; }
 
 <div id="forgot-modal" class="modal-overlay" style="display:none">
   <div class="modal-box" style="max-width:400px;text-align:center">
-    <div style="font-size:40px;margin-bottom:12px">💬</div>
+    <div class="icon-box icon-box-lg icon-box-blue" style="margin:0 auto 12px;"><i data-lucide="mail" style="width:26px;height:26px;"></i></div>
     <h2 style="font-family:var(--font-head);font-size:20px;margin-bottom:8px">Get Password Reset Mail</h2>
     <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px">Enter your Mail ID below and we'll send you a link to reset your password.</p>
     <div class="form-group" style="text-align:left">
@@ -93,7 +94,7 @@ body { background: white; }
 
 <div id="mailsent-modal" class="modal-overlay" style="display:none">
   <div class="modal-box" style="max-width:380px;text-align:center">
-    <div style="width:60px;height:60px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px">✓</div>
+    <div class="icon-box icon-box-lg icon-box-green" style="margin:0 auto 16px;"><i data-lucide="check-circle-2" style="width:28px;height:28px;"></i></div>
     <h2 style="font-family:var(--font-head);font-size:20px;margin-bottom:8px">Mail Sent Successfully!</h2>
     <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px">Check your inbox for the password reset link.</p>
     <button onclick="closeModal('mailsent-modal');window.location.href='login.html'" class="btn btn-success btn-full">Go to Login page</button>
@@ -109,67 +110,44 @@ function togglePw() {
 }
 
 function handleLogin() {
+  const emailEl = document.getElementById('email');
+  const passEl = document.getElementById('password');
   const errEl = document.getElementById('error-msg');
-  errEl.style.display = 'none';
+  const btn = document.querySelector('.login-form-card .btn-primary');
 
-  const email = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value.trim();
+  const email = emailEl.value.trim();
+  const password = passEl.value;
+
+  errEl.style.display = 'none';
 
   if (!email || !password) {
     errEl.textContent = 'Please enter both email and password.';
     errEl.style.display = 'block';
     return;
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errEl.textContent = 'Please enter a valid email address.';
-    errEl.style.display = 'block';
-    return;
-  }
 
-  const users = getAll('users');
-  const userByEmail = users.find(u => u.email === email);
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in...'; }
 
-  if (!userByEmail) {
-    errEl.textContent = 'Invalid email or password.';
-    errEl.style.display = 'block';
-    return;
-  }
+  loginRequest(email, password).then(function (res) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
 
-  if (userByEmail.status === 'inactive') {
-    errEl.textContent = 'Your account is locked or inactive. Please contact admin.';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  if (userByEmail.password !== password) {
-    const attemptKey = `loginAttempts_${email}`;
-    let attempts = parseInt(sessionStorage.getItem(attemptKey) || '0', 10);
-    attempts++;
-    sessionStorage.setItem(attemptKey, attempts);
-    
-    if (attempts >= 3) {
-      // Actually lock the account in the database.
-      // We must temporarily mock superuser to bypass backend RBAC (since we aren't logged in yet)
-      setCurrentUser({ role: 'superuser' });
-      update('users', userByEmail.id, { status: 'inactive' });
-      sessionStorage.removeItem('ch_user'); // Clear the mock immediately
-      
-      errEl.textContent = 'Account locked due to 3 failed login attempts. Please contact admin.';
-    } else {
-      errEl.textContent = `Invalid email or password. You have ${3 - attempts} attempt(s) left.`;
+    if (res && res.accessToken) {
+      sessionStorage.removeItem(`loginAttempts_${email}`);
+      sessionStorage.setItem('ch_token', res.accessToken);
+      setCurrentUser(res.user);
+      redirectByRole(res.user.role);
+      return;
     }
-    errEl.style.display = 'block';
-    return;
-  }
 
-  sessionStorage.removeItem(`loginAttempts_${email}`);
-  setCurrentUser(userByEmail);
-  redirectByRole(userByEmail.role);
+    errEl.textContent = (res && res.message) ? res.message : 'Invalid email or password.';
+    errEl.style.display = 'block';
+  });
 }
 
 function redirectByRole(role) {
   const map = {
     'superuser': 'pages/superuser/dashboard.html',
+    'company_admin': 'pages/company-admin/dashboard.html',
     'project_manager': 'pages/project-manager/dashboard.html',
     'site_engineer': 'pages/site-engineer/dashboard.html',
     'finance_manager': 'pages/finance-manager/dashboard.html',
