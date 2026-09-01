@@ -4,6 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Projects – ConstructHub</title>
 <link rel="stylesheet" href="../../css/main.css">
+<script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 <div class="app-layout">
@@ -11,13 +12,13 @@
   <div class="app-body">
     <aside class="sidebar">
       <nav class="sidebar-nav">
-        <a href="dashboard.html"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
-        <a href="projects.html" class="active"><img src="../../icons/Icon (2).svg" class="nav-icon" width="18" height="18" alt="📁" style="vertical-align:middle;margin-right:8px;"> Projects</a>
-        <a href="tasks.html"><img src="../../icons/CheckCircle2.svg" class="nav-icon" width="18" height="18" alt="✅" style="vertical-align:middle;margin-right:8px;"> Tasks</a>
-        <a href="reports.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📋" style="vertical-align:middle;margin-right:8px;"> View Site Reports</a>
-        <a href="messages.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Messages</a>
+        <a href="dashboard.html"><i data-lucide="layout-dashboard" class="nav-icon"></i> Dashboard</a>
+        <a href="projects.html" class="active"><i data-lucide="folder" class="nav-icon"></i> Projects</a>
+        <a href="tasks.html"><i data-lucide="check-square" class="nav-icon"></i> Tasks</a>
+        <a href="reports.html"><i data-lucide="file-text" class="nav-icon"></i> View Site Reports</a>
+        <a href="messages.html"><i data-lucide="message-square" class="nav-icon"></i> Messages</a>
         <div class="sidebar-divider"></div>
-        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+        <a href="settings.html"><i data-lucide="settings" class="nav-icon"></i> Settings</a>
       </nav>
     </aside>
     <main class="main-content">
@@ -43,7 +44,7 @@
   <div class="modal-box">
     <div class="modal-header">
       <div><h2 id="proj-modal-title">Add New Project</h2><p>Create a new construction project.</p></div>
-      <button class="modal-close" onclick="closeModal('proj-modal')"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></button>
+      <button class="modal-close" onclick="closeModal('proj-modal')"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
     </div>
     <input type="hidden" id="p-id">
     <div class="form-group"><label class="form-label">Project Name <span class="req">*</span></label><input id="p-name" class="form-input" placeholder="e.g., Skyline Tower" data-required data-maxlen="100"></div>
@@ -61,6 +62,10 @@
       <div class="form-group"><label class="form-label">End Date <span class="req">*</span></label><input id="p-end" type="date" class="form-input" data-required></div>
     </div>
     <div class="form-row">
+      <div class="form-group"><label class="form-label">Budget (₹) <span class="req">*</span></label><input id="p-budget" type="number" class="form-input" placeholder="e.g., 25000000" data-required data-min="1"></div>
+      <div class="form-group"><label class="form-label">Team Size</label><input id="p-team" type="number" class="form-input" placeholder="e.g., 20" min="1"></div>
+    </div>
+    <div class="form-row" id="p-status-progress-row" style="display:none">
       <div class="form-group"><label class="form-label">Status <span class="req">*</span></label>
         <select id="p-status" class="form-select" data-required>
           <option value="On Track">On Track</option>
@@ -70,10 +75,6 @@
         </select>
       </div>
       <div class="form-group"><label class="form-label">Progress (%)</label><input id="p-progress" type="number" class="form-input" min="0" max="100"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Budget (₹) <span class="req">*</span></label><input id="p-budget" type="number" class="form-input" placeholder="e.g., 25000000" data-required data-min="1"></div>
-      <div class="form-group"><label class="form-label">Team Size</label><input id="p-team" type="number" class="form-input" placeholder="e.g., 20" min="1"></div>
     </div>
     <div class="form-group"><label class="form-label">Description</label><textarea id="p-desc" class="form-textarea" placeholder="Project description..." data-maxlen="500"></textarea></div>
     <div class="modal-footer">
@@ -155,24 +156,28 @@ function renderProjects() {
 
   const grid = document.getElementById('projects-grid');
   if (!projects.length) {
-    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📁</div><h3>No projects found</h3><p>Create your first project to get started</p></div>';
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon"><i data-lucide="folder"></i></div><h3>No projects found</h3><p>Create your first project to get started</p></div>';
+    initLucideIcons();
     return;
   }
   grid.innerHTML = projects.map(p => `
     <div class="project-card">
       <div class="project-card-header">
-        <div style="background:var(--primary-light);padding:10px;border-radius:10px;display:flex;align-items:center;justify-content:center"><img src="../../icons/Building2.svg" width="22" height="22"></div>
+        <div style="background:var(--primary-light);padding:10px;border-radius:10px;display:flex;align-items:center;justify-content:center"><i data-lucide="building-2" style="width:16px;height:16px;"></i></div>
         ${statusBadge(p.status)}
       </div>
       <div class="project-name">${p.name}</div>
-      <div class="project-loc"><img src="../../icons/Package.svg" alt="📍" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> ${p.location}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin:4px 0 8px 0;display:flex;align-items:center;gap:6px">
+        <i data-lucide="user" style="width:14px;height:14px;color:var(--primary)"></i> Client: <strong style="color:var(--text-main)">${p.clientName || (getById('users', p.clientId)?.name) || 'N/A'}</strong>
+      </div>
+      <div class="project-loc"><i data-lucide="package" style="width:16px;height:16px;"></i> ${p.location}</div>
       <div style="margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12.5px"><span>Progress</span><strong>${p.progress}%</strong></div>
         ${progressBar(p.progress)}
       </div>
       <div class="project-meta-row">
-        <span><strong><img src="../../icons/Users.svg" alt="👥" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> ${p.teamSize}</strong><span style="display:block;font-size:11px">Team</span></span>
-        <span><strong><img src="../../icons/Calendar.svg" alt="📅" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> ${formatDate(p.endDate)}</strong><span style="display:block;font-size:11px">Deadline</span></span>
+        <span><strong><i data-lucide="users" style="width:16px;height:16px;"></i> ${p.teamSize}</strong><span style="display:block;font-size:11px">Team</span></span>
+        <span><strong><i data-lucide="calendar" style="width:16px;height:16px;"></i> ${formatDate(p.endDate)}</strong><span style="display:block;font-size:11px">Deadline</span></span>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
         <div class="project-budget">${formatCurrency(p.budget)}</div>
@@ -183,6 +188,7 @@ function renderProjects() {
         </div>
       </div>
     </div>`).join('');
+    initLucideIcons();
 }
 
 function editProject(id) {
@@ -241,7 +247,16 @@ function attachProjectValidation() {
 function deleteProject(id) {
   const p = getById('projects', id);
   confirmAction(`Delete project "${p?p.name:id}"? This cannot be undone.`, () => {
+    const clientId = p ? p.clientId : null;
     remove('projects', id);
+
+    if (clientId) {
+      const remainingProjects = getAll('projects').filter(proj => proj.clientId === clientId);
+      if (remainingProjects.length === 0) {
+        update('users', clientId, { status: 'inactive' });
+      }
+    }
+
     showToast('Project deleted', 'info');
     renderProjects();
   });
@@ -312,6 +327,14 @@ function saveProject() {
     valid = false;
   }
 
+  const companyObj = getById('companies', user.companyId);
+  const companyDomain = (companyObj && companyObj.domain) ? companyObj.domain.toLowerCase() : (user.email.split('@')[1] || 'apex.com').toLowerCase();
+  const cDomain = (cemail.split('@')[1] || '').toLowerCase();
+  if (cDomain !== companyDomain) {
+    showError(document.getElementById('p-client-email'), `Client email domain must match company domain (@${companyDomain})`);
+    valid = false;
+  }
+
   if (!valid) return;
 
   const idVal = document.getElementById('p-id').value;
@@ -329,15 +352,24 @@ function saveProject() {
     }
   } else {
     const newUser = create('users', {
-      role: 'client', name: cname, email: cemail, phone: cphone, password: cpass, profileImage: '', status: 'active', createdAt: new Date().toISOString().split('T')[0]
+      role: 'client', companyId: user.companyId, name: cname, email: cemail, phone: cphone, password: cpass, profileImage: '', status: 'active', createdAt: new Date().toISOString().split('T')[0]
     });
+    if (newUser && newUser.error) {
+      showError(document.getElementById('p-client-email'), newUser.message || 'Failed to create client user account');
+      return;
+    }
     clientId = (newUser && newUser.id) ? newUser.id : ('U' + Date.now().toString().slice(-4) + Math.floor(Math.random()*1000));
   }
 
   const data = {
     name: document.getElementById('p-name').value.trim(),
+    companyId: user.companyId,
     clientId: clientId,
     clientName: cname,
+    clientEmail: cemail,
+    clientPhone: cphone,
+    managerId: user.id,
+    managerName: user.name || 'Project Manager',
     location: document.getElementById('p-location').value.trim(),
     startDate: s, endDate: e,
     budget: Number(budgetEl.value),
@@ -354,7 +386,7 @@ function saveProject() {
     update('projects', idVal, data); 
     showToast('Project updated!');
   } else { 
-    create('projects', { id: genId('P'), progress: 0, spent: 0, status: 'On Track', managerId: user.id, ...data }); 
+    create('projects', { id: genId('P'), progress: 0, spent: 0, status: 'On Track', ...data }); 
     create('notifications', {
       id: genId('N'), userId: clientId, type: 'system', title: 'Project Created',
       body: `Your project "${data.name}" has been successfully set up.`, time: 'just now', read: false
