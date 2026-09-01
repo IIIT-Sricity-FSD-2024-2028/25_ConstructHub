@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ConstructHub – Build Smarter. Manage Better. Deliver Faster.</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f97316' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z'/%3E%3Cpath d='M6 12h12'/%3E%3Cpath d='M6 7h12'/%3E%3Cpath d='M6 17h12'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="css/main.css">
 <style>
   body { font-family: var(--font-body); }
@@ -81,13 +82,14 @@
   .footer-logo-text { font-family: var(--font-head); font-weight: 700; font-size: 18px; color: white; }
   .footer-desc { font-size: 13px; line-height: 1.6; max-width: 280px; }
 </style>
+<script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 
 <!-- Navbar -->
 <nav class="landing-nav">
   <div style="display:flex;align-items:center;gap:8px;">
-    <img src="icons/HardHat.svg" width="32" height="32" alt="logo">
+    <div style="color:var(--primary);display:flex;align-items:center;"><i data-lucide="hard-hat" style="width:28px;height:28px;"></i></div>
     <span style="font-family:var(--font-head);font-weight:800;font-size:24px">ConstructHub</span>
   </div>
   <div class="landing-nav-links">
@@ -127,10 +129,10 @@
         <span style="margin-left:4px">Project Manager Dashboard</span>
       </div>
       <div class="preview-cards">
-        <div class="preview-card"><div class="preview-card-top"><span>📁</span><span class="badge badge-green" style="font-size:10px">+2 this month</span></div><div class="preview-card-val">12</div><div style="font-size:11px;color:var(--text-muted)">Active Projects</div></div>
-        <div class="preview-card"><div class="preview-card-top"><span>✅</span><span style="font-size:10px;color:var(--green)">↑ +5%</span></div><div class="preview-card-val">87%</div><div style="font-size:11px;color:var(--text-muted)">Tasks Completed</div></div>
-        <div class="preview-card"><div class="preview-card-top"><span><img src="icons/Clock.svg" alt="🕐" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span><span class="badge badge-red" style="font-size:10px">3 delayed</span></div><div class="preview-card-val">9/12</div><div style="font-size:11px;color:var(--text-muted)">On Schedule</div></div>
-        <div class="preview-card"><div class="preview-card-top"><span><img src="icons/DollarSign.svg" alt="💰" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span><span style="font-size:10px;color:var(--text-muted)">82% of total</span></div><div class="preview-card-val" style="font-size:18px">₹8.2Cr</div><div style="font-size:11px;color:var(--text-muted)">Budget Utilized</div></div>
+        <div class="preview-card"><div class="preview-card-top"><i data-lucide="folder" style="width:18px;height:18px;color:var(--primary);"></i><span class="badge badge-green" style="font-size:10px">+2 this month</span></div><div class="preview-card-val">12</div><div style="font-size:11px;color:var(--text-muted)">Active Projects</div></div>
+        <div class="preview-card"><div class="preview-card-top"><i data-lucide="check-square" style="width:18px;height:18px;color:#10b981;"></i><span style="font-size:10px;color:var(--green)">↑ +5%</span></div><div class="preview-card-val">87%</div><div style="font-size:11px;color:var(--text-muted)">Tasks Completed</div></div>
+        <div class="preview-card"><div class="preview-card-top"><i data-lucide="clock" style="width:18px;height:18px;color:#ef4444;"></i><span class="badge badge-red" style="font-size:10px">3 delayed</span></div><div class="preview-card-val">9/12</div><div style="font-size:11px;color:var(--text-muted)">On Schedule</div></div>
+        <div class="preview-card"><div class="preview-card-top"><i data-lucide="dollar-sign" style="width:18px;height:18px;color:#3b82f6;"></i><span style="font-size:10px;color:var(--text-muted)">82% of total</span></div><div class="preview-card-val" style="font-size:18px">₹8.2Cr</div><div style="font-size:11px;color:var(--text-muted)">Budget Utilized</div></div>
       </div>
       <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">Active Projects</div>
       <div class="preview-project"><div><div class="pname">Skyline Tower</div><div class="preview-progress"><div class="preview-progress-fill" style="width:75%"></div></div></div><span class="badge badge-green" style="font-size:10px">On Track</span></div>
@@ -145,12 +147,12 @@
   <h2>Everything You Need to Manage Construction</h2>
   <p class="sub">Powerful features designed for modern construction teams</p>
   <div class="features-grid">
-    <div class="feature-card"><div class="feature-icon"><img src="icons/Package.svg" alt="📍" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><h3>Project Tracking</h3><p>Real-time project progress monitoring with detailed analytics and visual dashboards.</p></div>
-    <div class="feature-card"><div class="feature-icon">✅</div><h3>Task Management</h3><p>Assign and track tasks across teams with detailed analytics and priority management.</p></div>
-    <div class="feature-card"><div class="feature-icon"><img src="icons/DollarSign.svg" alt="💰" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><h3>Budget Control</h3><p>Monitor expenses, track invoices, and manage payments with complete financial oversight.</p></div>
-    <div class="feature-card"><div class="feature-icon">📋</div><h3>Site Reporting</h3><p>Submit detailed site reports with photos, materials used, and issues encountered.</p></div>
-    <div class="feature-card"><div class="feature-icon"><img src="icons/Calendar.svg" alt="📅" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><h3>Project Scheduling</h3><p>Visual timeline dashboard with Gantt chart-style planning for all project phases.</p></div>
-    <div class="feature-card"><div class="feature-icon"><img src="icons/Eye.svg" alt="👁" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><h3>Client Transparency</h3><p>Give clients real-time access to project progress, budgets, and billing status.</p></div>
+    <div class="feature-card"><div class="icon-box icon-box-lg icon-box-orange" style="margin-bottom:12px;"><i data-lucide="bar-chart-3" style="width:24px;height:24px;"></i></div><h3>Project Tracking</h3><p>Real-time project progress monitoring with detailed analytics and visual dashboards.</p></div>
+    <div class="feature-card"><div class="icon-box icon-box-lg icon-box-green" style="margin-bottom:12px;"><i data-lucide="check-square" style="width:24px;height:24px;"></i></div><h3>Task Management</h3><p>Assign and track tasks across teams with detailed analytics and priority management.</p></div>
+    <div class="feature-card"><div class="icon-box icon-box-lg icon-box-blue" style="margin-bottom:12px;"><i data-lucide="dollar-sign" style="width:24px;height:24px;"></i></div><h3>Budget Control</h3><p>Monitor expenses, track invoices, and manage payments with complete financial oversight.</p></div>
+    <div class="feature-card"><div class="icon-box icon-box-lg icon-box-purple" style="margin-bottom:12px;"><i data-lucide="file-text" style="width:24px;height:24px;"></i></div><h3>Site Reporting</h3><p>Submit detailed site reports with photos, materials used, and issues encountered.</p></div>
+    <div class="feature-card"><div class="icon-box icon-box-lg icon-box-orange" style="margin-bottom:12px;"><i data-lucide="calendar" style="width:24px;height:24px;"></i></div><h3>Project Scheduling</h3><p>Visual timeline dashboard with Gantt chart-style planning for all project phases.</p></div>
+    <div class="feature-card"><div class="icon-box icon-box-lg icon-box-green" style="margin-bottom:12px;"><i data-lucide="eye" style="width:24px;height:24px;"></i></div><h3>Client Transparency</h3><p>Give clients real-time access to project progress, budgets, and billing status.</p></div>
   </div>
 </section>
 
@@ -159,10 +161,10 @@
   <h2>Built for Every Role</h2>
   <p class="sub">Tailored dashboards and features for each team member</p>
   <div class="roles-grid">
-    <div class="role-card"><div class="role-icon"><img src="icons/HardHat.svg" alt="👷" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><h3>Project Manager</h3><div class="role-feature">Project overview</div><div class="role-feature">Task assignment</div><div class="role-feature">Team management</div><div class="role-feature">Reports</div></div>
-    <div class="role-card"><div class="role-icon"><img src="icons/Wrench.svg" alt="🔧" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><h3>Site Engineer</h3><div class="role-feature">Task tracking</div><div class="role-feature">Site reports</div><div class="role-feature">Photo uploads</div><div class="role-feature">Progress updates</div></div>
-    <div class="role-card"><div class="role-icon"><img src="icons/Package.svg" alt="💼" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><h3>Finance Manager</h3><div class="role-feature">Budget tracking</div><div class="role-feature">Invoice generation</div><div class="role-feature">Expense tracking</div><div class="role-feature">Reports</div></div>
-    <div class="role-card"><div class="role-icon"><img src="icons/User.svg" alt="👤" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><h3>Client</h3><div class="role-feature">Project progress</div><div class="role-feature">Budget overview</div><div class="role-feature">Payment decisions</div><div class="role-feature">Feedback</div></div>
+    <div class="role-card"><div class="icon-box icon-box-lg icon-box-orange" style="margin:0 auto 12px;"><i data-lucide="hard-hat" style="width:24px;height:24px;"></i></div><h3>Project Manager</h3><div class="role-feature">Project overview</div><div class="role-feature">Task assignment</div><div class="role-feature">Team management</div><div class="role-feature">Reports</div></div>
+    <div class="role-card"><div class="icon-box icon-box-lg icon-box-green" style="margin:0 auto 12px;"><i data-lucide="wrench" style="width:24px;height:24px;"></i></div><h3>Site Engineer</h3><div class="role-feature">Task tracking</div><div class="role-feature">Site reports</div><div class="role-feature">Photo uploads</div><div class="role-feature">Progress updates</div></div>
+    <div class="role-card"><div class="icon-box icon-box-lg icon-box-blue" style="margin:0 auto 12px;"><i data-lucide="calculator" style="width:24px;height:24px;"></i></div><h3>Finance Manager</h3><div class="role-feature">Budget tracking</div><div class="role-feature">Invoice generation</div><div class="role-feature">Expense tracking</div><div class="role-feature">Reports</div></div>
+    <div class="role-card"><div class="icon-box icon-box-lg icon-box-purple" style="margin:0 auto 12px;"><i data-lucide="user-check" style="width:24px;height:24px;"></i></div><h3>Client</h3><div class="role-feature">Project progress</div><div class="role-feature">Budget overview</div><div class="role-feature">Payment decisions</div><div class="role-feature">Feedback</div></div>
   </div>
 </section>
 
@@ -197,7 +199,7 @@
         <div class="pricing-feature">Client portal</div>
         <div class="pricing-feature">API access</div>
       </div>
-      <a href="pages/contact.html" class="btn btn-full" style="background:white;color:var(--primary);font-weight:700">Get Started</a>
+      <a href="pages/contact.html" class="btn btn-outline btn-full">Get Started</a>
     </div>
     <div class="pricing-card">
       <div class="pricing-name">Enterprise</div>
@@ -231,7 +233,7 @@
 <footer class="footer">
   <div class="footer-grid">
     <div>
-      <div class="footer-logo"><span class="footer-logo-icon"><img src="icons/HardHat.svg" width="28" height="28" alt="logo" style="vertical-align:middle;margin-right:8px"></span><span class="footer-logo-text">ConstructHub</span></div>
+      <div class="footer-logo"><div style="color:var(--primary);display:flex;align-items:center;margin-right:8px;"><i data-lucide="hard-hat" style="width:24px;height:24px;"></i></div><span class="footer-logo-text">ConstructHub</span></div>
       <p class="footer-desc">The all-in-one construction management platform designed to streamline your projects from planning to completion.</p>
     </div>
     <div><h4>Product</h4><a href="#">Features</a><a href="#">Pricing</a><a href="#">Security</a><a href="#">Roadmap</a></div>
@@ -242,7 +244,16 @@
     <span>© 2026 ConstructHub. All rights reserved.</span>
     <span>Privacy Policy · Terms of Service</span>
   </div>
-</footer>
-
+<script src="js/utils.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
+    if (typeof initLucideIcons === 'function') {
+      initLucideIcons();
+    }
+  });
+</script>
 </body>
 </html>
