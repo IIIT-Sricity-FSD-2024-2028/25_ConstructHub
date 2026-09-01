@@ -4,6 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Project Budget - ConstructHub</title>
 <link rel="stylesheet" href="../../css/main.css">
+<script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 <div class="app-layout">
@@ -11,14 +12,14 @@
   <div class="app-body">
     <aside class="sidebar">
       <nav class="sidebar-nav">
-        <a href="dashboard.html"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="Dashboard" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
-        <a href="project-budget.html" class="active"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="Project Budget" style="vertical-align:middle;margin-right:8px;"> Project Budget</a>
-        <a href="expenses.html"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="Expenses" style="vertical-align:middle;margin-right:8px;"> Expenses</a>
-        <a href="generate-bills.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="Generate Bills" style="vertical-align:middle;margin-right:8px;"> Generate Bills</a>
-        <a href="bill-decisions.html"><img src="../../icons/CheckCircle2.svg" class="nav-icon" width="18" height="18" alt="Bill Payment Decisions" style="vertical-align:middle;margin-right:8px;"> Bill Payment Decisions</a>
-        <a href="messages.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="Messages" style="vertical-align:middle;margin-right:8px;"> Messages</a>
+        <a href="dashboard.html"><i data-lucide="layout-dashboard" class="nav-icon"></i> Dashboard</a>
+        <a href="project-budget.html" class="active"><i data-lucide="dollar-sign" style="width:16px;height:16px;"></i> Project Budget</a>
+        <a href="expenses.html"><i data-lucide="wallet" class="nav-icon"></i> Expenses</a>
+        <a href="generate-bills.html"><i data-lucide="receipt" class="nav-icon"></i> Generate Bills</a>
+        <a href="bill-decisions.html"><i data-lucide="check-circle-2" class="nav-icon"></i> Bill Payment Decisions</a>
+        <a href="messages.html"><i data-lucide="message-square" class="nav-icon"></i> Messages</a>
         <div class="sidebar-divider"></div>
-        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="Settings" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+        <a href="settings.html"><i data-lucide="settings" class="nav-icon"></i> Settings</a>
       </nav>
     </aside>
     <main class="main-content">
@@ -32,14 +33,14 @@
   <div class="modal-box">
     <div class="modal-header">
       <div><h2>Edit Budget</h2><p id="budget-proj-name"></p></div>
-      <button class="modal-close" onclick="closeModal('budget-modal')"><img src="../../icons/X.svg" alt="Close" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></button>
+      <button class="modal-close" onclick="closeModal('budget-modal')"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
     </div>
     <input type="hidden" id="b-proj-id">
     <div class="form-group"><label class="form-label">Total Budget (Rs) <span class="req">*</span></label><input id="b-total" type="number" class="form-input" data-required data-min="1"></div>
     <div class="form-group"><label class="form-label">Allocated for Labor (Rs)</label><input id="b-labor" type="number" class="form-input" min="0"></div>
     <div class="form-group"><label class="form-label">Allocated for Materials (Rs)</label><input id="b-materials" type="number" class="form-input" min="0"></div>
     <div class="form-group"><label class="form-label">Allocated for Equipment (Rs)</label><input id="b-equipment" type="number" class="form-input" min="0"></div>
-    <div class="form-group"><label class="form-label">Allocated for Other (Rs)</label><input id="b-other" type="number" class="form-input" min="0"></div>
+    <div class="form-group"><label class="form-label">Allocated for Other (Rs)</label><input id="b-other" type="number" class="form-input" min="0" readonly disabled style="background:var(--bg, #f1f5f9)"></div>
     <div class="modal-footer">
       <button onclick="closeModal('budget-modal')" class="btn btn-secondary">Cancel</button>
       <button onclick="saveBudget()" class="btn btn-primary">Save Budget</button>
@@ -52,10 +53,10 @@
 <script>
 let user;
 const BUDGET_CATEGORIES = [
-  { name: 'Labor', icon: '<img src="../../icons/HardHat.svg" alt="Labor" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">' },
+  { name: 'Labor', icon: '<i data-lucide="hard-hat" style="width:16px;height:16px;"></i>' },
   { name: 'Materials', icon: 'Materials' },
-  { name: 'Equipment', icon: '<img src="../../icons/Wrench.svg" alt="Equipment" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">' },
-  { name: 'Other', icon: '<img src="../../icons/Package.svg" alt="Other" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">' }
+  { name: 'Equipment', icon: '<i data-lucide="wrench" style="width:16px;height:16px;"></i>' },
+  { name: 'Other', icon: '<i data-lucide="package" style="width:16px;height:16px;"></i>' }
 ];
 
 window.onload = () => {
@@ -86,10 +87,26 @@ function sanitizeBudgetNumberInput(input, allowZero = true) {
   });
 }
 
+function recomputeOtherAllocation() {
+  const total = Number(document.getElementById('b-total').value) || 0;
+  const labor = Number(document.getElementById('b-labor').value) || 0;
+  const materials = Number(document.getElementById('b-materials').value) || 0;
+  const equipment = Number(document.getElementById('b-equipment').value) || 0;
+  const other = Math.max(0, total - (labor + materials + equipment));
+  document.getElementById('b-other').value = other;
+}
+
 function attachBudgetValidation() {
   sanitizeBudgetNumberInput(document.getElementById('b-total'), false);
-  ['b-labor', 'b-materials', 'b-equipment', 'b-other'].forEach(fieldId => {
+  ['b-labor', 'b-materials', 'b-equipment'].forEach(fieldId => {
     sanitizeBudgetNumberInput(document.getElementById(fieldId), true);
+  });
+  ['b-total', 'b-labor', 'b-materials', 'b-equipment'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.dataset.recomputeAttached) {
+      el.dataset.recomputeAttached = 'true';
+      el.addEventListener('input', recomputeOtherAllocation);
+    }
   });
 }
 
@@ -121,13 +138,15 @@ function getProjectSpent(projectId) {
 }
 
 function syncAllProjectSpent() {
-  getAll('projects').forEach(project => {
-    update('projects', project.id, { spent: getProjectSpent(project.id) });
-  });
+  getAll('projects')
+    .filter(project => !user.companyId || project.companyId === user.companyId)
+    .forEach(project => {
+      update('projects', project.id, { spent: getProjectSpent(project.id) });
+    });
 }
 
 function renderBudgets() {
-  const projects = getAll('projects');
+  const projects = getAll('projects').filter(p => !user.companyId || p.companyId === user.companyId);
   const el = document.getElementById('budgets-list');
   el.innerHTML = projects.map(project => {
     const budget = Number(project.budget) || 0;
@@ -153,7 +172,7 @@ function renderBudgets() {
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             ${statusBadge(project.status)}
-            <button onclick="editBudget('${project.id}')" class="btn btn-secondary btn-sm"><img src="../../icons/Edit.svg" alt="Edit" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> Edit Budget</button>
+            <button onclick="editBudget('${project.id}')" class="btn btn-secondary btn-sm"><i data-lucide="edit-3" style="width:16px;height:16px;"></i> Edit Budget</button>
           </div>
         </div>
 
@@ -163,15 +182,15 @@ function renderBudgets() {
             <div style="font-family:var(--font-head);font-weight:700;font-size:16px;margin-top:4px">${formatCurrency(budget)}</div>
           </div>
           <div style="background:var(--bg);border-radius:10px;padding:12px">
-            <div style="font-size:11px;color:var(--red);font-weight:700;text-transform:uppercase"><img src="../../icons/TrendingDown.svg" alt="Expenses" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> Total Expenses</div>
+            <div style="font-size:11px;color:var(--red);font-weight:700;text-transform:uppercase"><i data-lucide="trending-down" style="width:16px;height:16px;"></i> Total Expenses</div>
             <div style="font-family:var(--font-head);font-weight:700;font-size:16px;margin-top:4px">${formatCurrency(spent)}</div>
           </div>
           <div style="background:var(--bg);border-radius:10px;padding:12px">
-            <div style="font-size:11px;color:var(--green);font-weight:700;text-transform:uppercase"><img src="../../icons/DollarSign.svg" alt="Remaining" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> Remaining</div>
+            <div style="font-size:11px;color:var(--green);font-weight:700;text-transform:uppercase"><i data-lucide="dollar-sign" style="width:16px;height:16px;"></i> Remaining</div>
             <div style="font-family:var(--font-head);font-weight:700;font-size:16px;margin-top:4px;color:var(--green)">${formatCurrency(remaining)}</div>
           </div>
           <div style="background:var(--bg);border-radius:10px;padding:12px">
-            <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase"><img src="../../icons/TrendingUp.svg" alt="Usage" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> Budget Usage</div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase"><i data-lucide="trending-up" style="width:16px;height:16px;"></i> Budget Usage</div>
             <div style="font-family:var(--font-head);font-weight:700;font-size:16px;margin-top:4px;color:${statusColor}">${utilization}%</div>
           </div>
         </div>
@@ -205,7 +224,7 @@ function editBudget(projectId) {
   document.getElementById('b-labor').value = allocations.Labor;
   document.getElementById('b-materials').value = allocations.Materials;
   document.getElementById('b-equipment').value = allocations.Equipment;
-  document.getElementById('b-other').value = allocations.Other;
+  recomputeOtherAllocation();
   openModal('budget-modal');
 }
 
@@ -219,8 +238,6 @@ function saveBudget() {
   const labor = Number(laborEl.value) || 0;
   const materials = Number(materialsEl.value) || 0;
   const equipment = Number(equipmentEl.value) || 0;
-  const other = Number(otherEl.value) || 0;
-  const allocatedTotal = labor + materials + equipment + other;
 
   clearError(totalEl);
   [laborEl, materialsEl, equipmentEl, otherEl].forEach(clearError);
@@ -240,14 +257,12 @@ function saveBudget() {
     showError(equipmentEl, 'Allocation cannot be negative');
     return;
   }
-  if (other < 0) {
-    showError(otherEl, 'Allocation cannot be negative');
+  if (labor + materials + equipment > total) {
+    showError(totalEl, 'Labor + Materials + Equipment cannot exceed total budget');
     return;
   }
-  if (allocatedTotal > total) {
-    showError(totalEl, 'Category allocations cannot exceed total budget');
-    return;
-  }
+  const other = Math.max(0, total - (labor + materials + equipment));
+  otherEl.value = other;
 
   const projectId = document.getElementById('b-proj-id').value;
   update('projects', projectId, {

@@ -4,6 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Settings – ConstructHub</title>
 <link rel="stylesheet" href="../../css/main.css">
+<script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 <div class="app-layout">
@@ -11,24 +12,24 @@
   <div class="app-body">
     <aside class="sidebar" id="sidebar">
       <nav class="sidebar-nav">
-        <a href="dashboard.html" ><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
-        <a href="project-budget.html"><span class="nav-icon"><img src="../../icons/DollarSign.svg" alt="💲" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Project Budget</a>
-        <a href="expenses.html"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="💸" style="vertical-align:middle;margin-right:8px;"> Expenses</a>
-        <a href="generate-bills.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📄" style="vertical-align:middle;margin-right:8px;"> Generate Bills</a>
-        <a href="bill-decisions.html"><img src="../../icons/CheckCircle2.svg" class="nav-icon" width="18" height="18" alt="✅" style="vertical-align:middle;margin-right:8px;"> Bill Payment Decisions</a>
-        <a href="messages.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Messages</a>
+        <a href="dashboard.html" ><i data-lucide="layout-dashboard" class="nav-icon"></i> Dashboard</a>
+        <a href="project-budget.html"><span class="nav-icon"><i data-lucide="dollar-sign" style="width:16px;height:16px;"></i></span> Project Budget</a>
+        <a href="expenses.html"><i data-lucide="wallet" class="nav-icon"></i> Expenses</a>
+        <a href="generate-bills.html"><i data-lucide="receipt" class="nav-icon"></i> Generate Bills</a>
+        <a href="bill-decisions.html"><i data-lucide="check-circle-2" class="nav-icon"></i> Bill Payment Decisions</a>
+        <a href="messages.html"><i data-lucide="message-square" class="nav-icon"></i> Messages</a>
         <div class="sidebar-divider"></div>
-        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+        <a href="settings.html"><i data-lucide="settings" class="nav-icon"></i> Settings</a>
       </nav>
     </aside>
     <main class="main-content">
       <div class="page-header"><h1>Settings</h1><p>Manage your account preferences and settings</p></div>
 
       <!-- Profile Section -->
-      <div class="card" style="margin-bottom:16px">
+      <div class="card mb-16">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-          <div style="background:#fff3eb;padding:10px;border-radius:10px;font-size:20px"><img src="../../icons/User.svg" alt="👤" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div>
-          <h3 style="font-family:var(--font-head);font-weight:700;font-size:16px">Profile Information</h3>
+          <div class="icon-box icon-box-orange"><i data-lucide="user"></i></div>
+          <h3 class="card-title" style="margin-bottom:0">Profile Information</h3>
         </div>
         <div id="profile-section">
           <div class="form-row">
@@ -44,10 +45,10 @@
       </div>
 
       <!-- Notifications Section -->
-      <div class="card" style="margin-bottom:16px">
+      <div class="card mb-16">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-          <div style="background:#dbeafe;padding:10px;border-radius:10px;font-size:20px"><img src="../../icons/Bell.svg" alt="🔔" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div>
-          <h3 style="font-family:var(--font-head);font-weight:700;font-size:16px">Notifications</h3>
+          <div class="icon-box icon-box-blue"><i data-lucide="bell"></i></div>
+          <h3 class="card-title" style="margin-bottom:0">Notifications</h3>
         </div>
         <div class="notif-row">
           <div class="notif-row-info"><strong>Email Notifications</strong><span>Receive email updates about your projects</span></div>
@@ -70,8 +71,8 @@
       <!-- Security Section -->
       <div class="card">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-          <div style="background:#dcfce7;padding:10px;border-radius:10px;font-size:20px"><img src="../../icons/Shield.svg" alt="🔒" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div>
-          <h3 style="font-family:var(--font-head);font-weight:700;font-size:16px">Security</h3>
+          <div class="icon-box icon-box-green"><i data-lucide="shield-check"></i></div>
+          <h3 class="card-title" style="margin-bottom:0">Security</h3>
         </div>
         <div class="form-group"><label class="form-label">Current Password <span class="req">*</span></label><input id="s-cur-pw" type="password" class="form-input" placeholder="Enter current password"></div>
         <div class="form-group"><label class="form-label">New Password <span class="req">*</span></label><input id="s-new-pw" type="password" class="form-input" placeholder="Enter new password (min 6 chars)"></div>
@@ -88,7 +89,7 @@
 <!-- Success Modal -->
 <div id="save-modal" class="modal-overlay">
   <div class="modal-box" style="max-width:340px;text-align:center">
-    <div style="width:60px;height:60px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px">✅</div>
+    <div class="icon-box icon-box-green icon-box-lg" style="margin:0 auto 16px;border-radius:50%;"><i data-lucide="check-circle-2"></i></div>
     <h2 style="font-family:var(--font-head);margin-bottom:8px" id="save-modal-title">Changes Saved Successfully</h2>
     <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px" id="save-modal-msg">Your changes have been saved.</p>
     <button onclick="closeModal('save-modal')" class="btn btn-success btn-full">Done</button>
@@ -117,32 +118,32 @@ function isValidPhone(value) {
 
 const SIDEBARS = {
   project_manager: [
-    {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'projects.html',icon:'📁',label:'Projects'},
-    {href:'tasks.html',icon:'✅',label:'Tasks'},
-    {href:'reports.html',icon:'📋',label:'View Site Reports'},{href:'messages.html',icon:'💬',label:'Messages'},
-    {href:'settings.html',icon:'⚙️',label:'Settings',active:true},
+    {href:'dashboard.html',icon:'<i data-lucide="layout-dashboard"></i>',label:'Dashboard'},{href:'projects.html',icon:'<i data-lucide="folder"></i>',label:'Projects'},
+    {href:'tasks.html',icon:'<i data-lucide="check-square"></i>',label:'Tasks'},
+    {href:'reports.html',icon:'<i data-lucide="file-text"></i>',label:'View Site Reports'},{href:'messages.html',icon:'<i data-lucide="message-square"></i>',label:'Messages'},
+    {href:'settings.html',icon:'<i data-lucide="settings"></i>',label:'Settings',active:true},
   ],
   site_engineer: [
-    {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'my-tasks.html',icon:'✅',label:'My Tasks'},
-    {href:'update-task.html',icon:'<img src="../../icons/Edit.svg" alt="📝" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">',label:'Update Task Status'},{href:'submit-report.html',icon:'📋',label:'Submit Site Report'},
-    {href:'messages.html',icon:'💬',label:'Messages'},{href:'settings.html',icon:'⚙️',label:'Settings',active:true},
+    {href:'dashboard.html',icon:'<i data-lucide="layout-dashboard"></i>',label:'Dashboard'},{href:'my-tasks.html',icon:'<i data-lucide="check-square"></i>',label:'My Tasks'},
+    {href:'update-task.html',icon:'<i data-lucide="edit-3" style="width:16px;height:16px;"></i>',label:'Update Task Status'},{href:'submit-report.html',icon:'<i data-lucide="file-text"></i>',label:'Submit Site Report'},
+    {href:'messages.html',icon:'<i data-lucide="message-square"></i>',label:'Messages'},{href:'settings.html',icon:'<i data-lucide="settings"></i>',label:'Settings',active:true},
   ],
   finance_manager: [
-    {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'project-budget.html',icon:'💵',label:'Project Budget'},
-    {href:'expenses.html',icon:'💸',label:'Expenses'},{href:'generate-bills.html',icon:'📄',label:'Generate Bills'},
-    {href:'bill-decisions.html',icon:'✅',label:'Bill Payment Decisions'},{href:'messages.html',icon:'💬',label:'Messages'},
-    {href:'settings.html',icon:'⚙️',label:'Settings',active:true},
+    {href:'dashboard.html',icon:'<i data-lucide="layout-dashboard"></i>',label:'Dashboard'},{href:'project-budget.html',icon:'<i data-lucide="receipt"></i>',label:'Project Budget'},
+    {href:'expenses.html',icon:'<i data-lucide="wallet"></i>',label:'Expenses'},{href:'generate-bills.html',icon:'<i data-lucide="receipt"></i>',label:'Generate Bills'},
+    {href:'bill-decisions.html',icon:'<i data-lucide="check-square"></i>',label:'Bill Payment Decisions'},{href:'messages.html',icon:'<i data-lucide="message-square"></i>',label:'Messages'},
+    {href:'settings.html',icon:'<i data-lucide="settings"></i>',label:'Settings',active:true},
   ],
   client: [
-    {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'project-progress.html',icon:'<img src="../../icons/TrendingUp.svg" alt="📊" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">',label:'Project Progress'},
-    {href:'reports.html',icon:'📋',label:'Reports'},{href:'pending-bills.html',icon:'💵',label:'Pending Bills'},
-    {href:'payment-decisions.html',icon:'💳',label:'Payment Decisions'},{href:'feedback.html',icon:'💬',label:'Feedback'},
-    {href:'messages.html',icon:'<img src="../../icons/Send.svg" alt="📩" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">',label:'Messages'},{href:'profile.html',icon:'<img src="../../icons/User.svg" alt="👤" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">',label:'Profile'},
-    {href:'settings.html',icon:'⚙️',label:'Settings',active:true},
+    {href:'dashboard.html',icon:'<i data-lucide="layout-dashboard"></i>',label:'Dashboard'},{href:'project-progress.html',icon:'<i data-lucide="trending-up" style="width:16px;height:16px;"></i>',label:'Project Progress'},
+    {href:'reports.html',icon:'<i data-lucide="file-text"></i>',label:'Reports'},{href:'pending-bills.html',icon:'<i data-lucide="receipt"></i>',label:'Pending Bills'},
+    {href:'payment-decisions.html',icon:'<i data-lucide="credit-card"></i>',label:'Payment Decisions'},{href:'feedback.html',icon:'<i data-lucide="message-square"></i>',label:'Feedback'},
+    {href:'messages.html',icon:'<i data-lucide="send" style="width:16px;height:16px;"></i>',label:'Messages'},{href:'profile.html',icon:'<i data-lucide="user" style="width:16px;height:16px;"></i>',label:'Profile'},
+    {href:'settings.html',icon:'<i data-lucide="settings"></i>',label:'Settings',active:true},
   ],
   superuser: [
-    {href:'dashboard.html',icon:'🛡',label:'Super User Panel'},
-    {href:'settings.html',icon:'⚙️',label:'Settings',active:true},
+    {href:'dashboard.html',icon:'<i data-lucide="shield-alert"></i>',label:'Super User Panel'},
+    {href:'settings.html',icon:'<i data-lucide="settings"></i>',label:'Settings',active:true},
   ]
 };
 
@@ -158,14 +159,14 @@ window.onload = () => {
 function renderSidebar() {
   document.getElementById('sidebar').innerHTML = `
     <nav class="sidebar-nav">
-      <a href="dashboard.html"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="Dashboard" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
-      <a href="project-budget.html"><span class="nav-icon"><img src="../../icons/DollarSign.svg" alt="Project Budget" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Project Budget</a>
-      <a href="expenses.html"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="Expenses" style="vertical-align:middle;margin-right:8px;"> Expenses</a>
-      <a href="generate-bills.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="Generate Bills" style="vertical-align:middle;margin-right:8px;"> Generate Bills</a>
-      <a href="bill-decisions.html"><img src="../../icons/CheckCircle2.svg" class="nav-icon" width="18" height="18" alt="Bill Payment Decisions" style="vertical-align:middle;margin-right:8px;"> Bill Payment Decisions</a>
-      <a href="messages.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="Messages" style="vertical-align:middle;margin-right:8px;"> Messages</a>
+      <a href="dashboard.html"><i data-lucide="layout-dashboard" class="nav-icon"></i> Dashboard</a>
+      <a href="project-budget.html"><span class="nav-icon"><i data-lucide="dollar-sign" style="width:16px;height:16px;"></i></span> Project Budget</a>
+      <a href="expenses.html"><i data-lucide="wallet" class="nav-icon"></i> Expenses</a>
+      <a href="generate-bills.html"><i data-lucide="receipt" class="nav-icon"></i> Generate Bills</a>
+      <a href="bill-decisions.html"><i data-lucide="check-circle-2" class="nav-icon"></i> Bill Payment Decisions</a>
+      <a href="messages.html"><i data-lucide="message-square" class="nav-icon"></i> Messages</a>
       <div class="sidebar-divider"></div>
-      <a href="settings.html" class="active"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="Settings" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+      <a href="settings.html" class="active"><i data-lucide="settings" class="nav-icon"></i> Settings</a>
     </nav>`;
 }
 
@@ -214,15 +215,13 @@ function saveProfile() {
 
   const fname = fnEl.value.trim();
   const lname = lnEl.value.trim();
-  const email = document.getElementById('s-email').value.trim();
+  const email = emEl.value.trim();
   const phone = phEl.value.trim();
 
-  const emEl = document.getElementById('s-email');
-  clearError(fnEl); clearError(lnEl); clearError(emEl); clearError(phEl);
+  clearError(fnEl); clearError(emEl); clearError(phEl);
   let valid = true;
-  if (!fname) { showError(fnEl,'First name is required'); valid=false; }
-  else if (!isValidName(fname)) { showError(fnEl,'First name should contain alphabets only'); valid=false; }
-  if (lname && !isValidName(lname)) { showError(lnEl,'Last name should contain alphabets only'); valid=false; }
+  if (!fname || !isValidName(fname)) { showError(fnEl,'First name required and can contain letters only'); valid=false; }
+  if (lname && !isValidName(lname)) { showError(lnEl,'Last name can contain letters only'); valid=false; }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError(emEl,'Valid email required'); valid=false; }
   if (phone && !isValidPhone(phone)) { showError(phEl,'Phone number must be 10 digits and cannot be 0000000000'); valid=false; }
   if (!valid) return;
@@ -242,44 +241,6 @@ function saveProfile() {
   document.getElementById('save-modal-msg').textContent = 'Your profile has been updated.';
   openModal('save-modal');
 }
-
-function updatePassword() {
-  const cur = document.getElementById('s-cur-pw').value;
-  const newPw = document.getElementById('s-new-pw').value;
-  const conf = document.getElementById('s-conf-pw').value;
-  const errEl = document.getElementById('pw-error');
-  errEl.style.display = 'none';
-
-  const curEl = document.getElementById('s-cur-pw');
-  const newEl = document.getElementById('s-new-pw');
-  const confEl = document.getElementById('s-conf-pw');
-  clearError(curEl); clearError(newEl); clearError(confEl);
-
-  let valid = true;
-  if (!cur) { showError(curEl,'Current password is required'); valid=false; }
-  if (!newPw) { showError(newEl,'New password is required'); valid=false; }
-  else if (newPw.length < 6) { showError(newEl,'Min 6 characters'); valid=false; }
-  if (!conf) { showError(confEl,'Please confirm your password'); valid=false; }
-  else if (newPw !== conf) { showError(confEl,'Passwords do not match'); valid=false; }
-  if (!valid) return;
-
-  const freshUser = getById('users', user.id);
-  if (freshUser.password !== cur) {
-    showError(curEl,'Incorrect current password');
-    return;
-  }
-  if (newPw === cur) { showError(newEl,'New password must be different'); return; }
-
-  update('users', user.id, { password: newPw });
-  document.getElementById('s-cur-pw').value = '';
-  document.getElementById('s-new-pw').value = '';
-  document.getElementById('s-conf-pw').value = '';
-
-  document.getElementById('save-modal-title').textContent = 'Password Updated';
-  document.getElementById('save-modal-msg').textContent = 'Your password has been changed successfully.';
-  openModal('save-modal');
-}
 </script>
 </body>
 </html>
-

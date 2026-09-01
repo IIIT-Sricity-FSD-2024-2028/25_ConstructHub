@@ -4,6 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Finance Manager Dashboard – ConstructHub</title>
 <link rel="stylesheet" href="../../css/main.css">
+<script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 <div class="app-layout">
@@ -11,14 +12,14 @@
   <div class="app-body">
     <aside class="sidebar">
       <nav class="sidebar-nav">
-        <a href="dashboard.html" class="active"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
-        <a href="project-budget.html"><span class="nav-icon"><img src="../../icons/DollarSign.svg" alt="💲" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Project Budget</a>
-        <a href="expenses.html"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="💸" style="vertical-align:middle;margin-right:8px;"> Expenses</a>
-        <a href="generate-bills.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📄" style="vertical-align:middle;margin-right:8px;"> Generate Bills</a>
-        <a href="bill-decisions.html"><img src="../../icons/CheckCircle2.svg" class="nav-icon" width="18" height="18" alt="✅" style="vertical-align:middle;margin-right:8px;"> Bill Payment Decisions</a>
-        <a href="messages.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Messages</a>
+        <a href="dashboard.html" class="active"><i data-lucide="layout-dashboard" class="nav-icon"></i> Dashboard</a>
+        <a href="project-budget.html"><i data-lucide="pie-chart" class="nav-icon"></i> Project Budget</a>
+        <a href="expenses.html"><i data-lucide="wallet" class="nav-icon"></i> Expenses</a>
+        <a href="generate-bills.html"><i data-lucide="receipt" class="nav-icon"></i> Generate Bills</a>
+        <a href="bill-decisions.html"><i data-lucide="check-circle-2" class="nav-icon"></i> Bill Payment Decisions</a>
+        <a href="messages.html"><i data-lucide="message-square" class="nav-icon"></i> Messages</a>
         <div class="sidebar-divider"></div>
-        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+        <a href="settings.html"><i data-lucide="settings" class="nav-icon"></i> Settings</a>
       </nav>
     </aside>
     <main class="main-content">
@@ -48,29 +49,31 @@ window.onload = () => {
   if (!user) return;
   renderNavbar(user);
   renderStats(); renderCharts(); renderPendingBills(); renderRecentExpenses();
+  initLucideIcons();
 };
 
 function renderStats() {
-  const projects = getAll('projects');
-  const bills = getAll('bills');
-  const expenses = getAll('expenses') || [];
+  const projects = getAll('projects').filter(p => !user.companyId || p.companyId === user.companyId);
+  const companyProjIds = new Set(projects.map(p => p.id));
+  const bills = getAll('bills').filter(b => b.companyId === user.companyId || companyProjIds.has(b.projectId));
+  const expenses = (getAll('expenses') || []).filter(e => e.companyId === user.companyId || companyProjIds.has(e.projectId));
   
   const totalBudget = projects.reduce((s,p) => s + p.budget, 0);
   const utilized = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-  const percentUtilized = totalBudget ? Math.round((utilized/totalBudget)*100) : 0;
 
   const pending = bills.filter(b => b.status === 'Pending').length;
   const overdue = bills.filter(b => b.status === 'Pending' && b.dueDate && new Date(b.dueDate) < new Date()).length;
   
   document.getElementById('stats-grid').innerHTML = `
-    <div class="stat-card"><div class="stat-icon"><img src="../../icons/DollarSign.svg" alt="💰" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><div class="stat-value" style="font-size:20px">${formatCurrency(totalBudget)}</div><div class="stat-label">Total Budget</div></div>
-    <div class="stat-card"><div class="stat-icon"><img src="../../icons/TrendingUp.svg" alt="📈" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><div class="stat-value" style="font-size:20px">${formatCurrency(utilized)}</div><div class="stat-label">Utilized</div></div>
-    <div class="stat-card"><div class="stat-icon">📄</div><div class="stat-value">${pending}</div><div class="stat-label">Pending Invoices</div></div>
-    <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-value">${overdue}</div><div class="stat-label">Overdue Payments</div></div>`;
+    <div class="stat-card"><div class="stat-icon"><div class="icon-box icon-box-orange"><i data-lucide="dollar-sign"></i></div></div><div class="stat-value" style="font-size:20px">${formatCurrency(totalBudget)}</div><div class="stat-label">Total Budget</div></div>
+    <div class="stat-card"><div class="stat-icon"><div class="icon-box icon-box-blue"><i data-lucide="trending-up"></i></div></div><div class="stat-value" style="font-size:20px">${formatCurrency(utilized)}</div><div class="stat-label">Utilized</div></div>
+    <div class="stat-card"><div class="stat-icon"><div class="icon-box icon-box-green"><i data-lucide="receipt"></i></div></div><div class="stat-value">${pending}</div><div class="stat-label">Pending Invoices</div></div>
+    <div class="stat-card"><div class="stat-icon"><div class="icon-box icon-box-red"><i data-lucide="alert-triangle"></i></div></div><div class="stat-value">${overdue}</div><div class="stat-label">Overdue Payments</div></div>`;
+  initLucideIcons();
 }
 
 function renderCharts() {
-  const projects = getAll('projects') || [];
+  const projects = getAll('projects').filter(p => !user.companyId || p.companyId === user.companyId);
   
   let brk = { Labor:0, Materials:0, Equipment:0, Other:0 };
   projects.forEach(p => {
@@ -108,14 +111,16 @@ function renderCharts() {
 }
 
 function renderPendingBills() {
-  const bills = getAll('bills').filter(b => b.status === 'Pending');
+  const projects = getAll('projects').filter(p => !user.companyId || p.companyId === user.companyId);
+  const companyProjIds = new Set(projects.map(p => p.id));
+  const bills = getAll('bills').filter(b => (b.companyId === user.companyId || companyProjIds.has(b.projectId)) && b.status === 'Pending');
   document.getElementById('pending-badge').textContent = bills.length + ' Pending';
   const el = document.getElementById('pending-bills');
-  if (!bills.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><p>No pending payment approvals</p></div>'; return; }
+  if (!bills.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon"><i data-lucide="check-circle-2"></i></div><p>No pending payment approvals</p></div>'; return; }
   el.innerHTML = bills.map(b => `
     <div style="background:var(--bg);border-radius:var(--radius);padding:14px 18px;margin-bottom:10px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div><strong>${b.id}</strong> ${priorityBadge('High')}<div style="font-size:12px;color:var(--text-muted);margin-top:2px">${b.clientName} · ${b.projectName}</div></div>
+        <div><strong>${b.id}</strong> ${priorityBadge(b.priority || 'Medium')}<div style="font-size:12px;color:var(--text-muted);margin-top:2px">${b.clientName} · ${b.projectName}</div></div>
         <div style="text-align:right"><div style="font-family:var(--font-head);font-size:18px;font-weight:800;color:var(--primary)">${formatCurrency(b.amount)}</div><div style="font-size:11px;color:var(--text-muted)">Due: ${formatDate(b.dueDate)}</div></div>
       </div>
       <a href="bill-detail.html?id=${b.id}" class="btn btn-secondary btn-sm">View Bill Details</a>
@@ -123,8 +128,10 @@ function renderPendingBills() {
 }
 
 function renderRecentExpenses() {
-  const projects = getAll('projects') || [];
+  const projects = getAll('projects').filter(p => !user.companyId || p.companyId === user.companyId);
+  const companyProjIds = new Set(projects.map(p => p.id));
   const expenses = (getAll('expenses') || [])
+    .filter(e => e.companyId === user.companyId || companyProjIds.has(e.projectId))
     .slice()
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
     .slice(0, 5);
