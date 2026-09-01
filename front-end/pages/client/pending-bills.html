@@ -4,6 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pending Bills – ConstructHub</title>
 <link rel="stylesheet" href="../../css/main.css">
+<script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 <div class="app-layout">
@@ -11,16 +12,16 @@
   <div class="app-body">
     <aside class="sidebar">
       <nav class="sidebar-nav">
-        <a href="dashboard.html"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
-        <a href="project-progress.html"><span class="nav-icon"><img src="../../icons/TrendingUp.svg" alt="📊" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Project Details</a>
-        <a href="reports.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📋" style="vertical-align:middle;margin-right:8px;"> Reports</a>
-        <a href="pending-bills.html" class="active"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="💵" style="vertical-align:middle;margin-right:8px;"> Pending Bills</a>
-        <a href="payment-decisions.html"><span class="nav-icon">💳</span> Payment Decisions</a>
-        <a href="feedback.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Feedback</a>
-        <a href="messages.html"><span class="nav-icon"><img src="../../icons/Send.svg" alt="📩" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Messages</a>
+        <a href="dashboard.html"><i data-lucide="layout-dashboard" class="nav-icon"></i> Dashboard</a>
+        <a href="project-progress.html"><i data-lucide="activity" class="nav-icon"></i> Project Details</a>
+        <a href="reports.html"><i data-lucide="file-text" class="nav-icon"></i> Reports</a>
+        <a href="pending-bills.html" class="active"><i data-lucide="receipt" class="nav-icon"></i> Pending Bills</a>
+        <a href="payment-decisions.html"><span class="nav-icon"><i data-lucide="credit-card"></i></span> Payment Decisions</a>
+        <a href="feedback.html"><i data-lucide="message-square" class="nav-icon"></i> Feedback</a>
+        <a href="messages.html"><i data-lucide="send" class="nav-icon"></i> Messages</a>
         
         <div class="sidebar-divider"></div>
-        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+        <a href="settings.html"><i data-lucide="settings" class="nav-icon"></i> Settings</a>
       </nav>
     </aside>
     <main class="main-content">
@@ -36,7 +37,7 @@
   <div class="modal-box modal-lg">
     <div class="modal-header">
       <div><h2 id="d-bill-id">Bill Details</h2><p id="d-bill-proj"></p></div>
-      <button class="modal-close" onclick="closeModal('detail-modal')"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></button>
+      <button class="modal-close" onclick="closeModal('detail-modal')"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
     </div>
     <div id="d-content"></div>
     <div class="modal-footer" id="d-footer"></div>
@@ -48,7 +49,7 @@
   <div class="modal-box" style="max-width:420px">
     <div class="modal-header">
       <div><h2>Reject Bill</h2><p>Please provide a reason for rejection</p></div>
-      <button class="modal-close" onclick="closeModal('reject-modal')"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></button>
+      <button class="modal-close" onclick="closeModal('reject-modal')"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
     </div>
     <input type="hidden" id="reject-bill-id">
     <div class="form-group">
@@ -65,7 +66,7 @@
 <!-- Approved Modal -->
 <div id="approved-modal" class="modal-overlay">
   <div class="modal-box" style="max-width:380px;text-align:center">
-    <div style="width:60px;height:60px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px">✅</div>
+    <div class="icon-box icon-box-green icon-box-lg" style="margin:0 auto 16px;border-radius:50%;"><i data-lucide="check-circle-2"></i></div>
     <h2 style="font-family:var(--font-head);margin-bottom:8px">Payment Approved!</h2>
     <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px" id="approved-msg">The payment will be processed within 2-3 business days.</p>
     <button onclick="closeModal('approved-modal');renderBills()" class="btn btn-success btn-full">View Payment History</button>
@@ -75,7 +76,7 @@
 <!-- Rejected Modal -->
 <div id="rejected-modal" class="modal-overlay">
   <div class="modal-box" style="max-width:380px;text-align:center">
-    <div style="width:60px;height:60px;background:#fee2e2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px"><img src="../../icons/X.svg" alt="❌" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div>
+    <div class="icon-box icon-box-red icon-box-lg" style="margin:0 auto 16px;border-radius:50%;"><i data-lucide="x" style="width:16px;height:16px;"></i></div>
     <h2 style="font-family:var(--font-head);margin-bottom:8px">Payment Rejected</h2>
     <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px">The finance manager has been notified of your rejection.</p>
     <button onclick="closeModal('rejected-modal');renderBills()" class="btn btn-danger btn-full">See Pending Bills</button>
@@ -103,10 +104,10 @@ window.addEventListener('focus', () => {
 });
 
 function renderBills() {
-  const bills = getAll('bills').filter(b => b.clientId === user.id && b.status === 'Pending');
+  const bills = getAll('bills').filter(b => (b.clientId === user.id || b.clientName === user.name) && (b.status === 'Pending' || b.status === 'Pending Approval'));
   const el = document.getElementById('bills-list');
   if (!bills.length) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><h3>No pending bills</h3><p>All bills have been reviewed.</p><a href="payment-decisions.html" class="btn btn-secondary" style="margin-top:12px">View Payment History</a></div>';
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon"><i data-lucide="check-circle-2"></i></div><h3>No pending bills</h3><p>All bills have been reviewed.</p><a href="payment-decisions.html" class="btn btn-secondary" style="margin-top:12px">View Payment History</a></div>';
     return;
   }
   el.innerHTML = bills.map(b=>`
@@ -123,7 +124,7 @@ function renderBills() {
       </div>
       <div style="display:flex;gap:10px">
         <button onclick="approveBill('${b.id}')" class="btn btn-success" style="flex:1">✓ Approve</button>
-        <button onclick="openReject('${b.id}')" class="btn btn-danger" style="flex:1"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> Reject</button>
+        <button onclick="openReject('${b.id}')" class="btn btn-danger" style="flex:1"><i data-lucide="x" style="width:16px;height:16px;"></i> Reject</button>
         <button onclick="viewBillDetail('${b.id}')" class="btn btn-secondary btn-sm">View Details</button>
       </div>
     </div>`).join('');
@@ -162,7 +163,7 @@ function approveBill(id) {
   }
   
   // Notify Finance Manager
-  const fms = getAll('users').filter(u => u.role === 'finance_manager');
+  const fms = getAll('users').filter(u => u.role === 'finance_manager' && u.companyId === user.companyId);
   fms.forEach(fm => {
     create('notifications', {
       id: genId('N'),
@@ -202,7 +203,7 @@ function confirmReject() {
   
   // Notify Finance Manager
   const b = getById('bills', id);
-  const fms = getAll('users').filter(u => u.role === 'finance_manager');
+  const fms = getAll('users').filter(u => u.role === 'finance_manager' && u.companyId === user.companyId);
   fms.forEach(fm => {
     create('notifications', {
       id: genId('N'),

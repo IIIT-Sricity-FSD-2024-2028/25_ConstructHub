@@ -4,6 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Payment Decisions – ConstructHub</title>
 <link rel="stylesheet" href="../../css/main.css">
+<script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 <div class="app-layout">
@@ -11,16 +12,16 @@
   <div class="app-body">
     <aside class="sidebar">
       <nav class="sidebar-nav">
-        <a href="dashboard.html"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
-        <a href="project-progress.html"><span class="nav-icon"><img src="../../icons/TrendingUp.svg" alt="📊" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Project Details</a>
-        <a href="reports.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📋" style="vertical-align:middle;margin-right:8px;"> Reports</a>
-        <a href="pending-bills.html"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="💵" style="vertical-align:middle;margin-right:8px;"> Pending Bills</a>
-        <a href="payment-decisions.html" class="active"><span class="nav-icon">💳</span> Payment Decisions</a>
-        <a href="feedback.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Feedback</a>
-        <a href="messages.html"><span class="nav-icon"><img src="../../icons/Send.svg" alt="📩" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Messages</a>
+        <a href="dashboard.html"><i data-lucide="layout-dashboard" class="nav-icon"></i> Dashboard</a>
+        <a href="project-progress.html"><i data-lucide="activity" class="nav-icon"></i> Project Details</a>
+        <a href="reports.html"><i data-lucide="file-text" class="nav-icon"></i> Reports</a>
+        <a href="pending-bills.html"><i data-lucide="receipt" class="nav-icon"></i> Pending Bills</a>
+        <a href="payment-decisions.html" class="active"><span class="nav-icon"><i data-lucide="credit-card"></i></span> Payment Decisions</a>
+        <a href="feedback.html"><i data-lucide="message-square" class="nav-icon"></i> Feedback</a>
+        <a href="messages.html"><i data-lucide="send" class="nav-icon"></i> Messages</a>
         
         <div class="sidebar-divider"></div>
-        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+        <a href="settings.html"><i data-lucide="settings" class="nav-icon"></i> Settings</a>
       </nav>
     </aside>
     <main class="main-content">
@@ -33,7 +34,7 @@
 </div>
 <div id="detail-modal" class="modal-overlay">
   <div class="modal-box modal-lg">
-    <div class="modal-header"><div><h2 id="d-id">Bill Details</h2></div><button class="modal-close" onclick="closeModal('detail-modal')"><img src="../../icons/X.svg" alt="✕" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></button></div>
+    <div class="modal-header"><div><h2 id="d-id">Bill Details</h2></div><button class="modal-close" onclick="closeModal('detail-modal')"><i data-lucide="x" style="width:16px;height:16px;"></i></button></div>
     <div id="d-content"></div>
     <div class="modal-footer"><button onclick="closeModal('detail-modal')" class="btn btn-secondary">Close</button></div>
   </div>
@@ -58,7 +59,7 @@ window.onload = () => {
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-            <div style="background:var(--bg);padding:8px;border-radius:8px;font-size:18px">💵</div>
+            <div style="background:var(--bg);padding:8px;border-radius:8px;font-size:18px"><i data-lucide="receipt"></i></div>
             <div><strong>Bill ID: ${b.id}</strong><div style="font-size:12px;color:var(--text-muted)">${b.projectName}</div></div>
           </div>
           <div class="detail-grid" style="grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:8px">
@@ -67,9 +68,9 @@ window.onload = () => {
             <div class="detail-item"><label>Decision Date</label><span>${b.decisionDate?formatDate(b.decisionDate):'Pending'}</span></div>
           </div>
         </div>
-        <button onclick="viewDetail('${b.id}')" class="btn btn-secondary btn-sm"><img src="../../icons/Eye.svg" alt="👁" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"> View Details</button>
+        <button onclick="viewDetail('${b.id}')" class="btn btn-secondary btn-sm"><i data-lucide="eye" style="width:16px;height:16px;"></i> View Details</button>
       </div>
-    </div>`).join('') || '<div class="empty-state"><div class="empty-icon">💳</div><h3>No payment decisions yet</h3></div>';
+    </div>`).join('') || '<div class="empty-state"><div class="empty-icon"><i data-lucide="credit-card"></i></div><h3>No payment decisions yet</h3></div>';
 };
 
 function viewDetail(id) {

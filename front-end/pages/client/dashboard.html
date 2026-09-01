@@ -4,6 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Client Dashboard – ConstructHub</title>
 <link rel="stylesheet" href="../../css/main.css">
+<script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 <div class="app-layout">
@@ -11,16 +12,16 @@
   <div class="app-body">
     <aside class="sidebar">
       <nav class="sidebar-nav">
-        <a href="dashboard.html" class="active"><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
-        <a href="project-progress.html"><span class="nav-icon"><img src="../../icons/TrendingUp.svg" alt="📊" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Project Details</a>
-        <a href="reports.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📋" style="vertical-align:middle;margin-right:8px;"> Reports</a>
-        <a href="pending-bills.html"><img src="../../icons/DollarSign.svg" class="nav-icon" width="18" height="18" alt="💵" style="vertical-align:middle;margin-right:8px;"> Pending Bills</a>
-        <a href="payment-decisions.html"><span class="nav-icon">💳</span> Payment Decisions</a>
-        <a href="feedback.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Feedback</a>
-        <a href="messages.html"><span class="nav-icon"><img src="../../icons/Send.svg" alt="📩" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></span> Messages</a>
+        <a href="dashboard.html" class="active"><i data-lucide="layout-dashboard" class="nav-icon"></i> Dashboard</a>
+        <a href="project-progress.html"><i data-lucide="activity" class="nav-icon"></i> Project Details</a>
+        <a href="reports.html"><i data-lucide="file-text" class="nav-icon"></i> Reports</a>
+        <a href="pending-bills.html"><i data-lucide="receipt" class="nav-icon"></i> Pending Bills</a>
+        <a href="payment-decisions.html"><i data-lucide="credit-card" class="nav-icon"></i> Payment Decisions</a>
+        <a href="feedback.html"><i data-lucide="message-square" class="nav-icon"></i> Feedback</a>
+        <a href="messages.html"><i data-lucide="send" class="nav-icon"></i> Messages</a>
         
         <div class="sidebar-divider"></div>
-        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+        <a href="settings.html"><i data-lucide="settings" class="nav-icon"></i> Settings</a>
       </nav>
     </aside>
     <main class="main-content">
@@ -32,7 +33,7 @@
         <div class="card"><div class="section-title" style="margin-bottom:14px">Approved Bills</div><div id="approved-bills"></div></div>
       </div>
       <div class="card">
-        <div class="section-title" style="margin-bottom:10px">💬 Have Questions?</div>
+        <div class="section-title" style="margin-bottom:10px;display:flex;align-items:center;gap:8px;"><i data-lucide="help-circle" style="width:18px;height:18px;color:var(--primary);"></i> Have Questions?</div>
         <textarea id="quick-feedback" class="form-textarea" placeholder="Share your feedback, questions, or concerns..." style="min-height:70px;margin-bottom:10px"></textarea>
         <button onclick="submitQuickFeedback()" class="btn btn-primary btn-sm">Send Query</button>
       </div>
@@ -49,21 +50,23 @@ window.onload = () => {
   if (!user) return;
   renderNavbar(user);
   renderStats(); renderProjectCard(); renderApprovedBills();
+  initLucideIcons();
 };
 
 function renderStats() {
   const projects = getAll('projects').filter(p => p.clientId === user.id);
   const p = projects[0];
-  const projectIds = projects.map(project => project.id);
-  const approvedBillsTotal = getAll('bills')
-    .filter(bill => projectIds.includes(bill.projectId) && bill.status === 'Approved')
+  const bills = getAll('bills').filter(b => b.clientId === user.id);
+  const approvedBillsTotal = bills
+    .filter(b => b.status === 'Approved')
     .reduce((sum, bill) => sum + (Number(bill.amount) || 0), 0);
   const daysLeft = p ? Math.max(0, Math.floor((new Date(p.endDate) - new Date()) / 86400000)) : 0;
   document.getElementById('stats-grid').innerHTML = `
-    <div class="stat-card"><div class="stat-icon"><img src="../../icons/TrendingUp.svg" alt="📊" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><div class="stat-value" style="color:var(--primary)">${p ? p.progress : 0}%</div><div class="stat-label">Project Progress</div></div>
-    <div class="stat-card"><div class="stat-icon"><img src="../../icons/DollarSign.svg" alt="💰" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><div class="stat-value" style="font-size:18px">${formatCurrency(approvedBillsTotal)}</div><div class="stat-label">Budget Used</div></div>
-    <div class="stat-card"><div class="stat-icon"><img src="../../icons/Clock.svg" alt="🕐" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><div class="stat-value">${daysLeft}</div><div class="stat-label">Days Remaining</div></div>
-    <div class="stat-card"><div class="stat-icon"><img src="../../icons/Eye.svg" alt="👁" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline"></div><div class="stat-value" style="font-size:18px">${p ? formatCurrency(p.budget) : '—'}</div><div class="stat-label">Total Budget</div></div>`;
+    <div class="stat-card"><div class="stat-icon"><div class="icon-box icon-box-orange"><i data-lucide="activity"></i></div></div><div class="stat-value" style="color:var(--primary)">${p ? p.progress : 0}%</div><div class="stat-label">Project Progress</div></div>
+    <div class="stat-card"><div class="stat-icon"><div class="icon-box icon-box-blue"><i data-lucide="dollar-sign"></i></div></div><div class="stat-value" style="font-size:18px">${formatCurrency(approvedBillsTotal)}</div><div class="stat-label">Budget Used</div></div>
+    <div class="stat-card"><div class="stat-icon"><div class="icon-box icon-box-green"><i data-lucide="clock"></i></div></div><div class="stat-value">${daysLeft}</div><div class="stat-label">Days Remaining</div></div>
+    <div class="stat-card"><div class="stat-icon"><div class="icon-box icon-box-purple"><i data-lucide="eye"></i></div></div><div class="stat-value" style="font-size:18px">${p ? formatCurrency(p.budget) : '—'}</div><div class="stat-label">Total Budget</div></div>`;
+  initLucideIcons();
 }
 
 function renderProjectCard() {
@@ -80,7 +83,7 @@ function renderProjectCard() {
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:14px;font-size:13px">
       <div><div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;font-weight:600;margin-bottom:3px">Start Date</div><strong>${formatDate(p.startDate)}</strong></div>
       <div><div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;font-weight:600;margin-bottom:3px">Expected Completion</div><strong>${formatDate(p.endDate)}</strong></div>
-      <div><div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;font-weight:600;margin-bottom:3px">Project Manager</div><strong>Rajesh Kumar</strong></div>
+      <div><div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;font-weight:600;margin-bottom:3px">Project Manager</div><strong>${p.managerName || 'Project Manager'}</strong></div>
     </div>
     <div>
       <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span>Overall Progress</span><strong>${p.progress}%</strong></div>
@@ -95,7 +98,7 @@ function renderApprovedBills() {
   const bills = getAll('bills')
     .filter(b => pIds.includes(b.projectId) && b.status === 'Approved')
     .sort((a, b) => new Date(b.date || b.dueDate || 0) - new Date(a.date || a.dueDate || 0));
-  if (!bills.length) return document.getElementById('approved-bills').innerHTML = '<p class="empty-state">No approved bills found</p>';
+  if (!bills.length) return document.getElementById('approved-bills').innerHTML = '<div class="empty-state"><div class="empty-icon"><i data-lucide="inbox"></i></div><h3>No approved bills found</h3></div>';
 
   const approvedTotal = bills.reduce((sum, bill) => sum + (Number(bill.amount) || 0), 0);
 
