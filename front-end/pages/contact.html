@@ -23,7 +23,7 @@ body { background: #fdf5ef; }
 </head>
 <body>
 <nav class="landing-nav">
-  <div style="display:flex;align-items:center;gap:8px"><img src="../icons/HardHat.svg" width="22" height="22" alt="logo"><span style="font-family:var(--font-head);font-weight:700">ConstructHub</span></div>
+  <div style="display:flex;align-items:center;gap:8px"><i data-lucide="hard-hat" style="width:16px;height:16px;"></i><span style="font-family:var(--font-head);font-weight:700">ConstructHub</span></div>
   <div class="landing-nav-links"><a href="../index.html">Home</a></div>
   <a href="../login.html" class="btn btn-primary btn-sm">← Back to Home</a>
 </nav>
@@ -32,15 +32,15 @@ body { background: #fdf5ef; }
   <div class="contact-info">
     <h1>Get in Touch with Our Sales Team</h1>
     <p>Let's discuss how ConstructHub can transform your construction project management. Our team is ready to help you get started.</p>
-    <div class="contact-card"><div class="contact-card-icon">📞</div><div><h4>Call Us</h4><p>+91 98765 43210</p></div></div>
-    <div class="contact-card"><div class="contact-card-icon"><img src="../icons/Send.svg" alt="✉" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">️</div><div><h4>Email Us</h4><p>sales@constructhub.com</p></div></div>
-    <div class="contact-card"><div class="contact-card-icon" style="display:flex;justify-content:center;align-items:center"><img src="../icons/Building2.svg" width="30" height="30" alt="hq"></div><div><h4>Visit Us</h4><p>123 Business Park, Mumbai, India</p></div></div>
+    <div class="contact-card"><div class="icon-box icon-box-orange"><i data-lucide="phone"></i></div><div><h4>Call Us</h4><p>+91 98765 43210</p></div></div>
+    <div class="contact-card"><div class="icon-box icon-box-blue"><i data-lucide="mail"></i></div><div><h4>Email Us</h4><p>sales@constructhub.com</p></div></div>
+    <div class="contact-card"><div class="icon-box icon-box-green"><i data-lucide="building-2"></i></div><div><h4>Visit Us</h4><p>123 Business Park, Mumbai, India</p></div></div>
     <div class="expect-box">
       <h4>What to Expect When You Contact Us:</h4>
-      <div class="expect-item">✅ Personalized demo tailored to your needs</div>
-      <div class="expect-item">✅ Custom pricing based on your team size</div>
-      <div class="expect-item">✅ Dedicated onboarding support</div>
-      <div class="expect-item">✅ Response within 24 business hours</div>
+      <div class="expect-item"><i data-lucide="check-circle-2" style="width:16px;height:16px;"></i> Personalized demo tailored to your needs</div>
+      <div class="expect-item"><i data-lucide="check-circle-2" style="width:16px;height:16px;"></i> Custom pricing based on your team size</div>
+      <div class="expect-item"><i data-lucide="check-circle-2" style="width:16px;height:16px;"></i> Dedicated onboarding support</div>
+      <div class="expect-item"><i data-lucide="check-circle-2" style="width:16px;height:16px;"></i> Response within 24 business hours</div>
     </div>
   </div>
 
@@ -59,7 +59,7 @@ body { background: #fdf5ef; }
 
     <!-- Thank you section (hidden initially) -->
     <div id="thank-you" style="display:none" class="form-card" style="text-align:center">
-      <div style="width:60px;height:60px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px">✅</div>
+      <div class="icon-box icon-box-green icon-box-lg" style="margin:0 auto 16px;border-radius:50%;"><i data-lucide="check-circle-2"></i></div>
       <h2 style="font-family:var(--font-head);text-align:center;margin-bottom:8px">Thank You!</h2>
       <p style="text-align:center;color:var(--text-muted);font-size:13.5px;margin-bottom:20px">We've received your message and will reach out to you within 24 business hours.</p>
       <div style="background:var(--bg);border-radius:10px;padding:16px;margin-bottom:20px">
@@ -84,49 +84,87 @@ body { background: #fdf5ef; }
 <script src="../js/utils.js"></script>
 <script>
 function submitContact() {
-  const fields = ['c-name','c-email','c-phone'];
-  let valid = true;
-  fields.forEach(id => {
-    const el = document.getElementById(id);
-    clearError(el);
-    if (!el.value.trim()) { showError(el, 'This field is required'); valid = false; }
-  });
+  const nameEl = document.getElementById('c-name');
   const emailEl = document.getElementById('c-email');
-  if (emailEl.value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailEl.value)) {
-    showError(emailEl, 'Please enter a valid email address'); valid = false;
+  const phoneEl = document.getElementById('c-phone');
+  const companyEl = document.getElementById('c-company');
+  const msgEl = document.getElementById('c-msg');
+
+  [nameEl, emailEl, phoneEl, msgEl].forEach(clearError);
+
+  let valid = true;
+
+  const name = nameEl.value.trim();
+  if (!name) {
+    showError(nameEl, 'Full Name is required');
+    valid = false;
   }
-  const phone = document.getElementById('c-phone').value.trim();
-  if (phone && phone.length < 7) {
-    showError(document.getElementById('c-phone'), 'Please enter a valid phone number'); valid = false;
+
+  const email = emailEl.value.trim();
+  if (!email) {
+    showError(emailEl, 'Email Address is required');
+    valid = false;
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showError(emailEl, 'Please enter a valid email address');
+    valid = false;
   }
-  const msg = document.getElementById('c-msg').value;
-  if (msg.length > 1000) { showError(document.getElementById('c-msg'), 'Max 1000 characters'); valid = false; }
+
+  const phone = phoneEl.value.trim();
+  if (!phone) {
+    showError(phoneEl, 'Phone Number is required');
+    valid = false;
+  } else if (!/^\d{10}$/.test(phone)) {
+    showError(phoneEl, 'Please enter a valid 10-digit phone number');
+    valid = false;
+  }
+
+  const message = msgEl.value.trim();
+  if (!message) {
+    showError(msgEl, 'Message body is required');
+    valid = false;
+  } else if (message.length < 5) {
+    showError(msgEl, 'Message must be at least 5 characters long');
+    valid = false;
+  }
+
   if (!valid) return;
 
-  const name = document.getElementById('c-name').value.trim();
-  const email = document.getElementById('c-email').value.trim();
-  const company = document.getElementById('c-company').value.trim();
-  const message = document.getElementById('c-msg').value.trim();
-  create('notifications', {
-    id: genId('N'),
-    userId: 'U001',
-    type: 'system',
-    title: 'New Contact Inquiry',
-    body: `Contact form submitted by ${name}`,
-    details: { name, email, phone, company, message },
-    time: 'just now',
-    read: false
-  });
+  const company = companyEl ? companyEl.value.trim() : '';
+  const fullMessage = company ? `[Company: ${company}] ${message}` : message;
 
+  const payload = { name, email, phone, message: fullMessage };
+
+  const res = sendSync('POST', 'inquiries', payload);
+
+  if (res && res.error) {
+    showToast(res.message || 'Failed to submit inquiry. Please try again.', 'error');
+    return;
+  }
+
+  showToast('Inquiry submitted successfully! Our sales team will reach out soon.', 'success');
   document.getElementById('form-section').style.display = 'none';
   document.getElementById('thank-you').style.display = 'block';
 }
 
 function resetForm() {
-  ['c-name','c-email','c-phone','c-company','c-msg'].forEach(id => document.getElementById(id).value = '');
+  ['c-name','c-email','c-phone','c-company','c-msg'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; clearError(el); }
+  });
   document.getElementById('thank-you').style.display = 'none';
   document.getElementById('form-section').style.display = 'block';
 }
+</script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
+    if (typeof initLucideIcons === 'function') {
+      initLucideIcons();
+    }
+  });
 </script>
 </body>
 </html>
