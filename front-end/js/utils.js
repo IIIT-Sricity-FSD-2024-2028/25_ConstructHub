@@ -72,6 +72,7 @@ function showToast(msg, type) {
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 function openModal(id) {
+  closeAllModals();
   const m = document.getElementById(id);
   if (m) m.style.display = 'flex';
 }
@@ -151,11 +152,13 @@ function validateForm(formId) {
 }
 
 function showError(el, msg) {
+  if (!el) return;
+  clearError(el);
   el.classList.add('input-error');
   const e = document.createElement('span');
   e.className = 'field-error';
   e.textContent = msg;
-  el.parentNode.insertBefore(e, el.nextSibling);
+  if (el.parentNode) el.parentNode.insertBefore(e, el.nextSibling);
 }
 
 function clearError(el) {
@@ -185,6 +188,26 @@ function setSidebarActive(linkText) {
   });
 }
 
+// ─── Lucide Icons Dynamic Loader ─────────────────────────────────────────────
+function initLucideIcons() {
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
+}
+
+if (!window.lucide && typeof document !== 'undefined') {
+  const script = document.createElement('script');
+  script.src = 'https://unpkg.com/lucide@latest';
+  script.onload = () => initLucideIcons();
+  document.head.appendChild(script);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(initLucideIcons, 100);
+  });
+}
+
 // ─── Render Navbar ─────────────────────────────────────────────────────────────
 function renderNavbar(user) {
   const navbar = document.getElementById('navbar');
@@ -193,15 +216,15 @@ function renderNavbar(user) {
   navbar.innerHTML = `
     <div class="nav-left">
       <div class="nav-logo">
-        <div class="logo-icon"><img src="../../icons/HardHat.svg" width="28" height="28" alt="logo" style="vertical-align:middle; filter: invert(45%) sepia(85%) saturate(2000%) hue-rotate(345deg);"></div>
+        <div class="logo-icon" style="color:var(--primary);display:flex;align-items:center;"><i data-lucide="hard-hat" style="width:26px;height:26px;"></i></div>
         <span class="logo-text">ConstructHub</span>
       </div>
     </div>
     <div class="nav-center">
     </div>
     <div class="nav-right">
-      <div class="notif-btn" onclick="toggleNotifications()">
-        <img src="../../icons/Bell.svg" alt="🔔" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">
+      <div class="notif-btn" onclick="toggleNotifications()" title="Notifications">
+        <i data-lucide="bell" style="width:19px;height:19px;color:var(--text-muted);"></i>
         ${count > 0 ? `<span class="notif-badge">${count}</span>` : ''}
       </div>
       <div class="user-menu" onclick="toggleUserMenu()">
@@ -212,13 +235,14 @@ function renderNavbar(user) {
         </div>
         <div id="user-dropdown" class="user-dropdown" style="display:none">
           <div class="dropdown-header">My Account</div>
-          <a href="settings.html">Settings</a>
-          <a href="#" onclick="logout()" class="logout-link">→ Logout</a>
+          <a href="settings.html" style="display:flex;align-items:center;gap:8px;"><i data-lucide="settings" style="width:15px;height:15px;"></i> Settings</a>
+          <a href="#" onclick="logout()" class="logout-link" style="display:flex;align-items:center;gap:8px;"><i data-lucide="log-out" style="width:15px;height:15px;"></i> Logout</a>
         </div>
       </div>
     </div>
     <div id="notif-panel" class="notif-panel" style="display:none"></div>
   `;
+  initLucideIcons();
 }
 
 function toggleUserMenu() {
@@ -261,7 +285,7 @@ window.showNotifModal = function(id) {
     m = document.createElement('div');
     m.id = 'global-notif-modal';
     m.className = 'modal-overlay';
-    m.innerHTML = '<div class="modal-box"><div class="modal-header"><div><h2 id="gnm-title"></h2></div><button class="modal-close" onclick="closeModal(\'global-notif-modal\')"><img src="../../icons/X.svg" alt="X" class="icon-inline" style="width:15px"></button></div><div id="gnm-body" style="padding:10px 0;font-size:14px;color:var(--text);line-height:1.5"></div><div style="font-size:11px;color:var(--text-muted);margin-top:10px" id="gnm-time"></div><div class="modal-footer"><button onclick="closeModal(\'global-notif-modal\')" class="btn btn-primary">Close</button></div></div>';
+    m.innerHTML = '<div class="modal-box"><div class="modal-header"><div><h2 id="gnm-title"></h2></div><button class="modal-close" onclick="closeModal(\'global-notif-modal\')"><i data-lucide="x" style="width:16px;height:16px;"></i></button></div><div id="gnm-body" style="padding:10px 0;font-size:14px;color:var(--text);line-height:1.5"></div><div style="font-size:11px;color:var(--text-muted);margin-top:10px" id="gnm-time"></div><div class="modal-footer"><button onclick="closeModal(\'global-notif-modal\')" class="btn btn-primary">Close</button></div></div>';
     document.body.appendChild(m);
   }
   document.getElementById('gnm-title').textContent = n.title;
@@ -293,13 +317,27 @@ window.showNotifModal = function(id) {
 
 function roleLabel(role) {
   const map = {
-    'superuser': 'Super User',
+    'superuser': 'Platform Super Admin',
+    'company_admin': 'Company Admin',
     'project_manager': 'Project Manager',
     'site_engineer': 'Site Engineer',
     'finance_manager': 'Finance Manager',
     'client': 'Client'
   };
   return map[role] || role;
+}
+
+function roleBadge(role) {
+  const map = {
+    'superuser': 'badge-orange',
+    'company_admin': 'badge-orange',
+    'project_manager': 'badge-blue',
+    'site_engineer': 'badge-green',
+    'finance_manager': 'badge-orange',
+    'client': 'badge-gray'
+  };
+  const cls = map[role] || 'badge-gray';
+  return `<span class="badge ${cls}">${roleLabel(role)}</span>`;
 }
 
 // Close dropdowns on outside click
@@ -313,3 +351,28 @@ document.addEventListener('click', function(e) {
     if (p) p.style.display = 'none';
   }
 });
+
+
+function isValidEmail(value) {
+  if (!value || typeof value !== 'string') return false;
+  return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(value.trim());
+}
+
+function isValidDomain(value) {
+  if (!value || typeof value !== 'string') return false;
+  return /^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}$/.test(value.trim());
+}
+
+function isValidPhone(value) {
+  if (!value || typeof value !== 'string') return false;
+  const digits = value.trim().replace(/[^0-9]/g, '');
+  if (digits.length !== 10) return false;
+  if (/^0{10}$/.test(digits)) return false;
+  return true;
+}
+
+function sanitizePhoneInput(el) {
+  if (el) {
+    el.value = el.value.replace(/[^0-9]/g, '').slice(0, 10);
+  }
+}
