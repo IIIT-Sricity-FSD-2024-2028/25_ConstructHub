@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from './roles.decorator';
 
@@ -15,14 +15,17 @@ export class RolesGuard implements CanActivate {
       return true; // no roles required
     }
     const request = context.switchToHttp().getRequest();
-    const userRole = request.headers['x-role'];
 
-    if (!userRole) {
-      throw new ForbiddenException('Role header (x-role) missing');
+    // Authenticated identity attached to request.user by JwtAuthGuard or AuthMiddleware
+    const user = request.user;
+    if (!user || !user.role) {
+      throw new UnauthorizedException('Authentication required. Missing or invalid Bearer token.');
     }
 
+    const userRole = user.role;
+
     if (!requiredRoles.includes(userRole)) {
-      throw new ForbiddenException('Insufficient permissions');
+      throw new ForbiddenException(`Insufficient permissions for role '${userRole}'`);
     }
 
     return true;

@@ -8,6 +8,8 @@ export class MessagesService {
 
   findAll() { return this.repo.findAll(); }
 
+  findByCompanyId(companyId: string) { return this.repo.findByCompanyId(companyId); }
+
   findOne(id: string) {
     const record = this.repo.findById(id);
     if (!record) throw new NotFoundException('Messages record not found.');

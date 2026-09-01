@@ -2,25 +2,50 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class CreateMessageDto {
-  @ApiProperty({ description: 'ID of the sender', example: 'U002' })
+  @ApiPropertyOptional({ description: 'Company ID message belongs to', example: 'COMP001' })
   @IsString()
-  @IsNotEmpty()
-  from: string;
+  @IsOptional()
+  companyId?: string;
+
+  @ApiPropertyOptional({ description: 'ID of the sender', example: 'U002' })
+  @IsString()
+  @IsOptional()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'ID of the sender', example: 'U002' })
+  @IsString()
+  @IsOptional()
+  senderId?: string;
 
   @ApiPropertyOptional({ description: 'Name of the sender', example: 'Rajesh Kumar' })
   @IsString()
   @IsOptional()
   fromName?: string;
 
-  @ApiProperty({ description: 'ID of the recipient', example: 'U003' })
+  @ApiPropertyOptional({ description: 'Name of the sender', example: 'Rajesh Kumar' })
   @IsString()
-  @IsNotEmpty()
-  to: string;
+  @IsOptional()
+  senderName?: string;
+
+  @ApiPropertyOptional({ description: 'ID of the recipient', example: 'U003' })
+  @IsString()
+  @IsOptional()
+  to?: string;
+
+  @ApiPropertyOptional({ description: 'ID of the recipient', example: 'U003' })
+  @IsString()
+  @IsOptional()
+  receiverId?: string;
 
   @ApiPropertyOptional({ description: 'Name of the recipient', example: 'Priya Sharma' })
   @IsString()
   @IsOptional()
   toName?: string;
+
+  @ApiPropertyOptional({ description: 'Name of the recipient', example: 'Priya Sharma' })
+  @IsString()
+  @IsOptional()
+  receiverName?: string;
 
   @ApiProperty({ description: 'Message text content', example: 'Please review the updated project timeline.' })
   @IsString()

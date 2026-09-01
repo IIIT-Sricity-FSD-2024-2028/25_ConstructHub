@@ -3,7 +3,10 @@ import { BillsService } from './bills.service';
 import { BillsController } from './bills.controller';
 import { BillsRepository } from './bills.repository';
 
+import { ProjectsModule } from '../projects/projects.module';
+
 @Module({
+  imports: [ProjectsModule],
   controllers: [BillsController],
   providers: [BillsService, BillsRepository],
 })

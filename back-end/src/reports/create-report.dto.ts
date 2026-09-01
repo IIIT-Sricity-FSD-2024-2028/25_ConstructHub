@@ -21,6 +21,11 @@ class MaterialDto {
 }
 
 export class CreateReportDto {
+  @ApiPropertyOptional({ description: 'Company ID report belongs to', example: 'COMP001' })
+  @IsString()
+  @IsOptional()
+  companyId?: string;
+
   @ApiProperty({ description: 'Title of the report', example: 'Foundation Inspection Report' })
   @IsString()
   @IsNotEmpty()

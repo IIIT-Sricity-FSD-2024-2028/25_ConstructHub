@@ -2,25 +2,35 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsBoolean, IsOptional } from 'class-validator';
 
 export class CreateNotificationDto {
+  @ApiPropertyOptional({ description: 'Company ID notification belongs to', example: 'COMP001' })
+  @IsString()
+  @IsOptional()
+  companyId?: string;
+
   @ApiProperty({ description: 'ID of the user this notification belongs to', example: 'U002' })
   @IsString()
   @IsNotEmpty()
   userId: string;
 
-  @ApiProperty({ description: 'Type of notification', example: 'task' })
+  @ApiPropertyOptional({ description: 'Type of notification', example: 'task' })
   @IsString()
-  @IsNotEmpty()
-  type: string;
+  @IsOptional()
+  type?: string;
 
   @ApiProperty({ description: 'Notification title', example: 'Task Completed' })
   @IsString()
   @IsNotEmpty()
   title: string;
 
-  @ApiProperty({ description: 'Notification body text', example: 'Foundation work has been completed' })
+  @ApiPropertyOptional({ description: 'Notification body text', example: 'Foundation work has been completed' })
   @IsString()
-  @IsNotEmpty()
-  body: string;
+  @IsOptional()
+  body?: string;
+
+  @ApiPropertyOptional({ description: 'Notification message text', example: 'Foundation work has been completed' })
+  @IsString()
+  @IsOptional()
+  message?: string;
 
   @ApiPropertyOptional({ description: 'Time description', example: '2 hours ago' })
   @IsString()

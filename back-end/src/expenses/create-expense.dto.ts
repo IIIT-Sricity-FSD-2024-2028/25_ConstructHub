@@ -2,6 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsNumber, IsOptional, Min } from 'class-validator';
 
 export class CreateExpenseDto {
+  @ApiPropertyOptional({ description: 'Company ID expense belongs to', example: 'COMP001' })
+  @IsString()
+  @IsOptional()
+  companyId?: string;
+
   @ApiProperty({ description: 'ID of the project', example: 'P001' })
   @IsString()
   @IsNotEmpty()

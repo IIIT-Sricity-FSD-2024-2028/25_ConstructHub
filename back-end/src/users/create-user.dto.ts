@@ -17,15 +17,21 @@ export class CreateUserDto {
   @IsNotEmpty()
   password: string;
 
-  @ApiProperty({ description: 'Role of the user', enum: ['superuser', 'project_manager', 'site_engineer', 'finance_manager', 'client'] })
-  @IsIn(['superuser', 'project_manager', 'site_engineer', 'finance_manager', 'client'])
+  @ApiProperty({ description: 'Role of the user', enum: ['superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager', 'client'] })
+  @IsIn(['superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager', 'client'])
   @IsNotEmpty()
   role: string;
 
-  @ApiProperty({ description: 'Phone number of the user', example: '+91 98765 43210' })
+  @ApiPropertyOptional({ description: 'Company ID user belongs to', example: 'COMP001' })
   @IsString()
-  @IsNotEmpty()
-  phone: string;
+  @IsOptional()
+  companyId?: string;
+
+  @ApiPropertyOptional({ description: 'Phone number of the user', example: '9876543210' })
+  @IsString()
+  @Matches(/^(?!0{10})\d{10}$/, { message: 'Phone number must be exactly 10 numeric digits and cannot be all zeros' })
+  @IsOptional()
+  phone?: string;
 
   @ApiPropertyOptional({ description: 'Avatar initials or URL', example: 'RK' })
   @IsString()
