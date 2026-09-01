@@ -4,6 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Messages – ConstructHub</title>
 <link rel="stylesheet" href="../../css/main.css">
+<script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 <div class="app-layout">
@@ -11,13 +12,13 @@
   <div class="app-body">
     <aside class="sidebar">
       <nav class="sidebar-nav">
-        <a href="dashboard.html" ><img src="../../icons/Building2.svg" class="nav-icon" width="18" height="18" alt="🏠" style="vertical-align:middle;margin-right:8px;"> Dashboard</a>
-        <a href="my-tasks.html"><img src="../../icons/CheckCircle2.svg" class="nav-icon" width="18" height="18" alt="✅" style="vertical-align:middle;margin-right:8px;"> My Tasks</a>
-        <a href="update-task.html"><img src="../../icons/feature.icon.svg" class="nav-icon" width="18" height="18" alt="📝" style="vertical-align:middle;margin-right:8px;"> Update Task Status</a>
-        <a href="submit-report.html"><img src="../../icons/FileText.svg" class="nav-icon" width="18" height="18" alt="📋" style="vertical-align:middle;margin-right:8px;"> Submit Site Report</a>
-        <a href="messages.html"><img src="../../icons/MessageSquare.svg" class="nav-icon" width="18" height="18" alt="💬" style="vertical-align:middle;margin-right:8px;"> Messages</a>
+        <a href="dashboard.html"><i data-lucide="layout-dashboard" class="nav-icon"></i> Dashboard</a>
+        <a href="my-tasks.html"><i data-lucide="check-square" class="nav-icon"></i> My Tasks</a>
+        <a href="update-task.html"><i data-lucide="edit-3" class="nav-icon"></i> Update Task Status</a>
+        <a href="submit-report.html"><i data-lucide="file-text" class="nav-icon"></i> Submit Site Report</a>
+        <a href="messages.html" class="active"><i data-lucide="message-square" class="nav-icon"></i> Messages</a>
         <div class="sidebar-divider"></div>
-        <a href="settings.html"><img src="../../icons/Wrench.svg" class="nav-icon" width="18" height="18" alt="⚙️" style="vertical-align:middle;margin-right:8px;"> Settings</a>
+        <a href="settings.html"><i data-lucide="settings" class="nav-icon"></i> Settings</a>
       </nav>
     </aside>
     <main class="main-content" style="padding-bottom:0">
@@ -31,7 +32,7 @@
         </div>
         <div class="chat-main" id="chat-main">
           <div class="empty-state" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center">
-            <div class="empty-icon">💬</div>
+            <div class="empty-icon"><i data-lucide="message-square"></i></div>
             <h3>Select a conversation</h3>
             <p>Choose a contact to start chatting</p>
           </div>
@@ -46,30 +47,6 @@
 <script>
 let user, activeContact = null;
 
-const SIDEBAR_MAP = {
-  project_manager: [
-    {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'projects.html',icon:'📁',label:'Projects'},
-    {href:'tasks.html',icon:'✅',label:'Tasks'},
-    {href:'reports.html',icon:'📋',label:'View Site Reports'},{href:'messages.html',icon:'💬',label:'Messages',active:true},
-    {href:'settings.html',icon:'⚙️',label:'Settings'}
-  ],
-  site_engineer: [
-    {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'my-tasks.html',icon:'✅',label:'My Tasks'},
-    {href:'update-task.html',icon:'<img src="../../icons/Edit.svg" alt="📝" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">',label:'Update Task Status'},{href:'submit-report.html',icon:'📋',label:'Submit Site Report'},
-    {href:'messages.html',icon:'💬',label:'Messages',active:true},{href:'settings.html',icon:'⚙️',label:'Settings'}
-  ],
-  finance_manager: [
-    {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'project-budget.html',icon:'💵',label:'Project Budget'},
-    {href:'expenses.html',icon:'💸',label:'Expenses'},{href:'generate-bills.html',icon:'📄',label:'Generate Bills'},
-    {href:'bill-decisions.html',icon:'✅',label:'Bill Payment Decisions'},{href:'messages.html',icon:'💬',label:'Messages',active:true},
-    {href:'settings.html',icon:'⚙️',label:'Settings'}
-  ],
-  client: [
-    {href:'dashboard.html',icon:'🏠',label:'Dashboard'},{href:'pending-bills.html',icon:'💵',label:'Pending Bills'},
-    {href:'messages.html',icon:'<img src="../../icons/Send.svg" alt="📩" style="vertical-align: -2px; width: 15px; margin: 0 4px;" class="icon-inline">',label:'Messages',active:true},{href:'settings.html',icon:'⚙️',label:'Settings'}
-  ]
-};
-
 window.onload = () => {
   initDB();
   user = requireAuth(['project_manager','site_engineer','finance_manager','client','superuser']);
@@ -78,13 +55,8 @@ window.onload = () => {
   renderConversations();
 };
 
-function renderSidebar() {
-  const links = SIDEBAR_MAP[user.role] || [];
-  document.getElementById('sidebar').innerHTML = `<nav class="sidebar-nav">${links.map(l=>`<a href="${l.href}" class="${l.active?'active':''}"><span class="nav-icon">${l.icon}</span> ${l.label}</a>`).join('')}</nav>`;
-}
-
 function getContacts() {
-  const users = getAll('users').filter(u => u.id !== user.id && u.status === 'active' && u.role !== 'superuser');
+  const users = getAll('users').filter(u => u.id !== user.id && u.status === 'active' && u.role !== 'superuser' && (user.role === 'superuser' || u.companyId === user.companyId));
   return users;
 }
 
@@ -160,4 +132,3 @@ function sendMsg(toId) {
 </script>
 </body>
 </html>
-
