@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Register Construction Company - ConstructHub</title>
+<link rel="stylesheet" href="css/main.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  body { background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .reg-card { background: white; border-radius: 16px; box-shadow: var(--card-shadow); width: 100%; max-width: 520px; padding: 36px; border: 1px solid var(--border); }
+  .reg-header { text-align: center; margin-bottom: 28px; }
+  .reg-logo { width: 48px; height: 48px; background: var(--primary-bg); color: var(--primary); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+  .domain-preview { font-size: 12px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="reg-card">
+  <div class="reg-header">
+    <div class="reg-logo"><i data-lucide="building-2" style="width:28px;height:28px"></i></div>
+    <h1 style="font-family:var(--font-head);font-size:24px;font-weight:800;color:var(--text)">Register Your Construction Firm</h1>
+    <p style="font-size:13.5px;color:var(--text-muted);margin-top:4px">Create a dedicated company workspace on ConstructHub</p>
+  </div>
+
+  <form id="reg-form" onsubmit="handleCompanyRegister(event)">
+    <div class="form-group">
+      <label class="form-label">Company Name <span class="req">*</span></label>
+      <input id="c-name" type="text" class="form-input" placeholder="e.g. Apex Constructions Ltd" required oninput="generateCompanyCode()">
+    </div>
+
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">Company Code / Tag <span class="req">*</span></label>
+        <input id="c-code" type="text" class="form-input" placeholder="e.g. apex" required style="font-weight:700">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Company Email Domain <span class="req">*</span></label>
+        <input id="c-domain" type="text" class="form-input" placeholder="e.g. apex.com" required>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Admin Full Name <span class="req">*</span></label>
+      <input id="a-name" type="text" class="form-input" placeholder="e.g. Siva Sathwik" required>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Admin Email Address <span class="req">*</span></label>
+      <input id="a-email" type="email" class="form-input" placeholder="admin@apex.com" required>
+      <div class="domain-preview" id="domain-hint">Emails added by your firm will default to this domain.</div>
+    </div>
+
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">Password <span class="req">*</span></label>
+        <input id="a-password" type="password" class="form-input" placeholder="Min 6 characters" required minlength="6">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone Number</label>
+        <input id="a-phone" type="tel" class="form-input" placeholder="10-digit phone number (e.g. 9876543210)" maxlength="10" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)">
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-block" style="margin-top:8px;padding:12px">
+      Create Company Workspace <i data-lucide="arrow-right" style="width:16px;height:16px;margin-left:4px"></i>
+    </button>
+  </form>
+
+  <div style="text-align:center;margin-top:20px;font-size:13px;color:var(--text-muted)">
+    Already registered your firm? <a href="login.html" style="color:var(--primary);font-weight:600;text-decoration:none">Sign In Here</a>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/utils.js"></script>
+<script>
+window.onload = () => {
+  initDB();
+  lucide.createIcons();
+};
+
+function generateCompanyCode() {
+  const name = document.getElementById('c-name').value.trim();
+  if (!name) return;
+  const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  document.getElementById('c-code').value = slug.substring(0, 10);
+  document.getElementById('c-domain').value = slug ? `${slug}.com` : 'company.com';
+}
+
+function handleCompanyRegister(e) {
+  e.preventDefault();
+  ['c-name', 'c-code', 'c-domain', 'a-name', 'a-email', 'a-password'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) clearError(el);
+  });
+
+  const cNameEl = document.getElementById('c-name');
+  const cCodeEl = document.getElementById('c-code');
+  const cDomainEl = document.getElementById('c-domain');
+  const aNameEl = document.getElementById('a-name');
+  const aEmailEl = document.getElementById('a-email');
+  const aPassEl = document.getElementById('a-password');
+
+  const cName = cNameEl.value.trim();
+  const cCode = cCodeEl.value.trim().toLowerCase();
+  const cDomain = cDomainEl.value.trim().toLowerCase();
+  const aName = aNameEl.value.trim();
+  const aEmail = aEmailEl.value.trim();
+  const aPass = aPassEl.value;
+  const aPhone = document.getElementById('a-phone').value.trim() || '9800011111';
+
+  let isValid = true;
+
+  if (!cName) {
+    showError(cNameEl, 'Company Name is required');
+    isValid = false;
+  }
+  if (!cCode) {
+    showError(cCodeEl, 'Company Code is required');
+    isValid = false;
+  } else if (!/^[a-zA-Z0-9_-]+$/.test(cCode)) {
+    showError(cCodeEl, 'Code must contain only letters, numbers, hyphens or underscores');
+    isValid = false;
+  }
+  if (!cDomain) {
+    showError(cDomainEl, 'Company Email Domain is required');
+    isValid = false;
+  } else if (!isValidDomain(cDomain)) {
+    showError(cDomainEl, 'Enter a valid domain name (e.g. apex.com)');
+    isValid = false;
+  }
+  if (!aName) {
+    showError(aNameEl, 'Admin Full Name is required');
+    isValid = false;
+  }
+  if (!aEmail) {
+    showError(aEmailEl, 'Admin Email Address is required');
+    isValid = false;
+  } else if (!isValidEmail(aEmail)) {
+    showError(aEmailEl, 'Enter a valid email address');
+    isValid = false;
+  }
+  if (!aPass || aPass.length < 6) {
+    showError(aPassEl, 'Password must be at least 6 characters');
+    isValid = false;
+  }
+
+  const aPhoneEl = document.getElementById('a-phone');
+  if (aPhone && !isValidPhone(aPhone)) {
+    showError(aPhoneEl, 'Phone number must be exactly 10 numeric digits and cannot be all zeros');
+    isValid = false;
+  }
+
+  if (isValid && cDomain && aEmail) {
+    const emailDomain = aEmail.split('@')[1] || '';
+    if (emailDomain.toLowerCase() !== cDomain.toLowerCase()) {
+      showError(aEmailEl, `Admin email domain (@${emailDomain}) must match company domain (@${cDomain})`);
+      isValid = false;
+    }
+  }
+
+  // Client-side duplicate check against local DB
+  const allComps = getAll('companies') || [];
+  const allUsers = getAll('users') || [];
+
+  if (isValid && allComps.some(c => (c.code || '').toLowerCase() === cCode)) {
+    showError(cCodeEl, `Company code "${cCode}" is already registered.`);
+    isValid = false;
+  }
+  if (isValid && allComps.some(c => (c.domain || '').toLowerCase() === cDomain)) {
+    showError(cDomainEl, `Company domain "${cDomain}" is already registered.`);
+    isValid = false;
+  }
+  if (isValid && (allUsers.some(u => (u.email || '').toLowerCase() === aEmail.toLowerCase()) || allComps.some(c => (c.ownerEmail || '').toLowerCase() === aEmail.toLowerCase()))) {
+    showError(aEmailEl, `Admin email "${aEmail}" is already registered.`);
+    isValid = false;
+  }
+
+  if (!isValid) return;
+
+  const payload = {
+    company: {
+      name: cName,
+      code: cCode,
+      domain: cDomain,
+      phone: aPhone,
+      plan: 'Basic'
+    },
+    admin: {
+      name: aName,
+      email: aEmail,
+      password: aPass,
+      phone: aPhone
+    }
+  };
+
+  const res = sendSync('POST', 'companies/register', payload);
+  if (res && (res.error || res.statusCode >= 400)) {
+    const rawMsg = res.message || 'Registration failed.';
+    const errorMsg = Array.isArray(rawMsg) ? rawMsg.join(', ') : rawMsg;
+    if (errorMsg.toLowerCase().includes('domain')) showError(cDomainEl, errorMsg);
+    else if (errorMsg.toLowerCase().includes('email')) showError(aEmailEl, errorMsg);
+    else if (errorMsg.toLowerCase().includes('code')) showError(cCodeEl, errorMsg);
+    showToast(errorMsg, 'error');
+    return;
+  }
+
+  showToast('Company Workspace registered successfully! Redirecting to login...');
+  setTimeout(() => {
+    window.location.href = 'login.html';
+  }, 1200);
+}
+</script>
+</body>
+</html>
