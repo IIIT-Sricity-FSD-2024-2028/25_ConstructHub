@@ -1,0 +1,2450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Company Admin Panel – ConstructHub</title>
+<link rel="stylesheet" href="../../css/main.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+.ca-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.module-tabs { display: flex; gap: 4px; background: var(--bg); border-radius: var(--radius); padding: 4px; margin-bottom: 20px; flex-wrap: wrap; }
+.module-tab { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: var(--text-muted); transition: all 0.15s; }
+.module-tab.active { background: white; color: var(--primary); box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+.ca-banner { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; border-radius: var(--radius-lg); padding: 20px 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; }
+.ca-banner h2 { font-family: var(--font-head); font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.ca-banner p { font-size: 13px; opacity: 0.7; }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <nav class="navbar" id="navbar"></nav>
+  <div class="app-body">
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="active"><i data-lucide="building-2" class="nav-icon"></i> Company Admin</a>
+        <div class="sidebar-divider"></div>
+        <a href="#" id="ca-side-users" onclick="switchTab('users'); return false;"><i data-lucide="users" class="nav-icon"></i> Team Members</a>
+        <a href="#" id="ca-side-projects" onclick="switchTab('projects'); return false;"><i data-lucide="folder" class="nav-icon"></i> Projects</a>
+        <a href="#" id="ca-side-tasks" onclick="switchTab('tasks'); return false;"><i data-lucide="check-square" class="nav-icon"></i> Tasks</a>
+        <a href="#" id="ca-side-bills" onclick="switchTab('bills'); return false;"><i data-lucide="receipt" class="nav-icon"></i> Bills & Invoices</a>
+        <a href="#" id="ca-side-reports" onclick="switchTab('reports'); return false;"><i data-lucide="file-text" class="nav-icon"></i> Site Reports</a>
+        <a href="#" id="ca-side-expenses" onclick="switchTab('expenses'); return false;"><i data-lucide="wallet" class="nav-icon"></i> Expenses</a>
+        <a href="subscription.html"><i data-lucide="credit-card" class="nav-icon"></i> Subscription & Billing</a>
+        <div class="sidebar-divider"></div>
+        <a href="settings.html"><i data-lucide="settings" class="nav-icon"></i> Settings</a>
+        <a href="../../login.html" onclick="logout()"><i data-lucide="log-out" class="nav-icon"></i> Logout</a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div class="ca-banner">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <span class="badge badge-orange" style="letter-spacing:0.05em"><i data-lucide="shield-check" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> COMPANY ADMIN</span>
+          </div>
+          <h2 id="ca-company-title">Company Workspace Admin Panel</h2>
+          <p id="ca-company-sub">Full workspace control for your construction firm</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span id="company-domain-tag" style="background:rgba(255,255,255,0.1);padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:0.05em">APPROVED DOMAIN: @apex.com</span>
+          <button onclick="openAddProjectModal()" class="btn btn-secondary" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white"><i data-lucide="folder-plus" style="width:16px;height:16px;margin-right:4px"></i> Add Project</button>
+          <button onclick="openAddUserModal()" class="btn btn-primary"><i data-lucide="user-plus" style="width:16px;height:16px;margin-right:4px"></i> Add Team Member</button>
+        </div>
+      </div>
+
+      <div class="ca-stats" id="ca-stats"></div>
+
+      <div class="module-tabs" id="module-tabs">
+        <button class="module-tab active" id="tab-btn-users" onclick="switchTab('users')"><i data-lucide="users" style="width:16px;height:16px;vertical-align:middle;margin-right:4px;"></i> Team Users (<span id="cnt-users">0</span>)</button>
+        <button class="module-tab" id="tab-btn-projects" onclick="switchTab('projects')"><i data-lucide="folder" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Projects (<span id="cnt-projects">0</span>)</button>
+        <button class="module-tab" id="tab-btn-tasks" onclick="switchTab('tasks')"><i data-lucide="check-square" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Tasks (<span id="cnt-tasks">0</span>)</button>
+        <button class="module-tab" id="tab-btn-bills" onclick="switchTab('bills')"><i data-lucide="receipt" style="width:16px;height:16px;vertical-align:middle;margin-right:4px;"></i> Bills (<span id="cnt-bills">0</span>)</button>
+        <button class="module-tab" id="tab-btn-reports" onclick="switchTab('reports')"><i data-lucide="file-text" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Reports (<span id="cnt-reports">0</span>)</button>
+        <button class="module-tab" id="tab-btn-expenses" onclick="switchTab('expenses')"><i data-lucide="wallet" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Expenses (<span id="cnt-expenses">0</span>)</button>
+      </div>
+
+      <div id="module-view"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Modal 1: Add / Edit User -->
+<div id="user-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="u-modal-title">Add Company Team Member</h2>
+      <button class="modal-close" onclick="closeModal('user-modal')"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+    </div>
+    <form onsubmit="handleSaveUser(event)">
+      <input type="hidden" id="u-id">
+      <div class="form-group">
+        <label class="form-label">Full Name <span class="req">*</span></label>
+        <input id="u-name" type="text" class="form-input" placeholder="e.g. Ramesh Patel" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email Address <span class="req">*</span></label>
+        <input id="u-email" type="email" class="form-input" placeholder="name@apex.com" required>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px" id="u-email-hint">Domain must match company domain.</div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Role <span class="req">*</span></label>
+          <select id="u-role" class="form-select" onchange="toggleClientProjectFields()" required>
+            <option value="">Select Role</option>
+            <option value="project_manager">Project Manager</option>
+            <option value="site_engineer">Site Engineer</option>
+            <option value="finance_manager">Finance Manager</option>
+            <option value="client">Client</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone Number</label>
+          <input id="u-phone" type="tel" class="form-input" placeholder="10-digit phone number (e.g. 9876543210)" maxlength="10" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)">
+        </div>
+      </div>
+
+      <!-- FULL Project Details Section for Client Role -->
+      <div id="client-project-section" style="display:none;background:var(--bg);padding:14px;border-radius:var(--radius);margin-bottom:16px;border:1px solid var(--border)">
+        <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:10px"><i data-lucide="folder-plus" style="width:14px;height:14px;vertical-align:middle;margin-right:4px"></i> Client Construction Project Details</div>
+        <div class="form-group">
+          <label class="form-label">Project Name <span class="req">*</span></label>
+          <input id="cp-name" type="text" class="form-input" placeholder="e.g. Apex Horizon Heights">
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Location</label>
+            <input id="cp-location" type="text" class="form-input" placeholder="e.g. Mumbai, Maharashtra">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Total Budget (₹)</label>
+            <input id="cp-budget" type="number" class="form-input" placeholder="e.g. 25000000">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Project Manager</label>
+            <select id="cp-manager" class="form-select"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Start Date</label>
+            <input id="cp-start" type="date" class="form-input">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Project Description</label>
+          <textarea id="cp-desc" class="form-input" rows="2" placeholder="Brief project scope..."></textarea>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Password <span class="req">*</span></label>
+          <input id="u-pass" type="password" class="form-input" value="123456" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Account Status</label>
+          <select id="u-status" class="form-select">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive / Deactivated</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeModal('user-modal')" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="u-submit-btn">Save Member</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal 2: Edit Project -->
+<div id="project-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>Edit Construction Project</h2>
+      <button class="modal-close" onclick="closeModal('project-modal')"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+    </div>
+    <form onsubmit="handleSaveProject(event)">
+      <input type="hidden" id="ep-id">
+      <div class="form-group">
+        <label class="form-label">Project Name <span class="req">*</span></label>
+        <input id="ep-name" type="text" class="form-input" required>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Location</label>
+          <input id="ep-location" type="text" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Total Budget (₹)</label>
+          <input id="ep-budget" type="number" class="form-input" required>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Progress (%)</label>
+          <input id="ep-progress" type="number" min="0" max="100" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select id="ep-status" class="form-select">
+            <option value="On Track">On Track</option>
+            <option value="At Risk">At Risk</option>
+            <option value="Delayed">Delayed</option>
+            <option value="Completed">Completed</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeModal('project-modal')" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary">Update Project</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Add New Project (Matches Image 1) -->
+<div id="add-project-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:580px">
+    <div class="modal-header">
+      <div>
+        <h2 style="font-family:var(--font-head);font-size:20px;font-weight:700">Add New Project</h2>
+        <p style="font-size:13px;color:var(--text-muted);margin-top:2px">Create a new construction project.</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('add-project-modal')"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+    </div>
+    <form onsubmit="handleSaveNewProject(event)">
+      <div class="form-group">
+        <label class="form-label">Project Name <span class="req">*</span></label>
+        <input id="np-name" type="text" class="form-input" placeholder="e.g., Skyline Tower" required>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Client Name <span class="req">*</span></label>
+          <input id="np-client-name" type="text" class="form-input" placeholder="e.g., Acme Corp" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Client Email <span class="req">*</span></label>
+          <input id="np-client-email" type="email" class="form-input" placeholder="client@acme.com" required>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Client Phone <span class="req">*</span></label>
+          <input id="np-client-phone" type="tel" class="form-input" placeholder="e.g., 9876543210" required maxlength="10" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Client Password</label>
+          <input id="np-client-pass" type="password" class="form-input" placeholder="Min 6 chars" minlength="6">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Project Location <span class="req">*</span></label>
+        <input id="np-location" type="text" class="form-input" placeholder="e.g., Mumbai, Maharashtra" required>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Start Date <span class="req">*</span></label>
+          <input id="np-start-date" type="date" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Date <span class="req">*</span></label>
+          <input id="np-end-date" type="date" class="form-input" required>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Budget (₹) <span class="req">*</span></label>
+          <input id="np-budget" type="number" min="1" class="form-input" placeholder="e.g., 25000000" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Team Size</label>
+          <input id="np-team-size" type="number" min="1" class="form-input" placeholder="e.g., 20">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea id="np-description" class="form-input" rows="3" placeholder="Project description..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeModal('add-project-modal')" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="np-submit-btn">+ Save Project</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Generic View Details -->
+<div id="view-details-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-header">
+      <h2 id="vd-modal-title">Item Details</h2>
+      <button class="modal-close" onclick="closeModal('view-details-modal')"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+    </div>
+    <div id="vd-modal-body" style="padding:10px 0;font-size:13.5px;color:var(--text)"></div>
+    <div class="modal-footer">
+      <button onclick="closeModal('view-details-modal')" class="btn btn-primary">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Task Form (Create & Edit) -->
+<div id="task-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="task-modal-title">Add Company Task</h2>
+      <button class="modal-close" onclick="closeModal('task-modal')"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+    </div>
+    <form onsubmit="handleSaveTask(event)">
+      <input type="hidden" id="tk-id">
+      <div class="form-group">
+        <label class="form-label">Task Title <span class="req">*</span></label>
+        <input id="tk-title" type="text" class="form-input" placeholder="e.g. Concrete Pouring Zone A" required>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Project <span class="req">*</span></label>
+          <select id="tk-project" class="form-select" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Assigned Engineer <span class="req">*</span></label>
+          <select id="tk-assigned" class="form-select" required></select>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Priority</label>
+          <select id="tk-priority" class="form-select">
+            <option value="High">High</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="Low">Low</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select id="tk-status" class="form-select">
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Start Date</label>
+          <input id="tk-start" type="date" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Deadline</label>
+          <input id="tk-deadline" type="date" class="form-input">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Task Description</label>
+        <textarea id="tk-desc" class="form-input" rows="2" placeholder="Task scope..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeModal('task-modal')" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="tk-submit-btn">Save Task</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Bill Form (Create & Edit) -->
+<div id="bill-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="bill-modal-title">Create Invoice & Bill</h2>
+      <button class="modal-close" onclick="closeModal('bill-modal')"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+    </div>
+    <form onsubmit="handleSaveBill(event)">
+      <input type="hidden" id="bl-id">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Bill / Invoice # <span class="req">*</span></label>
+          <input id="bl-number" type="text" class="form-input" placeholder="e.g. INV-APEX-005" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Project <span class="req">*</span></label>
+          <select id="bl-project" class="form-select" required onchange="populateBillClient()"></select>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Client Name</label>
+          <input id="bl-client" type="text" class="form-input" readonly placeholder="Auto-populated from project">
+          <input type="hidden" id="bl-client-id">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount (₹) <span class="req">*</span></label>
+          <input id="bl-amount" type="number" min="1" class="form-input" placeholder="e.g. 5000000" required>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Billing Date</label>
+          <input id="bl-date" type="date" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Due Date</label>
+          <input id="bl-duedate" type="date" class="form-input">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select id="bl-status" class="form-select">
+            <option value="Pending Approval">Pending Approval</option>
+            <option value="Approved">Approved</option>
+            <option value="Paid">Paid</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Priority</label>
+          <select id="bl-priority" class="form-select">
+            <option value="High">High</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="Low">Low</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description / Remarks</label>
+        <textarea id="bl-desc" class="form-input" rows="2" placeholder="Invoice details..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeModal('bill-modal')" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="bl-submit-btn">Save Invoice</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Submit Site Report (Matches Image 2) -->
+<div id="report-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:840px;width:95%">
+    <div class="modal-header" style="border-bottom:none;margin-bottom:12px">
+      <div>
+        <h2 id="report-modal-title" style="font-family:var(--font-head);font-size:22px;font-weight:700">Submit Site Report</h2>
+        <p id="report-modal-sub" style="font-size:13px;color:var(--text-muted);margin-top:2px">Document daily progress, materials used, and site photos</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('report-modal')"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+    </div>
+
+    <form onsubmit="handleSaveReport(event)" style="display:flex;flex-direction:column;gap:16px">
+      <input type="hidden" id="rp-id">
+
+      <!-- Section 1: Daily Work Progress -->
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <div style="width:32px;height:32px;border-radius:8px;background:#fff7ed;color:#ea580c;display:flex;align-items:center;justify-content:center">
+            <i data-lucide="file-text" style="width:18px;height:18px"></i>
+          </div>
+          <h3 style="font-family:var(--font-head);font-size:15px;font-weight:700;margin:0">Daily Work Progress</h3>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:14px">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Project <span class="req">*</span></label>
+            <select id="rp-project" class="form-select" required></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Date <span class="req">*</span></label>
+            <input id="rp-date" type="date" class="form-input" required>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Work Completed Today <span class="req">*</span></label>
+          <textarea id="rp-work" class="form-input" rows="3" placeholder="Describe the work completed today..." required maxlength="1000"></textarea>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Max 1000 characters</div>
+        </div>
+
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Overall Progress (%) <span class="req">*</span></label>
+          <input id="rp-progress" type="number" min="0" max="100" class="form-input" placeholder="e.g., 75" required>
+        </div>
+      </div>
+
+      <!-- Section 2: Issues & Challenges -->
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <div style="width:32px;height:32px;border-radius:8px;background:#fef2f2;color:#dc2626;display:flex;align-items:center;justify-content:center">
+            <i data-lucide="alert-triangle" style="width:18px;height:18px"></i>
+          </div>
+          <h3 style="font-family:var(--font-head);font-size:15px;font-weight:700;margin:0">Issues & Challenges</h3>
+        </div>
+
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Issues Encountered</label>
+          <textarea id="rp-issues" class="form-input" rows="3" placeholder="Describe any issues or challenges faced today (leave blank if none)..."></textarea>
+        </div>
+
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Priority</label>
+          <select id="rp-priority" class="form-select">
+            <option value="">Select priority</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Section 3: Additional Remarks -->
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <div style="width:32px;height:32px;border-radius:8px;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center">
+            <i data-lucide="edit-3" style="width:18px;height:18px"></i>
+          </div>
+          <h3 style="font-family:var(--font-head);font-size:15px;font-weight:700;margin:0">Additional Remarks</h3>
+        </div>
+
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Remarks / Notes</label>
+          <textarea id="rp-remarks" class="form-input" rows="3" placeholder="Any additional notes or observations..."></textarea>
+        </div>
+      </div>
+
+      <!-- Section 4: Materials Used -->
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:32px;height:32px;border-radius:8px;background:#f0fdf4;color:#16a34a;display:flex;align-items:center;justify-content:center">
+              <i data-lucide="package" style="width:18px;height:18px"></i>
+            </div>
+            <h3 style="font-family:var(--font-head);font-size:15px;font-weight:700;margin:0">Materials Used</h3>
+          </div>
+          <button type="button" onclick="addReportMaterialRow()" class="btn btn-secondary btn-sm">+ Add Material</button>
+        </div>
+
+        <div id="rp-materials-container" style="display:flex;flex-direction:column;gap:10px">
+          <!-- Dynamic Material Rows inserted here -->
+        </div>
+      </div>
+
+      <!-- Section 5: Upload Site Photos -->
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <div style="width:32px;height:32px;border-radius:8px;background:#f3e8ff;color:#9333ea;display:flex;align-items:center;justify-content:center">
+            <i data-lucide="camera" style="width:18px;height:18px"></i>
+          </div>
+          <h3 style="font-family:var(--font-head);font-size:15px;font-weight:700;margin:0">Upload Site Photos</h3>
+        </div>
+
+        <div class="upload-zone" onclick="document.getElementById('rp-photo-input').click()" style="border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;cursor:pointer;background:#fafafa;transition:background 0.2s">
+          <div style="color:var(--primary);margin-bottom:6px">
+            <i data-lucide="upload-cloud" style="width:36px;height:36px"></i>
+          </div>
+          <div style="font-weight:600;font-size:13.5px;color:var(--text)">Click to upload or drag and drop</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">PNG, JPG, WebP up to 5MB each · Max 10 files</div>
+          <input type="file" id="rp-photo-input" multiple accept="image/*" style="display:none" onchange="handleReportPhotoUpload(event)">
+        </div>
+
+        <div id="rp-photo-previews" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px"></div>
+
+        <div class="form-group" style="margin-top:14px;margin-bottom:0">
+          <label class="form-label">Photo Description (Optional)</label>
+          <textarea id="rp-photo-desc" class="form-input" rows="2" placeholder="Add context or description for the photos..."></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="margin-top:8px;padding-top:16px;border-top:1px solid var(--border-light)">
+        <button type="button" onclick="closeModal('report-modal')" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="rp-submit-btn" style="background:#f97316;border-color:#f97316;padding:9px 20px">
+          <i data-lucide="send" style="width:15px;height:15px;margin-right:6px"></i> Submit Report
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Expense Form (Create & Edit) -->
+<div id="expense-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="expense-modal-title">Record Project Expense</h2>
+      <button class="modal-close" onclick="closeModal('expense-modal')"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+    </div>
+    <form onsubmit="handleSaveExpense(event)">
+      <input type="hidden" id="ex-id">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Project <span class="req">*</span></label>
+          <select id="ex-project" class="form-select" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expense Category <span class="req">*</span></label>
+          <select id="ex-category" class="form-select" required>
+            <option value="Materials">Materials</option>
+            <option value="Labor">Labor</option>
+            <option value="Equipment">Equipment</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Amount (₹) <span class="req">*</span></label>
+          <input id="ex-amount" type="number" min="1" class="form-input" placeholder="e.g. 150000" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expense Date</label>
+          <input id="ex-date" type="date" class="form-input">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description / Item Details</label>
+        <textarea id="ex-desc" class="form-input" rows="2" placeholder="e.g. Purchase of 200 bags OPC cement"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeModal('expense-modal')" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="ex-submit-btn">Save Expense</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="../../js/data.js?v=4"></script>
+<script src="../../js/utils.js?v=4"></script>
+<script>
+let currentUser;
+let currentCompany;
+let companyCache = null;
+let apiUsers = null;
+let subscriptionInfo = null;
+let currentTab = 'users';
+let _iconTimer = null;
+const PLAN_LIMITS = {
+  Basic: { userLimit: 10, projectLimit: 3 },
+  Pro: { userLimit: 50, projectLimit: 15 },
+  Enterprise: { userLimit: 500, projectLimit: 100 },
+};
+
+window.onload = () => {
+  initDB();
+  currentUser = requireAuth(['company_admin']);
+  if (!currentUser) return;
+
+  if (currentUser.role === 'superuser') {
+    window.location.href = '../superuser/dashboard.html';
+    return;
+  }
+
+  renderNavbar(currentUser);
+
+  const companyId = currentUser.companyId;
+  const localCompanies = getLocalData('companies') || [];
+  currentCompany = localCompanies.find(c => c.id === companyId) || { id: companyId, name: 'Company Admin', domain: '', code: '' };
+
+  document.getElementById('ca-company-title').textContent = `${currentCompany.name} Admin Panel`;
+  document.getElementById('ca-company-sub').textContent = `Full workspace control for ${currentCompany.name} (${currentCompany.code || ''})`;
+  document.getElementById('company-domain-tag').textContent = `APPROVED DOMAIN: @${currentCompany.domain || 'company.com'}`;
+  document.getElementById('u-email-hint').textContent = `Email must match @${currentCompany.domain || 'company.com'}`;
+
+  // Instant render from localStorage — no blocking network calls
+  refreshCompanyCache();
+  renderStats();
+  switchTab('users');
+
+  // Refresh users + subscription in background (non-blocking)
+  loadApiData();
+};
+
+function getCompanyId() {
+  return (currentCompany && currentCompany.id) ? currentCompany.id : (currentUser ? currentUser.companyId : '');
+}
+
+function syncLocalCompany(changes) {
+  if (!changes || !changes.id) return;
+  const comps = getLocalData('companies') || [];
+  const idx = comps.findIndex(c => c.id === changes.id);
+  if (idx > -1) {
+    comps[idx] = { ...comps[idx], ...changes };
+    setLocalData('companies', comps);
+  }
+}
+
+function loadApiData() {
+  const token = sessionStorage.getItem('ch_token');
+  if (!token) return;
+
+  const base = getApiBaseUrl();
+  const headers = { Authorization: 'Bearer ' + token };
+
+  Promise.all([
+    fetch(base + '/users', { headers }).then(r => r.ok ? r.json() : []),
+    fetch(base + '/companies/' + getCompanyId() + '/subscription', { headers }).then(r => r.ok ? r.json() : null),
+    fetch(base + '/companies/' + getCompanyId(), { headers }).then(r => r.ok ? r.json() : null),
+  ]).then(([users, sub, company]) => {
+    if (Array.isArray(users)) apiUsers = users;
+    if (company && !company.error) {
+      currentCompany = company;
+      syncLocalCompany(company);
+    }
+    if (sub && !sub.error) {
+      subscriptionInfo = sub;
+      syncLocalCompany({
+        id: sub.companyId || getCompanyId(),
+        name: sub.companyName,
+        code: sub.code,
+        domain: sub.domain,
+        plan: sub.plan,
+        billingCycle: sub.billingCycle,
+        subscriptionStatus: sub.subscriptionStatus,
+        overageEnabled: !!sub.overageEnabled,
+        extraUsers: sub.extraUsers || 0,
+        extraProjects: sub.extraProjects || 0,
+      });
+    }
+    requestAnimationFrame(() => {
+      refreshCompanyCache();
+      updateDashboardCounts();
+    });
+    // Do NOT re-render the active tab here — it blocks the UI and queues modal clicks
+  }).catch(() => { /* keep local data on network failure */ });
+}
+
+function updateDashboardCounts() {
+  if (!companyCache) refreshCompanyCache();
+  const users = getCompanyData('users');
+  const projs = getCompanyData('projects');
+  const tasks = getCompanyData('tasks');
+  const bills = getCompanyData('bills');
+  const reports = getCompanyData('reports');
+  const exp = getCompanyData('expenses');
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('cnt-users', users.length);
+  set('cnt-projects', projs.length);
+  set('cnt-tasks', tasks.length);
+  set('cnt-bills', bills.length);
+  set('cnt-reports', reports.length);
+  set('cnt-expenses', exp.length);
+}
+
+function refreshCompanyCache() {
+  const cId = getCompanyId();
+  const allProjects = getLocalData('projects') || [];
+  const projects = allProjects.filter(p => p.companyId === cId);
+  const companyProjectIds = new Set(projects.map(p => p.id));
+  const byCompanyOrProject = item => item.companyId === cId || (item.projectId && companyProjectIds.has(item.projectId));
+  const usersSource = apiUsers || getLocalData('users') || [];
+
+  companyCache = {
+    users: usersSource.filter(u => u.companyId === cId && u.role !== 'superuser' && u.id !== 'U000'),
+    projects,
+    tasks: (getLocalData('tasks') || []).filter(byCompanyOrProject),
+    bills: (getLocalData('bills') || []).filter(byCompanyOrProject),
+    reports: (getLocalData('reports') || []).filter(byCompanyOrProject),
+    expenses: (getLocalData('expenses') || []).filter(byCompanyOrProject),
+  };
+}
+
+function invalidateCompanyCache() {
+  companyCache = null;
+}
+
+function getCompanyData(table) {
+  if (!companyCache) refreshCompanyCache();
+  return companyCache[table] || [];
+}
+
+function getCachedEntity(table, id) {
+  const list = getCompanyData(table);
+  const hit = list.find(item => item.id === id);
+  if (hit) return hit;
+  return (getLocalData(table) || []).find(item => item.id === id) || null;
+}
+
+function getCurrentCompanyRecord() {
+  const companyId = getCompanyId();
+  const localCompany = (getLocalData('companies') || []).find(c => c.id === companyId);
+  const source = {
+    ...(currentCompany || {}),
+    ...(localCompany || {}),
+  };
+  currentCompany = source;
+  return source;
+}
+
+function getPlanLimitsForCompany(company) {
+  const planName = company.plan && PLAN_LIMITS[company.plan] ? company.plan : 'Basic';
+  const defaults = PLAN_LIMITS[planName];
+  return {
+    planName,
+    userLimit: company.customUserLimit || defaults.userLimit,
+    projectLimit: company.customProjectLimit || defaults.projectLimit,
+  };
+}
+
+function getProjectQuotaState() {
+  const company = getCurrentCompanyRecord();
+  const limits = getPlanLimitsForCompany(company);
+  const currentProjects = getCompanyData('projects').length;
+  return {
+    ...limits,
+    currentProjects,
+    overageEnabled: !!company.overageEnabled,
+  };
+}
+
+function validateCanCreateProject() {
+  const quota = getProjectQuotaState();
+  if (!quota.overageEnabled && quota.currentProjects >= quota.projectLimit) {
+    showToast(`Project limit reached (${quota.currentProjects}/${quota.projectLimit}) for your ${quota.planName} plan. Upgrade your plan or enable overage billing.`, 'error');
+    return false;
+  }
+  return true;
+}
+
+function renderStats() {
+  if (!companyCache) refreshCompanyCache();
+  const users = getCompanyData('users');
+  const projs = getCompanyData('projects');
+  const tasks = getCompanyData('tasks');
+  const bills = getCompanyData('bills');
+  const reports = getCompanyData('reports');
+  const exp = getCompanyData('expenses');
+
+  const totalBilled = bills.reduce((s,b) => s + (Number(b.amount)||0), 0);
+
+  document.getElementById('cnt-users').textContent = users.length;
+  document.getElementById('cnt-projects').textContent = projs.length;
+  document.getElementById('cnt-tasks').textContent = tasks.length;
+  document.getElementById('cnt-bills').textContent = bills.length;
+  document.getElementById('cnt-reports').textContent = reports.length;
+  document.getElementById('cnt-expenses').textContent = exp.length;
+
+  const activePMs = users.filter(u => u.role === 'project_manager' && u.status !== 'inactive').length;
+  const activeSEs = users.filter(u => u.role === 'site_engineer' && u.status !== 'inactive').length;
+  const activeFMs = users.filter(u => u.role === 'finance_manager' && u.status !== 'inactive').length;
+  const isSetupComplete = activePMs >= 1 && activeSEs >= 1 && activeFMs >= 1;
+
+  const subInfo = subscriptionInfo || {};
+  const planName = subInfo.plan || currentCompany.plan || 'Enterprise';
+  const cycle = subInfo.billingCycle || 'monthly';
+
+  const planLimits = { Basic: { userLimit: 10, projectLimit: 3 }, Pro: { userLimit: 50, projectLimit: 15 }, Enterprise: { userLimit: 500, projectLimit: 100 } };
+  const userLimit = (subInfo.planConfig && subInfo.planConfig.userLimit) || (planLimits[planName] ? planLimits[planName].userLimit : 10);
+  const projLimit = (subInfo.planConfig && subInfo.planConfig.projectLimit) || (planLimits[planName] ? planLimits[planName].projectLimit : 3);
+  const isOverageEnabled = subInfo.overageEnabled || currentCompany.overageEnabled || false;
+
+  const userPct = Math.round((users.length / userLimit) * 100);
+  const projPct = Math.round((projs.length / projLimit) * 100);
+
+  const getUserColor = (pct) => pct >= 100 ? '#dc2626' : (pct >= 80 ? '#ea580c' : '#16a34a');
+  const getStatusText = (pct) => pct >= 100 ? 'Limit Reached' : (pct >= 80 ? 'Approaching Limit' : 'Normal Usage');
+
+  const usageCardHtml = `
+    <div class="card" style="grid-column:1 / -1;background:#ffffff;border:1px solid var(--border);margin-bottom:12px;padding:18px 20px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="badge badge-orange" style="font-size:12.5px;font-weight:700;padding:5px 12px;"><i data-lucide="shield-check" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> ${planName} Plan Workspace</span>
+          ${isOverageEnabled ? '<span class="badge badge-green" style="font-size:12px;"><i data-lucide="zap" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i> Overage Billing Active</span>' : '<span class="badge badge-gray" style="font-size:12px;">Standard Tier Limits</span>'}
+        </div>
+        <div>
+          <a href="subscription.html" class="btn btn-secondary btn-sm" style="font-weight:600;"><i data-lucide="credit-card" style="width:14px;height:14px;margin-right:4px;"></i> Subscription & Billing</a>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div style="background:var(--bg);padding:12px 16px;border-radius:10px;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:12.5px;font-weight:700;color:var(--text)">Team User Quota</span>
+            <span style="font-size:12.5px;font-weight:800;color:${getUserColor(userPct)}">${users.length} / ${userLimit} Users (${userPct}%)</span>
+          </div>
+          <div style="width:100%;background:#e2e8f0;height:8px;border-radius:4px;overflow:hidden">
+            <div style="width:${Math.min(userPct, 100)}%;background:${getUserColor(userPct)};height:100%;border-radius:4px;transition:width 0.3s"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11.5px;color:var(--text-muted)">
+            <span style="color:${getUserColor(userPct)};font-weight:600">${getStatusText(userPct)}</span>
+            ${userPct >= 80 && !isOverageEnabled ? '<a href="subscription.html" style="color:var(--primary);font-weight:700;text-decoration:none">Upgrade / Enable Overage &rarr;</a>' : ''}
+          </div>
+        </div>
+        <div style="background:var(--bg);padding:12px 16px;border-radius:10px;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:12.5px;font-weight:700;color:var(--text)">Active Project Quota</span>
+            <span style="font-size:12.5px;font-weight:800;color:${getUserColor(projPct)}">${projs.length} / ${projLimit} Projects (${projPct}%)</span>
+          </div>
+          <div style="width:100%;background:#e2e8f0;height:8px;border-radius:4px;overflow:hidden">
+            <div style="width:${Math.min(projPct, 100)}%;background:${getUserColor(projPct)};height:100%;border-radius:4px;transition:width 0.3s"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11.5px;color:var(--text-muted)">
+            <span style="color:${getUserColor(projPct)};font-weight:600">${getStatusText(projPct)}</span>
+            ${projPct >= 80 && !isOverageEnabled ? '<a href="subscription.html" style="color:var(--primary);font-weight:700;text-decoration:none">Upgrade / Enable Overage &rarr;</a>' : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const setupBannerHtml = !isSetupComplete ? `
+    <div class="card" style="grid-column:1 / -1;background:#fff7ed;border:1px solid #fdba74;margin-bottom:12px;padding:16px 20px;border-radius:12px;">
+      <div style="font-weight:700;color:#c2410c;font-size:15px;margin-bottom:6px">
+        ⚠️ Complete Your Team Setup
+      </div>
+      <div style="font-size:13px;color:#9a3412;margin-bottom:12px">
+        Before creating and managing construction projects, you must add at least 1 active team member for each required role:
+      </div>
+      <div style="display:flex;gap:18px;font-size:13px;font-weight:600;">
+        <span style="color:${activePMs ? '#15803d' : '#b91c1c'}">${activePMs ? '✓' : '✗'} Project Manager (${activePMs})</span>
+        <span style="color:${activeSEs ? '#15803d' : '#b91c1c'}">${activeSEs ? '✓' : '✗'} Site Engineer (${activeSEs})</span>
+        <span style="color:${activeFMs ? '#15803d' : '#b91c1c'}">${activeFMs ? '✓' : '✗'} Finance Manager (${activeFMs})</span>
+      </div>
+    </div>` : '';
+
+  document.getElementById('ca-stats').innerHTML = usageCardHtml + setupBannerHtml + `
+    <div class="stat-card" style="background:var(--white);padding:20px;border-radius:12px;border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,0.04);display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Team Members</span>
+        <div class="icon-box icon-box-orange" style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;"><i data-lucide="users" style="width:18px;height:18px;"></i></div>
+      </div>
+      <div>
+        <div style="font-size:26px;font-weight:800;color:var(--text);line-height:1.2;">${users.length}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Active Firm Users</div>
+      </div>
+    </div>
+
+    <div class="stat-card" style="background:var(--white);padding:20px;border-radius:12px;border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,0.04);display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Active Projects</span>
+        <div class="icon-box icon-box-blue" style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;"><i data-lucide="folder" style="width:18px;height:18px;"></i></div>
+      </div>
+      <div>
+        <div style="font-size:26px;font-weight:800;color:var(--text);line-height:1.2;">${projs.length}</div>
+        <div style="font-size:12px;color:var(--green);font-weight:600;margin-top:4px;">Construction Sites</div>
+      </div>
+    </div>
+
+    <div class="stat-card" style="background:var(--white);padding:20px;border-radius:12px;border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,0.04);display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Total Invoiced</span>
+        <div class="icon-box icon-box-green" style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;"><i data-lucide="receipt" style="width:18px;height:18px;"></i></div>
+      </div>
+      <div>
+        <div style="font-size:22px;font-weight:800;color:var(--text);line-height:1.2;">${formatCurrency(totalBilled)}</div>
+        <div style="font-size:12px;color:var(--green);font-weight:600;margin-top:4px;">Milestone Invoices</div>
+      </div>
+    </div>
+
+    <div class="stat-card" style="background:var(--white);padding:20px;border-radius:12px;border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,0.04);display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">SaaS Subscription</span>
+        <div class="icon-box icon-box-purple" style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;"><i data-lucide="credit-card" style="width:18px;height:18px;"></i></div>
+      </div>
+      <div>
+        <div style="font-size:20px;font-weight:800;color:var(--orange);line-height:1.2;">${planName}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Cycle: ${cycle}</div>
+      </div>
+    </div>
+  `;
+  scheduleTabIcons(document.getElementById('ca-stats'));
+}
+
+function scheduleTabIcons(root) {
+  if (!root) return;
+  if (_iconTimer) clearTimeout(_iconTimer);
+  _iconTimer = setTimeout(() => {
+    _iconTimer = null;
+    if (window.lucide && root) window.lucide.createIcons({ root });
+  }, 16);
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.module-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+
+  const btn = document.getElementById('tab-btn-' + tab);
+  if (btn) btn.classList.add('active');
+
+  const side = document.getElementById('ca-side-' + tab);
+  if (side) side.classList.add('active');
+
+  const view = document.getElementById('module-view');
+  if (!view) return;
+
+  renderTabContent(tab, view);
+}
+
+function renderTabContent(tab, view) {
+  if (!view) return;
+  if (!companyCache) refreshCompanyCache();
+  if (tab === 'users') {
+    const users = getCompanyData('users');
+    view.innerHTML = `
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+          <div class="card-title">Company Team Members (${users.length})</div>
+          <button onclick="openAddUserModal()" class="btn btn-primary btn-sm"><i data-lucide="user-plus" style="width:14px;height:14px;margin-right:4px"></i> Add Member</button>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>User</th><th>Role</th><th>Email</th><th>Phone</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody>
+            ${users.map(u => `
+              <tr>
+                <td><strong>${u.name}</strong></td>
+                <td>${roleBadge(u.role)}</td>
+                <td>${u.email}</td>
+                <td>${u.phone || 'N/A'}</td>
+                <td>${statusBadge(u.status || 'active')}</td>
+                <td style="text-align:right">
+                  <button onclick="viewUserModal('${u.id}')" class="btn btn-outline btn-sm" title="View Details"><i data-lucide="eye" style="width:14px;height:14px"></i> View</button>
+                  <button onclick="toggleUserStatus('${u.id}')" class="btn ${u.status === 'inactive' ? 'btn-success' : 'btn-secondary'} btn-sm" style="${u.status === 'inactive' ? '' : 'color:var(--orange)'}" title="${u.status === 'inactive' ? 'Activate Account' : 'Deactivate Account'}">
+                    <i data-lucide="${u.status === 'inactive' ? 'user-check' : 'user-x'}" style="width:14px;height:14px"></i>
+                    ${u.status === 'inactive' ? 'Activate' : 'Deactivate'}
+                  </button>
+                  <button onclick="openEditUserModal('${u.id}')" class="btn btn-secondary btn-sm" title="Edit User"><i data-lucide="edit" style="width:14px;height:14px"></i> Edit</button>
+                  <button onclick="deleteUser('${u.id}')" class="btn btn-danger btn-sm" title="Delete User"><i data-lucide="trash-2" style="width:14px;height:14px"></i> Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } else if (tab === 'projects') {
+    const projs = getCompanyData('projects');
+    view.innerHTML = `
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+          <div class="card-title">Company Projects (${projs.length})</div>
+          <button onclick="openAddProjectModal()" class="btn btn-primary btn-sm"><i data-lucide="folder-plus" style="width:14px;height:14px;margin-right:4px"></i> + Add Project</button>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Project Name</th><th>Client</th><th>Manager</th><th>Budget</th><th>Progress</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody>
+            ${projs.map(p => `
+              <tr>
+                <td><strong>${p.name}</strong><br><small style="color:var(--text-muted)">${p.location}</small></td>
+                <td>${p.clientName}</td>
+                <td>${p.managerName || 'Manager'}</td>
+                <td><strong>${formatCurrency(p.budget)}</strong></td>
+                <td>${progressBar(p.progress)}</td>
+                <td>${statusBadge(p.status)}</td>
+                <td style="text-align:right">
+                  <button onclick="viewProjectModal('${p.id}')" class="btn btn-outline btn-sm" title="View Details"><i data-lucide="eye" style="width:14px;height:14px"></i> View</button>
+                  <button onclick="openEditProjectModal('${p.id}')" class="btn btn-secondary btn-sm" title="Edit Project"><i data-lucide="edit" style="width:14px;height:14px"></i> Edit</button>
+                  <button onclick="deleteProject('${p.id}')" class="btn btn-danger btn-sm" title="Delete Project"><i data-lucide="trash-2" style="width:14px;height:14px"></i> Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } else if (tab === 'tasks') {
+    const tasks = getCompanyData('tasks');
+    view.innerHTML = `
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+          <div class="card-title">Company Tasks (${tasks.length})</div>
+          <button onclick="openAddTaskModal()" class="btn btn-primary btn-sm"><i data-lucide="check-square" style="width:14px;height:14px;margin-right:4px"></i> Add Task</button>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Task Title</th><th>Project</th><th>Assigned To</th><th>Priority</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody>
+            ${tasks.map(t => `
+              <tr>
+                <td><strong>${t.title}</strong></td>
+                <td>${t.projectName}</td>
+                <td>${t.assignedName}</td>
+                <td>${priorityBadge(t.priority)}</td>
+                <td>${statusBadge(t.status)}</td>
+                <td style="text-align:right">
+                  <button onclick="viewTaskModal('${t.id}')" class="btn btn-outline btn-sm" title="View Details"><i data-lucide="eye" style="width:14px;height:14px"></i> View</button>
+                  <button onclick="openEditTaskModal('${t.id}')" class="btn btn-secondary btn-sm" title="Edit Task"><i data-lucide="edit" style="width:14px;height:14px"></i> Edit</button>
+                  <button onclick="deleteTask('${t.id}')" class="btn btn-danger btn-sm" title="Delete Task"><i data-lucide="trash-2" style="width:14px;height:14px"></i> Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } else if (tab === 'bills') {
+    const bills = getCompanyData('bills');
+    view.innerHTML = `
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+          <div class="card-title">Invoices & Bills (${bills.length})</div>
+          <button onclick="openAddBillModal()" class="btn btn-primary btn-sm"><i data-lucide="receipt" style="width:14px;height:14px;margin-right:4px"></i> Create Invoice</button>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Bill #</th><th>Project</th><th>Client</th><th>Amount</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody>
+            ${bills.map(b => `
+              <tr>
+                <td><strong>${b.billNumber}</strong></td>
+                <td>${b.projectName}</td>
+                <td>${b.clientName}</td>
+                <td><strong>${formatCurrency(b.amount)}</strong></td>
+                <td>${statusBadge(b.status)}</td>
+                <td style="text-align:right">
+                  <button onclick="viewBillModal('${b.id}')" class="btn btn-outline btn-sm" title="View Details"><i data-lucide="eye" style="width:14px;height:14px"></i> View</button>
+                  <button onclick="openEditBillModal('${b.id}')" class="btn btn-secondary btn-sm" title="Edit Invoice"><i data-lucide="edit" style="width:14px;height:14px"></i> Edit</button>
+                  <button onclick="deleteBill('${b.id}')" class="btn btn-danger btn-sm" title="Delete Invoice"><i data-lucide="trash-2" style="width:14px;height:14px"></i> Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } else if (tab === 'reports') {
+    const reports = getCompanyData('reports');
+    view.innerHTML = `
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+          <div class="card-title">Site Logs & Reports (${reports.length})</div>
+          <button onclick="openAddReportModal()" class="btn btn-primary btn-sm"><i data-lucide="file-text" style="width:14px;height:14px;margin-right:4px"></i> Submit Site Report</button>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Report Title</th><th>Project</th><th>Reporter</th><th>Date</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody>
+            ${reports.map(r => `
+              <tr>
+                <td><strong>${r.title}</strong></td>
+                <td>${r.projectName}</td>
+                <td>${r.reporterName}</td>
+                <td>${formatDate(r.date)}</td>
+                <td style="text-align:right">
+                  <button onclick="viewReportModal('${r.id}')" class="btn btn-outline btn-sm" title="View Details"><i data-lucide="eye" style="width:14px;height:14px"></i> View</button>
+                  <button onclick="openEditReportModal('${r.id}')" class="btn btn-secondary btn-sm" title="Edit Report"><i data-lucide="edit" style="width:14px;height:14px"></i> Edit</button>
+                  <button onclick="deleteReport('${r.id}')" class="btn btn-danger btn-sm" title="Delete Report"><i data-lucide="trash-2" style="width:14px;height:14px"></i> Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } else if (tab === 'expenses') {
+    const exp = getCompanyData('expenses');
+    view.innerHTML = `
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+          <div class="card-title">Internal Expenses (${exp.length})</div>
+          <button onclick="openAddExpenseModal()" class="btn btn-primary btn-sm"><i data-lucide="wallet" style="width:14px;height:14px;margin-right:4px"></i> Record Expense</button>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Project</th><th>Category</th><th>Amount</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody>
+            ${exp.map(e => `
+              <tr>
+                <td><strong>${e.projectName}</strong></td>
+                <td><span class="badge badge-gray">${e.category}</span></td>
+                <td><strong>${formatCurrency(e.amount)}</strong></td>
+                <td style="text-align:right">
+                  <button onclick="viewExpenseModal('${e.id}')" class="btn btn-outline btn-sm" title="View Details"><i data-lucide="eye" style="width:14px;height:14px"></i> View</button>
+                  <button onclick="openEditExpenseModal('${e.id}')" class="btn btn-secondary btn-sm" title="Edit Expense"><i data-lucide="edit" style="width:14px;height:14px"></i> Edit</button>
+                  <button onclick="deleteExpense('${e.id}')" class="btn btn-danger btn-sm" title="Delete Expense"><i data-lucide="trash-2" style="width:14px;height:14px"></i> Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  scheduleTabIcons(view);
+}
+
+function clearUserFormErrors() {
+  ['u-name', 'u-email', 'u-role', 'u-phone', 'u-pass', 'cp-name', 'cp-location', 'cp-budget', 'cp-manager', 'cp-start'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) clearError(el);
+  });
+}
+
+function clearProjectFormErrors() {
+  ['ep-name', 'ep-location', 'ep-budget', 'ep-progress', 'ep-status'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) clearError(el);
+  });
+}
+
+function openAddUserModal(defaultRole) {
+  openModal('user-modal');
+  clearUserFormErrors();
+  const users = getCompanyData('users');
+  const activePMs = users.filter(u => u.role === 'project_manager' && u.status !== 'inactive').length;
+  const activeSEs = users.filter(u => u.role === 'site_engineer' && u.status !== 'inactive').length;
+  const activeFMs = users.filter(u => u.role === 'finance_manager' && u.status !== 'inactive').length;
+  const isSetupComplete = activePMs >= 1 && activeSEs >= 1 && activeFMs >= 1;
+
+  if (defaultRole === 'client' && !isSetupComplete) {
+    showToast('Complete Team Setup First: You must create at least 1 Project Manager, 1 Site Engineer, and 1 Finance Manager before creating projects or clients.', 'error');
+  }
+
+  document.getElementById('u-modal-title').textContent = defaultRole === 'client' ? 'Add Client & Associate Initial Project' : 'Add Company Team Member';
+  document.getElementById('u-submit-btn').textContent = 'Save Member';
+  document.getElementById('u-id').value = '';
+  document.getElementById('u-name').value = '';
+  document.getElementById('u-email').value = '';
+  document.getElementById('u-phone').value = '';
+  document.getElementById('u-pass').value = '123456';
+  if (document.getElementById('u-status')) document.getElementById('u-status').value = 'active';
+
+  const roleSel = document.getElementById('u-role');
+  roleSel.value = defaultRole || '';
+  toggleClientProjectFields();
+
+  const pms = users.filter(u => u.role === 'project_manager' && u.status !== 'inactive');
+  const mgrSel = document.getElementById('cp-manager');
+  if (mgrSel) {
+    mgrSel.innerHTML = pms.length ? pms.map(m => `<option value="${m.id}|${m.name}">${m.name} (${m.email})</option>`).join('') : '<option value="">No PM Available - Add PM First</option>';
+  }
+
+  if (document.getElementById('cp-name')) document.getElementById('cp-name').value = '';
+  if (document.getElementById('cp-location')) document.getElementById('cp-location').value = '';
+  if (document.getElementById('cp-budget')) document.getElementById('cp-budget').value = '';
+  if (document.getElementById('cp-start')) document.getElementById('cp-start').value = '';
+  if (document.getElementById('cp-desc')) document.getElementById('cp-desc').value = '';
+  scheduleTabIcons(document.getElementById('user-modal'));
+}
+
+function openEditUserModal(id) {
+  openModal('user-modal');
+  const user = getCachedEntity('users', id);
+  if (!user) return;
+  clearUserFormErrors();
+  document.getElementById('u-modal-title').textContent = 'Edit Team Member';
+  document.getElementById('u-submit-btn').textContent = 'Update Member';
+  document.getElementById('u-id').value = user.id;
+  document.getElementById('u-name').value = user.name;
+  document.getElementById('u-email').value = user.email;
+  document.getElementById('u-role').value = user.role;
+  document.getElementById('u-phone').value = user.phone || '';
+  document.getElementById('u-pass').value = user.password || '123456';
+  if (document.getElementById('u-status')) document.getElementById('u-status').value = user.status || 'active';
+  toggleClientProjectFields();
+  scheduleTabIcons(document.getElementById('user-modal'));
+}
+
+function openEditProjectModal(id) {
+  openModal('project-modal');
+  const proj = getCachedEntity('projects', id);
+  if (!proj) return;
+  clearProjectFormErrors();
+  document.getElementById('ep-id').value = proj.id;
+  document.getElementById('ep-name').value = proj.name;
+  document.getElementById('ep-location').value = proj.location;
+  document.getElementById('ep-budget').value = proj.budget;
+  document.getElementById('ep-progress').value = proj.progress;
+  document.getElementById('ep-status').value = proj.status;
+  scheduleTabIcons(document.getElementById('project-modal'));
+}
+
+function toggleClientProjectFields() {
+  const role = document.getElementById('u-role').value;
+  const sec = document.getElementById('client-project-section');
+  if (sec) {
+    sec.style.display = (role === 'client') ? 'block' : 'none';
+  }
+}
+
+function toggleUserStatus(id) {
+  const user = getCachedEntity('users', id);
+  if (!user) return;
+  const newStatus = user.status === 'inactive' ? 'active' : 'inactive';
+  const actionText = newStatus === 'inactive' ? 'deactivate' : 'activate';
+
+  if (!confirm(`Are you sure you want to ${actionText} account for "${user.name}" (${roleLabel(user.role)})?`)) return;
+
+  update('users', id, { status: newStatus });
+  showToast(`Account for "${user.name}" has been ${newStatus === 'inactive' ? 'deactivated' : 'activated'}.`);
+  refreshAfterUserChange();
+}
+
+function deleteUser(id) {
+  const user = getCachedEntity('users', id);
+  if (!user) return;
+  if (!confirm(`Delete user "${user.name}"?`)) return;
+  const deleted = remove('users', id);
+  if (!deleted) {
+    showToast('User could not be deleted. Please refresh and try again.', 'error');
+    refreshAfterUserChange();
+    return;
+  }
+  if (Array.isArray(apiUsers)) {
+    apiUsers = apiUsers.filter(u => u.id !== id);
+  }
+  showToast('User deleted successfully.');
+  refreshAfterUserChange();
+}
+
+function deleteProject(id) {
+  const proj = getCachedEntity('projects', id);
+  if (!proj) return;
+  if (!confirm(`Delete project "${proj.name}"?`)) return;
+  remove('projects', id);
+  showToast('Project deleted successfully.');
+  refreshAfterLocalChange();
+}
+
+function deleteTask(id) {
+  if (!confirm('Delete this task?')) return;
+  remove('tasks', id);
+  showToast('Task deleted successfully.');
+  refreshAfterLocalChange();
+}
+
+function deleteBill(id) {
+  if (!confirm('Delete this bill?')) return;
+  remove('bills', id);
+  showToast('Bill deleted successfully.');
+  refreshAfterLocalChange();
+}
+
+function deleteReport(id) {
+  if (!confirm('Delete this report?')) return;
+  remove('reports', id);
+  showToast('Report deleted successfully.');
+  refreshAfterLocalChange();
+}
+
+function deleteExpense(id) {
+  if (!confirm('Delete this expense?')) return;
+  remove('expenses', id);
+  showToast('Expense deleted successfully.');
+  refreshAfterLocalChange();
+}
+
+function handleSaveUser(e) {
+  e.preventDefault();
+  clearUserFormErrors();
+
+  const id = document.getElementById('u-id').value;
+  const nameEl = document.getElementById('u-name');
+  const emailEl = document.getElementById('u-email');
+  const roleEl = document.getElementById('u-role');
+  const phoneEl = document.getElementById('u-phone');
+  const passEl = document.getElementById('u-pass');
+  const statusEl = document.getElementById('u-status');
+
+  const name = nameEl.value.trim();
+  const email = emailEl.value.trim();
+  const role = roleEl.value;
+  const phone = phoneEl.value.trim();
+  const pass = passEl.value;
+  const status = statusEl ? statusEl.value : 'active';
+
+  let isValid = true;
+
+  if (!name || name.length < 2) {
+    showError(nameEl, 'Full Name is required (at least 2 characters)');
+    isValid = false;
+  }
+
+  if (!email) {
+    showError(emailEl, 'Email Address is required');
+    isValid = false;
+  } else if (!isValidEmail(email)) {
+    showError(emailEl, 'Enter a valid email address');
+    isValid = false;
+  }
+
+  if (isValid && email) {
+    const emailDomain = email.split('@')[1] || '';
+    if (emailDomain.toLowerCase() !== currentCompany.domain.toLowerCase()) {
+      showError(emailEl, `Email domain must match approved company domain (@${currentCompany.domain})`);
+      isValid = false;
+    }
+  }
+
+  if (!role) {
+    showError(roleEl, 'Please select a role');
+    isValid = false;
+  }
+
+  if (phone && !isValidPhone(phone)) {
+    showError(phoneEl, 'Phone number must be a 10-digit number and cannot be all zeros');
+    isValid = false;
+  }
+
+  if (!pass || pass.length < 6) {
+    showError(passEl, 'Password must be at least 6 characters');
+    isValid = false;
+  }
+
+  // Client-side email duplicate check (use cache — no blocking API call)
+  const allUsers = apiUsers || getLocalData('users') || [];
+  const allComps = getLocalData('companies') || [];
+
+  const duplicateUser = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && u.id !== id);
+  const duplicateOwner = allComps.find(c => c.ownerEmail && c.ownerEmail.toLowerCase() === email.toLowerCase() && c.id !== currentCompany.id);
+
+  if (isValid && (duplicateUser || duplicateOwner)) {
+    showError(emailEl, `Email address "${email}" is already registered.`);
+    isValid = false;
+  }
+
+  // Client project validation if role === 'client' and creating new user
+  let cpName = '', cpLoc = '', cpBud = 0, cpMgrId = '', cpMgrName = '', cpStart = '', cpDesc = '';
+  if (isValid && role === 'client' && !id) {
+    const cpNameEl = document.getElementById('cp-name');
+    const cpLocEl = document.getElementById('cp-location');
+    const cpBudEl = document.getElementById('cp-budget');
+    const cpMgrEl = document.getElementById('cp-manager');
+    const cpStartEl = document.getElementById('cp-start');
+    const cpDescEl = document.getElementById('cp-desc');
+
+    cpName = cpNameEl.value.trim();
+    cpLoc = cpLocEl.value.trim();
+    cpBud = Number(cpBudEl.value);
+    const mgrVal = cpMgrEl.value;
+    cpStart = cpStartEl.value;
+    cpDesc = cpDescEl.value.trim();
+
+    if (!cpName) {
+      showError(cpNameEl, 'Project Name is required');
+      isValid = false;
+    }
+    if (!cpLoc) {
+      showError(cpLocEl, 'Location is required');
+      isValid = false;
+    }
+    if (!cpBud || cpBud <= 0) {
+      showError(cpBudEl, 'Enter a valid positive budget amount (> 0)');
+      isValid = false;
+    }
+    if (!mgrVal) {
+      showError(cpMgrEl, 'Select a Project Manager from your company');
+      isValid = false;
+    } else {
+      const [mId, mName] = mgrVal.split('|');
+      cpMgrId = mId;
+      cpMgrName = mName;
+    }
+    if (!cpStart) {
+      showError(cpStartEl, 'Start date is required');
+      isValid = false;
+    }
+  }
+
+  if (!isValid) return;
+
+  if (!id && role === 'client' && !validateCanCreateProject()) {
+    return;
+  }
+
+  if (id) {
+    const res = update('users', id, { name, email, role, phone: phone || '9876543210', password: pass, status });
+    if (res && res.error) {
+      const msg = res.message || 'Failed to update user';
+      if (msg.toLowerCase().includes('email')) showError(emailEl, msg);
+      else if (msg.toLowerCase().includes('phone')) showError(phoneEl, msg);
+      showToast(msg, 'error');
+      return;
+    }
+    showToast('Team member updated successfully!');
+  } else {
+    const newUser = create('users', {
+      name,
+      email,
+      password: pass,
+      role,
+      companyId: currentCompany.id,
+      phone: phone || '9876543210',
+      avatar: name.substring(0,2).toUpperCase(),
+      status,
+      createdAt: new Date().toISOString().split('T')[0]
+    });
+
+    if (!newUser || newUser.error) {
+      const msg = (newUser && newUser.message) || 'User creation failed';
+      if (msg.toLowerCase().includes('email')) showError(emailEl, msg);
+      else if (msg.toLowerCase().includes('phone')) showError(phoneEl, msg);
+      showToast(msg, 'error');
+      return;
+    }
+
+    if (role === 'client') {
+      const projectRes = create('projects', {
+        name: cpName,
+        companyId: currentCompany.id,
+        location: cpLoc,
+        clientId: newUser.id,
+        clientName: newUser.name,
+        clientEmail: newUser.email,
+        clientPhone: newUser.phone,
+        managerId: cpMgrId,
+        managerName: cpMgrName,
+        budget: cpBud,
+        spent: 0,
+        progress: 0,
+        status: 'On Track',
+        startDate: cpStart,
+        endDate: '2026-12-31',
+        teamSize: 15,
+        allocations: { Materials: cpBud * 0.5, Labor: cpBud * 0.3, Equipment: cpBud * 0.15, Other: cpBud * 0.05 },
+        description: cpDesc || `Construction project registered for client ${name}.`
+      });
+      if (!projectRes || projectRes.error) {
+        remove('users', newUser.id);
+        showToast((projectRes && projectRes.message) || 'Project could not be created, so the client account was not saved.', 'error');
+        refreshAfterUserChange();
+        return;
+      }
+      showToast(`Client ${name} & Project "${cpName}" created!`);
+    } else {
+      showToast('Team member added successfully!');
+    }
+  }
+
+  closeModal('user-modal');
+  refreshAfterUserChange();
+}
+
+function handleSaveProject(e) {
+  e.preventDefault();
+  clearProjectFormErrors();
+
+  const id = document.getElementById('ep-id').value;
+  const nameEl = document.getElementById('ep-name');
+  const locEl = document.getElementById('ep-location');
+  const budEl = document.getElementById('ep-budget');
+  const progEl = document.getElementById('ep-progress');
+  const statEl = document.getElementById('ep-status');
+
+  const name = nameEl.value.trim();
+  const location = locEl.value.trim();
+  const budget = Number(budEl.value);
+  const progress = Number(progEl.value);
+  const status = statEl.value;
+
+  let isValid = true;
+
+  if (!name) {
+    showError(nameEl, 'Project Name is required');
+    isValid = false;
+  }
+
+  if (!location) {
+    showError(locEl, 'Location is required');
+    isValid = false;
+  }
+
+  if (isNaN(budget) || budget <= 0) {
+    showError(budEl, 'Total Budget must be greater than 0');
+    isValid = false;
+  }
+
+  if (isNaN(progress) || progress < 0 || progress > 100) {
+    showError(progEl, 'Progress must be between 0 and 100%');
+    isValid = false;
+  }
+
+  if (isValid) {
+    if (status === 'Completed' && progress !== 100) {
+      showError(statEl, "Status cannot be 'Completed' unless progress is 100%");
+      isValid = false;
+    } else if (progress === 100 && status !== 'Completed') {
+      showError(progEl, "Progress is 100%, status must be 'Completed'");
+      isValid = false;
+    }
+  }
+
+  if (!isValid) return;
+
+  if (id) {
+    const res = update('projects', id, { name, location, budget, progress, status });
+    if (res && res.error) {
+      showToast(res.message || 'Failed to update project', 'error');
+      return;
+    }
+    showToast('Project updated successfully!');
+  }
+
+  closeModal('project-modal');
+  refreshAfterLocalChange();
+}
+
+/* ==========================================================================
+   Generic & Entity-Specific View Modals
+   ========================================================================== */
+function refreshAfterLocalChange() {
+  refreshCompanyCache();
+  updateDashboardCounts();
+  switchTab(currentTab);
+}
+
+function refreshAfterUserChange() {
+  apiUsers = null;
+  refreshCompanyCache();
+  renderStats();
+  switchTab(currentTab);
+  loadApiData();
+}
+
+function showDetailsModal(title, contentHtml) {
+  openModal('view-details-modal');
+  document.getElementById('vd-modal-title').textContent = title;
+  document.getElementById('vd-modal-body').innerHTML = contentHtml;
+  scheduleTabIcons(document.getElementById('vd-modal-body'));
+}
+
+function viewUserModal(id) {
+  const u = getCachedEntity('users', id);
+  if (!u) return;
+  const comp = (getLocalData('companies') || []).find(c => c.id === u.companyId) || currentCompany;
+  const html = `
+    <div style="display:grid;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px;background:var(--bg);padding:14px;border-radius:var(--radius)">
+        ${avatarEl(u.avatar || u.name.substring(0,2).toUpperCase(), 44)}
+        <div>
+          <div style="font-weight:800;font-size:16px">${u.name}</div>
+          <div style="margin-top:2px">${roleBadge(u.role)} &nbsp; ${statusBadge(u.status || 'active')}</div>
+        </div>
+      </div>
+      <table class="data-table" style="font-size:13px">
+        <tr><td style="width:130px;color:var(--text-muted);font-weight:600">Email Address</td><td><strong>${u.email}</strong></td></tr>
+        <tr><td style="color:var(--text-muted);font-weight:600">Phone Number</td><td><strong>${u.phone || 'N/A'}</strong></td></tr>
+        <tr><td style="color:var(--text-muted);font-weight:600">Company Workspace</td><td><strong>${comp ? comp.name : 'Platform Admin'}</strong></td></tr>
+        <tr><td style="color:var(--text-muted);font-weight:600">User ID</td><td><code>${u.id}</code></td></tr>
+        <tr><td style="color:var(--text-muted);font-weight:600">Created Date</td><td>${formatDate(u.createdAt)}</td></tr>
+      </table>
+    </div>
+  `;
+  showDetailsModal(`User Details - ${u.name}`, html);
+}
+
+function viewProjectModal(id) {
+  const p = getCachedEntity('projects', id);
+  if (!p) return;
+  const html = `
+    <div style="display:grid;gap:14px">
+      <div style="background:var(--bg);padding:14px;border-radius:var(--radius)">
+        <div style="font-size:17px;font-weight:800;color:var(--text);margin-bottom:4px">${p.name}</div>
+        <div style="font-size:13px;color:var(--text-muted)"><i data-lucide="package" style="width:14px;height:14px;vertical-align:middle;margin-right:4px"></i> ${p.location}</div>
+        <div style="margin-top:8px;display:flex;gap:8px">${statusBadge(p.status)} <span class="badge badge-blue">Progress: ${p.progress}%</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px">
+        <div style="background:var(--bg);padding:12px;border-radius:var(--radius)">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase">Client</div>
+          <div style="font-weight:700;margin-top:2px">${p.clientName || 'N/A'}</div>
+        </div>
+        <div style="background:var(--bg);padding:12px;border-radius:var(--radius)">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase">Project Manager</div>
+          <div style="font-weight:700;margin-top:2px">${p.managerName || 'N/A'}</div>
+        </div>
+        <div style="background:var(--bg);padding:12px;border-radius:var(--radius)">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase">Total Budget</div>
+          <div style="font-weight:800;color:var(--green);font-size:15px;margin-top:2px">${formatCurrency(p.budget)}</div>
+        </div>
+        <div style="background:var(--bg);padding:12px;border-radius:var(--radius)">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase">Amount Spent</div>
+          <div style="font-weight:800;color:var(--orange);font-size:15px;margin-top:2px">${formatCurrency(p.spent || 0)}</div>
+        </div>
+      </div>
+      <div style="background:var(--bg);padding:12px;border-radius:var(--radius);font-size:13px">
+        <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;margin-bottom:4px">Timeline</div>
+        <div>Start Date: <strong>${formatDate(p.startDate)}</strong> &nbsp;|&nbsp; Target End Date: <strong>${formatDate(p.endDate)}</strong></div>
+      </div>
+      ${p.description ? `<div style="background:var(--bg);padding:12px;border-radius:var(--radius);font-size:13px"><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;margin-bottom:4px">Description</div>${p.description}</div>` : ''}
+    </div>
+  `;
+  showDetailsModal(`Project Details - ${p.name}`, html);
+}
+
+function viewTaskModal(id) {
+  const t = getCachedEntity('tasks', id);
+  if (!t) return;
+  const html = `
+    <div style="display:grid;gap:12px">
+      <div style="background:var(--bg);padding:14px;border-radius:var(--radius)">
+        <div style="font-weight:800;font-size:16px;margin-bottom:4px">${t.title}</div>
+        <div style="font-size:13px;color:var(--text-muted)">Project: <strong>${t.projectName}</strong></div>
+        <div style="margin-top:8px;display:flex;gap:8px">${statusBadge(t.status)} ${priorityBadge(t.priority)}</div>
+      </div>
+      <table class="data-table" style="font-size:13px">
+        <tr><td style="width:130px;color:var(--text-muted);font-weight:600">Assigned Engineer</td><td><strong>${t.assignedName}</strong></td></tr>
+        <tr><td style="color:var(--text-muted);font-weight:600">Start Date</td><td>${formatDate(t.startDate)}</td></tr>
+        <tr><td style="color:var(--text-muted);font-weight:600">Deadline</td><td>${formatDate(t.deadline)}</td></tr>
+        <tr><td style="color:var(--text-muted);font-weight:600">Progress</td><td>${progressBar(t.progress || 0)}</td></tr>
+      </table>
+      ${t.description ? `<div style="background:var(--bg);padding:12px;border-radius:var(--radius);font-size:13px"><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;margin-bottom:4px">Description</div>${t.description}</div>` : ''}
+    </div>
+  `;
+  showDetailsModal(`Task Details - ${t.title}`, html);
+}
+
+function viewBillModal(id) {
+  const b = getCachedEntity('bills', id);
+  if (!b) return;
+  const html = `
+    <div style="display:grid;gap:12px">
+      <div style="background:var(--bg);padding:14px;border-radius:var(--radius)">
+        <div style="font-weight:800;font-size:16px;color:var(--primary);margin-bottom:2px">${b.billNumber}</div>
+        <div style="font-size:13.5px">Project: <strong>${b.projectName}</strong></div>
+        <div style="margin-top:8px;display:flex;gap:8px">${statusBadge(b.status)} ${priorityBadge(b.priority || 'Medium')}</div>
+      </div>
+      <table class="data-table" style="font-size:13px">
+        <tr><td style="width:130px;color:var(--text-muted);font-weight:600">Client</td><td><strong>${b.clientName}</strong></td></tr>
+        <tr><td style="color:var(--text-muted);font-weight:600">Invoice Amount</td><td><strong style="color:var(--green);font-size:15px">${formatCurrency(b.amount)}</strong></td></tr>
+        <tr><td style="color:var(--text-muted);font-weight:600">Invoice Date</td><td>${formatDate(b.date)}</td></tr>
+        <tr><td style="color:var(--text-muted);font-weight:600">Due Date</td><td>${formatDate(b.dueDate)}</td></tr>
+      </table>
+      ${b.description ? `<div style="background:var(--bg);padding:12px;border-radius:var(--radius);font-size:13px"><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;margin-bottom:4px">Description</div>${b.description}</div>` : ''}
+    </div>
+  `;
+  showDetailsModal(`Invoice Details - ${b.billNumber}`, html);
+}
+
+function viewReportModal(id) {
+  const r = getCachedEntity('reports', id);
+  if (!r) return;
+  const html = `
+    <div style="display:grid;gap:12px">
+      <div style="background:var(--bg);padding:14px;border-radius:var(--radius)">
+        <div style="font-weight:800;font-size:16px;margin-bottom:4px">${r.title}</div>
+        <div style="font-size:13px;color:var(--text-muted)">Project: <strong>${r.projectName}</strong> &nbsp;|&nbsp; Date: <strong>${formatDate(r.date)}</strong></div>
+      </div>
+      <table class="data-table" style="font-size:13px">
+        <tr><td style="width:130px;color:var(--text-muted);font-weight:600">Submitted By</td><td><strong>${r.reporterName}</strong></td></tr>
+      </table>
+      ${r.workDone ? `<div style="background:var(--bg);padding:12px;border-radius:var(--radius);font-size:13px"><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;margin-bottom:4px">Work Completed</div>${r.workDone}</div>` : ''}
+      ${r.issues ? `<div style="background:var(--bg);padding:12px;border-radius:var(--radius);font-size:13px"><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;margin-bottom:4px">Issues / Concerns</div>${r.issues}</div>` : ''}
+    </div>
+  `;
+  showDetailsModal(`Site Log Details - ${r.title}`, html);
+}
+
+function viewExpenseModal(id) {
+  const e = getCachedEntity('expenses', id);
+  if (!e) return;
+  const html = `
+    <div style="display:grid;gap:12px">
+      <div style="background:var(--bg);padding:14px;border-radius:var(--radius)">
+        <div style="font-weight:800;font-size:16px;color:var(--green);margin-bottom:4px">${formatCurrency(e.amount)}</div>
+        <div style="font-size:13px;color:var(--text-muted)">Project: <strong>${e.projectName}</strong></div>
+        <div style="margin-top:6px"><span class="badge badge-gray">${e.category}</span></div>
+      </div>
+      <table class="data-table" style="font-size:13px">
+        <tr><td style="width:130px;color:var(--text-muted);font-weight:600">Expense Date</td><td>${formatDate(e.date)}</td></tr>
+      </table>
+      ${e.description ? `<div style="background:var(--bg);padding:12px;border-radius:var(--radius);font-size:13px"><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;margin-bottom:4px">Description</div>${e.description}</div>` : ''}
+    </div>
+  `;
+  showDetailsModal(`Expense Details`, html);
+}
+
+/* ==========================================================================
+   Tasks Modal & Save Handlers
+   ========================================================================== */
+function populateTaskDropdowns() {
+  const projs = getCompanyData('projects');
+  const users = getCompanyData('users');
+  const ses = users.filter(u => u.role === 'site_engineer' && u.status !== 'inactive');
+
+  const pSel = document.getElementById('tk-project');
+  if (pSel) {
+    pSel.innerHTML = '<option value="">Select Project</option>' + (projs.length ? projs.map(p => `<option value="${p.id}|${p.name}">${p.name}</option>`).join('') : '');
+    pSel.value = '';
+  }
+
+  const uSel = document.getElementById('tk-assigned');
+  if (uSel) {
+    uSel.innerHTML = '<option value="">Select Site Manager</option>' + (ses.length ? ses.map(u => `<option value="${u.id}|${u.name}">${u.name} (${roleLabel(u.role)})</option>`).join('') : '');
+    uSel.value = '';
+  }
+}
+
+function openAddTaskModal() {
+  openModal('task-modal');
+  populateTaskDropdowns();
+  document.getElementById('task-modal-title').textContent = 'Add Company Task';
+  document.getElementById('tk-submit-btn').textContent = 'Create Task';
+  document.getElementById('tk-id').value = '';
+  document.getElementById('tk-title').value = '';
+  document.getElementById('tk-priority').value = 'Medium';
+  document.getElementById('tk-status').value = 'Pending';
+  document.getElementById('tk-start').value = '';
+  document.getElementById('tk-deadline').value = '';
+  document.getElementById('tk-desc').value = '';
+  scheduleTabIcons(document.getElementById('task-modal'));
+}
+
+function openEditTaskModal(id) {
+  openModal('task-modal');
+  const t = getCachedEntity('tasks', id);
+  if (!t) return;
+  populateTaskDropdowns();
+  document.getElementById('task-modal-title').textContent = 'Edit Company Task';
+  document.getElementById('tk-submit-btn').textContent = 'Update Task';
+  document.getElementById('tk-id').value = t.id;
+  document.getElementById('tk-title').value = t.title;
+
+  const pSel = document.getElementById('tk-project');
+  if (pSel && t.projectId) {
+    const opts = Array.from(pSel.options);
+    const opt = opts.find(o => o.value.split('|')[0] === t.projectId);
+    if (opt) pSel.value = opt.value;
+  }
+
+  const uSel = document.getElementById('tk-assigned');
+  if (uSel && t.assignedTo) {
+    const opts = Array.from(uSel.options);
+    const opt = opts.find(o => o.value.split('|')[0] === t.assignedTo);
+    if (opt) uSel.value = opt.value;
+  }
+
+  document.getElementById('tk-priority').value = t.priority || 'Medium';
+  document.getElementById('tk-status').value = t.status || 'Pending';
+  document.getElementById('tk-start').value = t.startDate || '';
+  document.getElementById('tk-deadline').value = t.deadline || '';
+  document.getElementById('tk-desc').value = t.description || '';
+  scheduleTabIcons(document.getElementById('task-modal'));
+}
+
+function handleSaveTask(e) {
+  e.preventDefault();
+  const id = document.getElementById('tk-id').value;
+  const title = document.getElementById('tk-title').value.trim();
+  const pVal = document.getElementById('tk-project').value;
+  const aVal = document.getElementById('tk-assigned').value;
+  const priority = document.getElementById('tk-priority').value;
+  const status = document.getElementById('tk-status').value;
+  const startDate = document.getElementById('tk-start').value;
+  const deadline = document.getElementById('tk-deadline').value;
+  const description = document.getElementById('tk-desc').value.trim();
+
+  if (!title || !pVal || !aVal) {
+    showToast('Please fill in task title, project, and assigned engineer.', 'error');
+    return;
+  }
+
+  const [projectId, projectName] = pVal.split('|');
+  const [assignedTo, assignedName] = aVal.split('|');
+
+  if (id) {
+    update('tasks', id, {
+      title,
+      projectId,
+      projectName,
+      assignedTo,
+      assignedName,
+      priority,
+      status,
+      progress: status === 'Completed' ? 100 : (status === 'In Progress' ? 50 : 0),
+      startDate,
+      deadline,
+      description
+    });
+    showToast('Task updated successfully!');
+  } else {
+    create('tasks', {
+      title,
+      companyId: currentCompany.id,
+      projectId,
+      projectName,
+      assignedTo,
+      assignedName,
+      priority,
+      status,
+      progress: status === 'Completed' ? 100 : (status === 'In Progress' ? 50 : 0),
+      startDate,
+      deadline,
+      description,
+      remarks: ''
+    });
+    showToast('Task created successfully!');
+  }
+
+  closeModal('task-modal');
+  refreshAfterLocalChange();
+}
+
+/* ==========================================================================
+   Bills & Invoices Modal & Save Handlers
+   ========================================================================== */
+function populateBillProjects() {
+  const projs = getCompanyData('projects');
+  const pSel = document.getElementById('bl-project');
+  if (pSel) {
+    pSel.innerHTML = '<option value="">Select Project</option>' + (projs.length ? projs.map(p => `<option value="${p.id}|${p.name}">${p.name}</option>`).join('') : '');
+    pSel.value = '';
+  }
+  const clientEl = document.getElementById('bl-client');
+  const clientIdEl = document.getElementById('bl-client-id');
+  if (clientEl) clientEl.value = '';
+  if (clientIdEl) clientIdEl.value = '';
+}
+
+function populateBillClient() {
+  const pVal = document.getElementById('bl-project').value;
+  if (!pVal) {
+    document.getElementById('bl-client').value = '';
+    document.getElementById('bl-client-id').value = '';
+    return;
+  }
+  const [projectId] = pVal.split('|');
+  const proj = getCachedEntity('projects', projectId);
+  if (proj) {
+    document.getElementById('bl-client').value = proj.clientName || 'Client';
+    document.getElementById('bl-client-id').value = proj.clientId || '';
+  }
+}
+
+function openAddBillModal() {
+  openModal('bill-modal');
+  populateBillProjects();
+  document.getElementById('bill-modal-title').textContent = 'Create Invoice & Bill';
+  document.getElementById('bl-submit-btn').textContent = 'Create Invoice';
+  document.getElementById('bl-id').value = '';
+  document.getElementById('bl-number').value = '';
+  document.getElementById('bl-amount').value = '';
+  document.getElementById('bl-date').value = '';
+  document.getElementById('bl-duedate').value = '';
+  document.getElementById('bl-status').value = 'Pending Approval';
+  document.getElementById('bl-priority').value = 'Medium';
+  document.getElementById('bl-desc').value = '';
+  scheduleTabIcons(document.getElementById('bill-modal'));
+}
+
+function openEditBillModal(id) {
+  openModal('bill-modal');
+  const b = getCachedEntity('bills', id);
+  if (!b) return;
+  populateBillProjects();
+  document.getElementById('bill-modal-title').textContent = 'Edit Invoice & Bill';
+  document.getElementById('bl-submit-btn').textContent = 'Update Invoice';
+  document.getElementById('bl-id').value = b.id;
+  document.getElementById('bl-number').value = b.billNumber;
+
+  const pSel = document.getElementById('bl-project');
+  if (pSel && b.projectId) {
+    const opts = Array.from(pSel.options);
+    const opt = opts.find(o => o.value.split('|')[0] === b.projectId);
+    if (opt) pSel.value = opt.value;
+  }
+  populateBillClient();
+
+  document.getElementById('bl-amount').value = b.amount;
+  document.getElementById('bl-date').value = b.date || '';
+  document.getElementById('bl-duedate').value = b.dueDate || '';
+  document.getElementById('bl-status').value = b.status || 'Pending Approval';
+  document.getElementById('bl-priority').value = b.priority || 'Medium';
+  document.getElementById('bl-desc').value = b.description || '';
+  scheduleTabIcons(document.getElementById('bill-modal'));
+}
+
+function handleSaveBill(e) {
+  e.preventDefault();
+  const id = document.getElementById('bl-id').value;
+  const billNumber = document.getElementById('bl-number').value.trim();
+  const pVal = document.getElementById('bl-project').value;
+  const clientName = document.getElementById('bl-client').value.trim();
+  const clientId = document.getElementById('bl-client-id').value;
+  const amount = Number(document.getElementById('bl-amount').value);
+  const date = document.getElementById('bl-date').value;
+  const dueDate = document.getElementById('bl-duedate').value;
+  const status = document.getElementById('bl-status').value;
+  const priority = document.getElementById('bl-priority').value;
+  const description = document.getElementById('bl-desc').value.trim();
+
+  if (!billNumber || !pVal || !amount || amount <= 0) {
+    showToast('Valid invoice number, project, and positive amount are required.', 'error');
+    return;
+  }
+
+  const [projectId, projectName] = pVal.split('|');
+
+  if (id) {
+    update('bills', id, {
+      billNumber,
+      projectId,
+      projectName,
+      clientId,
+      clientName,
+      amount,
+      date,
+      dueDate,
+      status,
+      priority,
+      description
+    });
+    showToast('Invoice updated successfully!');
+  } else {
+    create('bills', {
+      billNumber,
+      companyId: currentCompany.id,
+      projectId,
+      projectName,
+      clientId,
+      clientName,
+      amount,
+      date,
+      dueDate,
+      status,
+      priority,
+      description
+    });
+    showToast('Invoice created successfully!');
+  }
+
+  closeModal('bill-modal');
+  refreshAfterLocalChange();
+}
+
+/* ==========================================================================
+   Add New Project Handlers (Matches Image 1)
+   ========================================================================== */
+function openAddProjectModal() {
+  openModal('add-project-modal');
+  document.getElementById('np-name').value = '';
+  document.getElementById('np-client-name').value = '';
+  document.getElementById('np-client-email').value = '';
+  document.getElementById('np-client-phone').value = '';
+  document.getElementById('np-client-pass').value = '';
+  document.getElementById('np-location').value = '';
+  document.getElementById('np-start-date').value = new Date().toISOString().split('T')[0];
+
+  const end = new Date();
+  end.setFullYear(end.getFullYear() + 1);
+  document.getElementById('np-end-date').value = end.toISOString().split('T')[0];
+
+  document.getElementById('np-budget').value = '';
+  document.getElementById('np-team-size').value = '';
+  document.getElementById('np-description').value = '';
+
+  scheduleTabIcons(document.getElementById('add-project-modal'));
+}
+
+function handleSaveNewProject(e) {
+  e.preventDefault();
+
+  const name = document.getElementById('np-name').value.trim();
+  const clientName = document.getElementById('np-client-name').value.trim();
+  const clientEmail = document.getElementById('np-client-email').value.trim();
+  const clientPhone = document.getElementById('np-client-phone').value.trim();
+  const clientPass = document.getElementById('np-client-pass').value || '123456';
+  const location = document.getElementById('np-location').value.trim();
+  const startDate = document.getElementById('np-start-date').value;
+  const endDate = document.getElementById('np-end-date').value;
+  const budget = Number(document.getElementById('np-budget').value);
+  const teamSize = Number(document.getElementById('np-team-size').value) || 15;
+  const description = document.getElementById('np-description').value.trim();
+
+  if (!name || !clientName || !clientEmail || !clientPhone || !location || !startDate || !endDate || !budget || budget <= 0) {
+    showToast('Please fill out all required fields with valid values.', 'error');
+    return;
+  }
+
+  if (!isValidPhone(clientPhone)) {
+    showToast('Client Phone number must be a 10-digit number and cannot be all zeros.', 'error');
+    return;
+  }
+
+  const clientDomain = (clientEmail.split('@')[1] || '').toLowerCase();
+  if (currentCompany && currentCompany.domain && clientDomain !== currentCompany.domain.toLowerCase()) {
+    showToast(`Client email domain must match approved company domain (@${currentCompany.domain})`, 'error');
+    return;
+  }
+
+  if (!validateCanCreateProject()) {
+    return;
+  }
+
+  // Find or create client user
+  const allUsers = apiUsers || getLocalData('users') || [];
+  let clientUser = allUsers.find(u => u.email.toLowerCase() === clientEmail.toLowerCase());
+  const createdNewClient = !clientUser;
+
+  if (!clientUser) {
+    clientUser = create('users', {
+      name: clientName,
+      email: clientEmail,
+      password: clientPass,
+      role: 'client',
+      companyId: currentCompany.id,
+      phone: clientPhone,
+      avatar: clientName.substring(0,2).toUpperCase(),
+      status: 'active',
+      createdAt: new Date().toISOString().split('T')[0]
+    });
+
+    if (clientUser && clientUser.error) {
+      showToast(clientUser.message || 'Failed to create client user account', 'error');
+      return;
+    }
+  }
+
+  // Find first available PM for company
+  const companyUsers = getCompanyData('users');
+  const pm = companyUsers.find(u => u.role === 'project_manager');
+
+  const projectRes = create('projects', {
+    name,
+    companyId: currentCompany.id,
+    location,
+    clientId: clientUser ? clientUser.id : '',
+    clientName,
+    clientEmail,
+    clientPhone,
+    managerId: pm ? pm.id : '',
+    managerName: pm ? pm.name : 'Project Manager',
+    budget,
+    spent: 0,
+    progress: 0,
+    status: 'On Track',
+    startDate,
+    endDate,
+    teamSize,
+    allocations: { Materials: budget * 0.5, Labor: budget * 0.3, Equipment: budget * 0.15, Other: budget * 0.05 },
+    description: description || `Construction project for ${clientName}.`
+  });
+
+  if (!projectRes || projectRes.error) {
+    if (createdNewClient && clientUser && clientUser.id) {
+      remove('users', clientUser.id);
+    }
+    showToast((projectRes && projectRes.message) || 'Project could not be created. No client account was saved.', 'error');
+    refreshAfterUserChange();
+    return;
+  }
+
+  showToast(`Project "${name}" created successfully!`);
+  closeModal('add-project-modal');
+  refreshAfterUserChange();
+}
+
+/* ==========================================================================
+   Reports Modal & Save Handlers (Matches Image 2)
+   ========================================================================== */
+let uploadedReportPhotos = [];
+
+function populateReportDropdowns() {
+  const projs = getCompanyData('projects');
+  const pSel = document.getElementById('rp-project');
+  if (pSel) {
+    pSel.innerHTML = '<option value="">Select project</option>' + (projs.length ? projs.map(p => `<option value="${p.id}|${p.name}">${p.name}</option>`).join('') : '');
+    pSel.value = '';
+  }
+}
+
+function openAddReportModal() {
+  openModal('report-modal');
+  populateReportDropdowns();
+  document.getElementById('report-modal-title').textContent = 'Submit Site Report';
+  document.getElementById('rp-id').value = '';
+  document.getElementById('rp-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('rp-work').value = '';
+  document.getElementById('rp-progress').value = '';
+  document.getElementById('rp-issues').value = '';
+  document.getElementById('rp-priority').value = '';
+  document.getElementById('rp-remarks').value = '';
+  document.getElementById('rp-photo-desc').value = '';
+
+  uploadedReportPhotos = [];
+  renderReportPhotoPreviews();
+
+  const container = document.getElementById('rp-materials-container');
+  if (container) {
+    container.innerHTML = '';
+    addReportMaterialRow('Cement', '50', 'bags');
+  }
+
+  scheduleTabIcons(document.getElementById('report-modal'));
+}
+
+function openEditReportModal(id) {
+  openModal('report-modal');
+  const r = getCachedEntity('reports', id);
+  if (!r) return;
+  populateReportDropdowns();
+  document.getElementById('report-modal-title').textContent = 'Edit Site Report';
+  document.getElementById('rp-id').value = r.id;
+
+  const pSel = document.getElementById('rp-project');
+  if (pSel && r.projectId) {
+    const opts = Array.from(pSel.options);
+    const opt = opts.find(o => o.value.split('|')[0] === r.projectId);
+    if (opt) pSel.value = opt.value;
+  }
+
+  document.getElementById('rp-date').value = r.date || new Date().toISOString().split('T')[0];
+  document.getElementById('rp-work').value = r.workDone || '';
+  document.getElementById('rp-progress').value = r.progress || '';
+  document.getElementById('rp-issues').value = r.issues || '';
+  document.getElementById('rp-priority').value = r.priority || '';
+  document.getElementById('rp-remarks').value = r.remarks || '';
+  document.getElementById('rp-photo-desc').value = r.photoDescription || '';
+
+  uploadedReportPhotos = r.photos || [];
+  renderReportPhotoPreviews();
+
+  const container = document.getElementById('rp-materials-container');
+  if (container) {
+    container.innerHTML = '';
+    if (r.materials && r.materials.length) {
+      r.materials.forEach(m => addReportMaterialRow(m.name, m.quantity, m.unit));
+    } else {
+      addReportMaterialRow('Cement', '50', 'bags');
+    }
+  }
+
+  scheduleTabIcons(document.getElementById('report-modal'));
+}
+
+function addReportMaterialRow(matName = '', matQty = '', matUnit = '') {
+  const container = document.getElementById('rp-materials-container');
+  if (!container) return;
+  
+  const rowId = 'mat-row-' + Date.now() + '-' + Math.floor(Math.random()*1000);
+  const row = document.createElement('div');
+  row.id = rowId;
+  row.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1.5fr auto;gap:10px;align-items:flex-end';
+  
+  row.innerHTML = `
+    <div>
+      <label class="form-label" style="font-size:11px;color:var(--text-muted);margin-bottom:4px">MATERIAL NAME</label>
+      <input type="text" class="form-input rp-mat-name" placeholder="e.g., Cement" value="${matName}">
+    </div>
+    <div>
+      <label class="form-label" style="font-size:11px;color:var(--text-muted);margin-bottom:4px">QUANTITY</label>
+      <input type="number" min="0" class="form-input rp-mat-qty" placeholder="e.g., 50" value="${matQty}">
+    </div>
+    <div>
+      <label class="form-label" style="font-size:11px;color:var(--text-muted);margin-bottom:4px">UNIT</label>
+      <select class="form-select rp-mat-unit">
+        <option value="">Select unit</option>
+        <option value="bags" ${matUnit==='bags'?'selected':''}>bags</option>
+        <option value="kg" ${matUnit==='kg'?'selected':''}>kg</option>
+        <option value="tons" ${matUnit==='tons'?'selected':''}>tons</option>
+        <option value="cubic meters" ${matUnit==='cubic meters'?'selected':''}>cubic meters</option>
+        <option value="liters" ${matUnit==='liters'?'selected':''}>liters</option>
+        <option value="meters" ${matUnit==='meters'?'selected':''}>meters</option>
+        <option value="pieces" ${matUnit==='pieces'?'selected':''}>pieces</option>
+        <option value="units" ${matUnit==='units'?'selected':''}>units</option>
+      </select>
+    </div>
+    <div style="padding-bottom:2px">
+      <button type="button" onclick="removeReportMaterialRow('${rowId}')" class="btn btn-danger btn-sm" style="height:38px;color:#ef4444;border-color:#fecaca;background:#fee2e2">Remove</button>
+    </div>
+  `;
+  container.appendChild(row);
+}
+
+function removeReportMaterialRow(rowId) {
+  const container = document.getElementById('rp-materials-container');
+  const rows = container.querySelectorAll('div[id^="mat-row-"]');
+  if (rows.length <= 1) {
+    showToast('At least one material row must remain', 'warning');
+    return;
+  }
+  const target = document.getElementById(rowId);
+  if (target) target.remove();
+}
+
+function handleReportPhotoUpload(e) {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+
+  files.forEach(file => {
+    if (uploadedReportPhotos.length >= 10) {
+      showToast('Maximum 10 site photos allowed', 'warning');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      uploadedReportPhotos.push({
+        name: file.name,
+        dataUrl: evt.target.result
+      });
+      renderReportPhotoPreviews();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderReportPhotoPreviews() {
+  const previewBox = document.getElementById('rp-photo-previews');
+  if (!previewBox) return;
+
+  if (!uploadedReportPhotos.length) {
+    previewBox.innerHTML = '';
+    return;
+  }
+
+  previewBox.innerHTML = uploadedReportPhotos.map((p, idx) => `
+    <div style="position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+      <img src="${p.dataUrl}" style="width:100%;height:100%;object-fit:cover">
+      <button type="button" onclick="removeReportPhoto(${idx})" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:white;border:none;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px">&times;</button>
+    </div>
+  `).join('');
+}
+
+function removeReportPhoto(idx) {
+  uploadedReportPhotos.splice(idx, 1);
+  renderReportPhotoPreviews();
+}
+
+function handleSaveReport(e) {
+  e.preventDefault();
+  const id = document.getElementById('rp-id').value;
+  const pVal = document.getElementById('rp-project').value;
+  const date = document.getElementById('rp-date').value;
+  const workDone = document.getElementById('rp-work').value.trim();
+  const progress = Number(document.getElementById('rp-progress').value);
+  const issues = document.getElementById('rp-issues').value.trim();
+  const priority = document.getElementById('rp-priority').value;
+  const remarks = document.getElementById('rp-remarks').value.trim();
+  const photoDesc = document.getElementById('rp-photo-desc').value.trim();
+
+  if (!pVal || !date || !workDone || isNaN(progress)) {
+    showToast('Project, Date, Work Completed, and valid Progress percentage are required.', 'error');
+    return;
+  }
+
+  const [projectId, projectName] = pVal.split('|');
+
+  // Collect materials
+  const matRows = document.querySelectorAll('#rp-materials-container div[id^="mat-row-"]');
+  const materials = [];
+  matRows.forEach(row => {
+    const name = row.querySelector('.rp-mat-name').value.trim();
+    const qty = row.querySelector('.rp-mat-qty').value;
+    const unit = row.querySelector('.rp-mat-unit').value;
+    if (name) {
+      materials.push({ name, quantity: qty, unit });
+    }
+  });
+
+  if (id) {
+    update('reports', id, {
+      projectId,
+      projectName,
+      date,
+      workDone,
+      progress,
+      issues,
+      priority,
+      remarks,
+      materials,
+      photos: uploadedReportPhotos,
+      photoDescription: photoDesc
+    });
+    showToast('Site report updated successfully!');
+  } else {
+    create('reports', {
+      title: `Daily Site Log - ${projectName}`,
+      companyId: currentCompany.id,
+      projectId,
+      projectName,
+      submittedBy: currentUser ? currentUser.id : 'ADMIN',
+      reporterName: currentUser ? currentUser.name : 'Company Admin',
+      date,
+      workDone,
+      progress,
+      issues,
+      priority: priority || 'Medium',
+      remarks,
+      materials,
+      photos: uploadedReportPhotos,
+      photoDescription: photoDesc,
+      createdAt: new Date().toISOString()
+    });
+
+    // Also update project overall progress
+    update('projects', projectId, { progress: Number(progress) });
+    showToast('Site report submitted successfully!');
+  }
+
+  closeModal('report-modal');
+  refreshAfterLocalChange();
+}
+
+/* ==========================================================================
+   Expenses Modal & Save Handlers
+   ========================================================================== */
+function populateExpenseProjects() {
+  const projs = getCompanyData('projects');
+  const pSel = document.getElementById('ex-project');
+  if (pSel) {
+    pSel.innerHTML = '<option value="">Select Project</option>' + (projs.length ? projs.map(p => `<option value="${p.id}|${p.name}">${p.name}</option>`).join('') : '');
+    pSel.value = '';
+  }
+}
+
+function openAddExpenseModal() {
+  openModal('expense-modal');
+  populateExpenseProjects();
+  document.getElementById('expense-modal-title').textContent = 'Record Project Expense';
+  document.getElementById('ex-submit-btn').textContent = 'Create Expense';
+  document.getElementById('ex-id').value = '';
+  document.getElementById('ex-amount').value = '';
+  document.getElementById('ex-category').value = 'Materials';
+  document.getElementById('ex-date').value = '';
+  document.getElementById('ex-desc').value = '';
+  scheduleTabIcons(document.getElementById('expense-modal'));
+}
+
+function openEditExpenseModal(id) {
+  openModal('expense-modal');
+  const e = getCachedEntity('expenses', id);
+  if (!e) return;
+  populateExpenseProjects();
+  document.getElementById('expense-modal-title').textContent = 'Edit Project Expense';
+  document.getElementById('ex-submit-btn').textContent = 'Update Expense';
+  document.getElementById('ex-id').value = e.id;
+
+  const pSel = document.getElementById('ex-project');
+  if (pSel && e.projectId) {
+    const opts = Array.from(pSel.options);
+    const opt = opts.find(o => o.value.split('|')[0] === e.projectId);
+    if (opt) pSel.value = opt.value;
+  }
+
+  document.getElementById('ex-category').value = e.category || 'Materials';
+  document.getElementById('ex-amount').value = e.amount;
+  document.getElementById('ex-date').value = e.date || '';
+  document.getElementById('ex-desc').value = e.description || '';
+  scheduleTabIcons(document.getElementById('expense-modal'));
+}
+
+function handleSaveExpense(e) {
+  e.preventDefault();
+  const id = document.getElementById('ex-id').value;
+  const pVal = document.getElementById('ex-project').value;
+  const category = document.getElementById('ex-category').value;
+  const amount = Number(document.getElementById('ex-amount').value);
+  const date = document.getElementById('ex-date').value;
+  const description = document.getElementById('ex-desc').value.trim();
+
+  if (!pVal || !amount || amount <= 0) {
+    showToast('Project and valid positive expense amount are required.', 'error');
+    return;
+  }
+
+  const [projectId, projectName] = pVal.split('|');
+
+  if (id) {
+    update('expenses', id, {
+      projectId,
+      projectName,
+      category,
+      amount,
+      date,
+      description
+    });
+    showToast('Expense updated successfully!');
+  } else {
+    create('expenses', {
+      companyId: currentCompany.id,
+      projectId,
+      projectName,
+      category,
+      amount,
+      date,
+      recordedBy: currentUser ? currentUser.id : '',
+      description
+    });
+    showToast('Expense recorded successfully!');
+  }
+
+  closeModal('expense-modal');
+  refreshAfterLocalChange();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Subscription & Billing – ConstructHub</title>
+<link rel="stylesheet" href="../../css/main.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+.sub-hero { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); color: white; border-radius: var(--radius-lg); padding: 28px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; }
+.plan-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px; }
+.plan-card { background: white; border-radius: 16px; border: 2px solid var(--border); padding: 24px; position: relative; transition: all 0.2s ease; display: flex; flex-direction: column; justify-content: space-between; }
+.plan-card.active-plan { border-color: var(--primary); box-shadow: 0 4px 20px rgba(249, 115, 22, 0.15); }
+.plan-badge-top { position: absolute; top: -12px; right: 20px; background: var(--primary); color: white; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+.plan-price { font-family: var(--font-head); font-size: 32px; font-weight: 800; color: var(--text); margin: 12px 0 4px 0; }
+.plan-features { list-style: none; padding: 0; margin: 20px 0; font-size: 13.5px; color: var(--text); display: grid; gap: 10px; }
+.plan-features li { display: flex; align-items: center; gap: 8px; }
+.overage-card { background: white; border-radius: 16px; border: 1px solid var(--border); padding: 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; }
+.switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 26px; }
+.slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+input:checked + .slider { background-color: var(--green); }
+input:checked + .slider:before { transform: translateX(22px); }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <nav class="navbar" id="navbar"></nav>
+  <div class="app-body">
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <a href="dashboard.html"><i data-lucide="building-2" class="nav-icon"></i> Company Admin</a>
+        <div class="sidebar-divider"></div>
+        <a href="dashboard.html" onclick="sessionStorage.setItem('ca_tab','users')"><i data-lucide="users" class="nav-icon"></i> Team Members</a>
+        <a href="dashboard.html" onclick="sessionStorage.setItem('ca_tab','projects')"><i data-lucide="folder" class="nav-icon"></i> Projects</a>
+        <a href="dashboard.html" onclick="sessionStorage.setItem('ca_tab','tasks')"><i data-lucide="check-square" class="nav-icon"></i> Tasks</a>
+        <a href="dashboard.html" onclick="sessionStorage.setItem('ca_tab','bills')"><i data-lucide="receipt" class="nav-icon"></i> Bills & Invoices</a>
+        <a href="dashboard.html" onclick="sessionStorage.setItem('ca_tab','reports')"><i data-lucide="file-text" class="nav-icon"></i> Site Reports</a>
+        <a href="dashboard.html" onclick="sessionStorage.setItem('ca_tab','expenses')"><i data-lucide="wallet" class="nav-icon"></i> Expenses</a>
+        <a href="subscription.html" class="active"><i data-lucide="credit-card" class="nav-icon"></i> Subscription & Billing</a>
+        <div class="sidebar-divider"></div>
+        <a href="settings.html"><i data-lucide="settings" class="nav-icon"></i> Settings</a>
+        <a href="../../login.html" onclick="logout()"><i data-lucide="log-out" class="nav-icon"></i> Logout</a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <!-- Hero Banner -->
+      <div class="sub-hero">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+            <span class="badge badge-orange" style="letter-spacing:0.05em"><i data-lucide="shield-check" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> SAAS BILLING PORTAL</span>
+          </div>
+          <h2 style="font-family:var(--font-head);font-size:22px;font-weight:800;margin-bottom:4px">Subscription & Usage Management</h2>
+          <p style="font-size:13px;opacity:0.75" id="sub-hero-company">Manage your firm's SaaS tier, quotas, and overage settings</p>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:12px;opacity:0.8;font-weight:600;text-transform:uppercase">Active Subscription</div>
+          <div style="font-size:24px;font-weight:800;color:var(--orange)" id="sub-hero-plan">Enterprise Plan</div>
+          <div style="font-size:12px;opacity:0.8;margin-top:2px" id="sub-hero-cycle">Billing Cycle: Monthly</div>
+        </div>
+      </div>
+
+      <!-- Overage Billing Card -->
+      <div class="overage-card">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <h3 style="font-family:var(--font-head);font-size:16px;font-weight:800;margin:0">Usage-Based Overage Billing</h3>
+            <span class="badge badge-green" id="overage-status-badge">Enabled</span>
+          </div>
+          <p style="font-size:13px;color:var(--text-muted);margin:0">Allow adding users & projects beyond tier limits without forced plan upgrades.</p>
+          <div style="font-size:12px;color:var(--text);margin-top:8px;display:flex;gap:16px">
+            <span><strong>Extra User:</strong> ₹499 / user / month</span>
+            <span><strong>Extra Project:</strong> ₹1,999 / project / month</span>
+          </div>
+        </div>
+        <div>
+          <label class="switch">
+            <input type="checkbox" id="toggle-overage-switch" onchange="handleToggleOverage(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Total Monthly Subscription Breakdown Card -->
+      <div class="card mb-16" style="background:#ffffff; border:1px solid var(--border); margin-bottom:24px; padding:24px; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+          <div>
+            <h3 style="font-family:var(--font-head); font-size:18px; font-weight:800; margin:0; color:var(--text)">Current Subscription Breakdown</h3>
+            <p style="font-size:13px; color:var(--text-muted); margin-top:2px">Base Plan Subscription Fee + Active Usage Overages</p>
+          </div>
+          <div style="text-align:right">
+            <span style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase">Total Monthly Fee</span>
+            <div style="font-size:28px; font-weight:800; color:var(--green)" id="sub-total-fee">₹4,999 / mo</div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+          <div style="background:var(--bg); padding:16px; border-radius:12px; border:1px solid var(--border)">
+            <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase">Base SaaS Plan</div>
+            <div style="font-size:20px; font-weight:800; color:var(--text); margin:6px 0" id="sub-base-price">₹4,999 / mo</div>
+            <div style="font-size:12px; color:var(--primary); font-weight:700" id="sub-base-name">Basic Plan</div>
+          </div>
+
+          <div style="background:var(--bg); padding:16px; border-radius:12px; border:1px solid var(--border)">
+            <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase">User Overage (+₹499/user)</div>
+            <div style="font-size:20px; font-weight:800; color:var(--orange); margin:6px 0" id="sub-user-overage-fee">+₹0 / mo</div>
+            <div style="font-size:12px; color:var(--text-muted)" id="sub-user-overage-count">0 Extra Users</div>
+          </div>
+
+          <div style="background:var(--bg); padding:16px; border-radius:12px; border:1px solid var(--border)">
+            <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase">Project Overage (+₹1,999/proj)</div>
+            <div style="font-size:20px; font-weight:800; color:var(--orange); margin:6px 0" id="sub-project-overage-fee">+₹0 / mo</div>
+            <div style="font-size:12px; color:var(--text-muted)" id="sub-project-overage-count">0 Extra Projects</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Plan Comparison Grid -->
+      <h3 style="font-family:var(--font-head);font-size:18px;font-weight:800;margin-bottom:16px">Select Subscription Tier</h3>
+      <div class="plan-grid" id="plan-grid"></div>
+
+      <!-- Billing History Table -->
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+          <div class="card-title"><i data-lucide="history" style="width:16px;height:16px;vertical-align:middle;margin-right:6px"></i> Billing History & Invoices</div>
+          <button class="btn btn-secondary btn-sm" onclick="showToast('Receipts synced with billing server', 'info')"><i data-lucide="refresh-cw" style="width:14px;height:14px;margin-right:4px"></i> Refresh</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Billing Cycle</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th style="text-align:right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="billing-history-rows">
+            <tr>
+              <td>2026-03-01</td>
+              <td>ConstructHub Monthly SaaS Renewal</td>
+              <td>Monthly</td>
+              <td><strong>₹19,999</strong></td>
+              <td><span class="badge badge-green">Paid</span></td>
+              <td style="text-align:right"><button class="btn btn-secondary btn-sm" onclick="downloadReceipt('2026-03-01', 19999)"><i data-lucide="download" style="width:14px;height:14px;margin-right:2px"></i> Receipt</button></td>
+            </tr>
+            <tr>
+              <td>2026-02-01</td>
+              <td>ConstructHub Monthly SaaS Renewal</td>
+              <td>Monthly</td>
+              <td><strong>₹19,999</strong></td>
+              <td><span class="badge badge-green">Paid</span></td>
+              <td style="text-align:right"><button class="btn btn-secondary btn-sm" onclick="downloadReceipt('2026-02-01', 19999)"><i data-lucide="download" style="width:14px;height:14px;margin-right:2px"></i> Receipt</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="../../js/data.js?v=4"></script>
+<script src="../../js/utils.js?v=4"></script>
+<script>
+let currentUser;
+let currentCompany;
+let subscriptionData;
+const PLAN_LIMITS = {
+  Basic: { userLimit: 10, projectLimit: 3 },
+  Pro: { userLimit: 50, projectLimit: 15 },
+  Enterprise: { userLimit: 500, projectLimit: 100 },
+};
+
+window.onload = () => {
+  initDB();
+  currentUser = requireAuth(['company_admin']);
+  if (!currentUser) return;
+
+  renderNavbar(currentUser);
+  loadSubscriptionPortal();
+};
+
+function loadSubscriptionPortal() {
+  const companyId = currentUser.companyId;
+  const localCompanies = getLocalData('companies') || [];
+  currentCompany = localCompanies.find(c => c.id === companyId) || { id: companyId, name: 'Company Admin', plan: 'Basic' };
+
+  // Fetch subscription info from backend API or local fallback
+  const subRes = sendSync('GET', 'companies/' + companyId + '/subscription');
+  if (subRes && !subRes.error) {
+    subscriptionData = subRes;
+    syncLocalCompany({
+      id: subRes.companyId || companyId,
+      name: subRes.companyName,
+      code: subRes.code,
+      domain: subRes.domain,
+      plan: subRes.plan,
+      billingCycle: subRes.billingCycle,
+      subscriptionStatus: subRes.subscriptionStatus,
+      overageEnabled: !!subRes.overageEnabled,
+      extraUsers: subRes.extraUsers || 0,
+      extraProjects: subRes.extraProjects || 0,
+    });
+  } else {
+    subscriptionData = {
+      companyName: currentCompany.name,
+      plan: currentCompany.plan || 'Basic',
+      billingCycle: currentCompany.billingCycle || 'monthly',
+      overageEnabled: !!currentCompany.overageEnabled,
+      extraUsers: currentCompany.extraUsers || 0,
+      extraProjects: currentCompany.extraProjects || 0,
+      planConfig: { userLimit: 10, projectLimit: 3 }
+    };
+  }
+
+  renderPortalUI();
+}
+
+function syncLocalCompany(changes) {
+  if (!changes || !changes.id) return;
+  const comps = getLocalData('companies') || [];
+  const idx = comps.findIndex(c => c.id === changes.id);
+  if (idx > -1) {
+    comps[idx] = { ...comps[idx], ...changes };
+    setLocalData('companies', comps);
+    currentCompany = comps[idx];
+  }
+}
+
+function getUsageForCompany(companyId) {
+  const users = (getLocalData('users') || []).filter(u => u.companyId === companyId && u.role !== 'superuser' && u.id !== 'U000');
+  const projects = (getLocalData('projects') || []).filter(p => p.companyId === companyId);
+  return { userCount: users.length, projectCount: projects.length };
+}
+
+function getOveragePatch(plan, overageEnabled) {
+  const companyId = currentUser.companyId;
+  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.Basic;
+  const usage = getUsageForCompany(companyId);
+  return {
+    extraUsers: overageEnabled ? Math.max(0, usage.userCount - limits.userLimit) : 0,
+    extraProjects: overageEnabled ? Math.max(0, usage.projectCount - limits.projectLimit) : 0,
+  };
+}
+
+function renderPortalUI() {
+  const plan = subscriptionData.plan || 'Basic';
+  const cycle = subscriptionData.billingCycle || 'monthly';
+  const overageEnabled = !!subscriptionData.overageEnabled;
+
+  document.getElementById('sub-hero-company').textContent = `Workspace: ${subscriptionData.companyName} (@${subscriptionData.domain || 'company.com'})`;
+  document.getElementById('sub-hero-plan').textContent = `${plan} Plan`;
+  document.getElementById('sub-hero-cycle').textContent = `Billing Cycle: ${cycle.toUpperCase()}`;
+
+  const toggleSwitch = document.getElementById('toggle-overage-switch');
+  const overageBadge = document.getElementById('overage-status-badge');
+  toggleSwitch.checked = overageEnabled;
+  if (overageEnabled) {
+    overageBadge.textContent = 'Active / Enabled';
+    overageBadge.className = 'badge badge-green';
+  } else {
+    overageBadge.textContent = 'Disabled (Hard Caps)';
+    overageBadge.className = 'badge badge-gray';
+  }
+
+  const basePrice = subscriptionData.baseMonthlyPrice || (plan === 'Pro' ? 9999 : (plan === 'Basic' ? 4999 : 19999));
+  const extraUsers = subscriptionData.extraUsers || 0;
+  const extraProjects = subscriptionData.extraProjects || 0;
+  const userFee = subscriptionData.userOverageFee || (extraUsers * 499);
+  const projectFee = subscriptionData.projectOverageFee || (extraProjects * 1999);
+  const totalFee = subscriptionData.totalMonthlyFee || (basePrice + userFee + projectFee);
+
+  document.getElementById('sub-base-price').textContent = `${formatCurrency(basePrice)} / mo`;
+  document.getElementById('sub-base-name').textContent = `${plan} Plan (${cycle})`;
+  document.getElementById('sub-user-overage-fee').textContent = `+${formatCurrency(userFee)} / mo`;
+  document.getElementById('sub-user-overage-count').textContent = `${extraUsers} Extra User${extraUsers === 1 ? '' : 's'}`;
+  document.getElementById('sub-project-overage-fee').textContent = `+${formatCurrency(projectFee)} / mo`;
+  document.getElementById('sub-project-overage-count').textContent = `${extraProjects} Extra Project${extraProjects === 1 ? '' : 's'}`;
+  document.getElementById('sub-total-fee').textContent = `${formatCurrency(totalFee)} / mo`;
+
+  renderPlanGrid(plan);
+  lucide.createIcons();
+}
+
+function renderPlanGrid(currentPlan) {
+  const plans = [
+    {
+      name: 'Basic',
+      monthlyPrice: 4999,
+      annualPrice: 49990,
+      userLimit: 10,
+      projectLimit: 3,
+      description: 'Essential site management for small contractors',
+      features: ['Up to 10 Team Members', 'Up to 3 Active Projects', 'Daily Progress Logs', 'Milestone Invoicing', 'Email Support']
+    },
+    {
+      name: 'Pro',
+      monthlyPrice: 9999,
+      annualPrice: 99990,
+      userLimit: 50,
+      projectLimit: 15,
+      description: 'Advanced site coordination & bill tracking for growing firms',
+      features: ['Up to 50 Team Members', 'Up to 15 Active Projects', 'Advanced Expense Tracking', 'Daily Site Photo Uploads', 'Priority Support']
+    },
+    {
+      name: 'Enterprise',
+      monthlyPrice: 19999,
+      annualPrice: 199990,
+      userLimit: 500,
+      projectLimit: 100,
+      description: 'Unlimited multi-site oversight & custom security controls',
+      features: ['Up to 500 Team Members', 'Up to 100 Active Projects', 'Custom Audit Reports', 'Dedicated Account Manager', '24/7 Security Controls']
+    }
+  ];
+
+  const grid = document.getElementById('plan-grid');
+  grid.innerHTML = plans.map(p => {
+    const isCurrent = p.name === currentPlan;
+    return `
+      <div class="plan-card ${isCurrent ? 'active-plan' : ''}">
+        ${isCurrent ? '<div class="plan-badge-top">Current Active Plan</div>' : ''}
+        <div>
+          <h4 style="font-family:var(--font-head);font-size:20px;font-weight:800;margin:0">${p.name}</h4>
+          <p style="font-size:12.5px;color:var(--text-muted);margin:4px 0 16px 0">${p.description}</p>
+          <div class="plan-price">${formatCurrency(p.monthlyPrice)}<span style="font-size:13px;font-weight:500;color:var(--text-muted)"> /mo</span></div>
+          <div style="font-size:12px;color:var(--green);font-weight:600">Annual: ${formatCurrency(p.annualPrice)} /yr</div>
+
+          <ul class="plan-features">
+            ${p.features.map(f => `<li><i data-lucide="check-circle-2" style="width:16px;height:16px;color:var(--green)"></i> ${f}</li>`).join('')}
+          </ul>
+        </div>
+
+        <div style="margin-top:20px">
+          ${isCurrent 
+            ? `<button class="btn btn-secondary btn-block" disabled style="opacity:0.7">Currently Subscribed</button>`
+            : `<button class="btn btn-primary btn-block" onclick="handleSwitchPlan('${p.name}')">Switch to ${p.name} Tier &rarr;</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function handleToggleOverage(enabled) {
+  const companyId = currentUser.companyId;
+  const plan = (subscriptionData && subscriptionData.plan) || (currentCompany && currentCompany.plan) || 'Basic';
+  const overagePatch = getOveragePatch(plan, enabled);
+  const res = sendSync('PATCH', 'companies/' + companyId + '/overage', { overageEnabled: enabled, ...overagePatch });
+  if (res && res.error) {
+    showToast(res.message || 'Failed to update overage settings', 'error');
+    document.getElementById('toggle-overage-switch').checked = !enabled;
+    return;
+  }
+
+  // Update local dataset immediately
+  const comps = getLocalData('companies') || [];
+  const idx = comps.findIndex(c => c.id === companyId);
+  if (idx > -1) {
+    comps[idx].overageEnabled = enabled;
+    comps[idx].extraUsers = overagePatch.extraUsers;
+    comps[idx].extraProjects = overagePatch.extraProjects;
+    setLocalData('companies', comps);
+  }
+
+  showToast(enabled ? 'Usage-Based Overage Billing Enabled! Team can expand beyond plan caps.' : 'Overage Billing Disabled. Hard tier limits enforced.');
+  loadSubscriptionPortal();
+}
+
+function handleSwitchPlan(newPlan) {
+  if (!confirm(`Confirm switching your workspace plan to "${newPlan}"?`)) return;
+
+  const companyId = currentUser.companyId;
+  const overageEnabled = !!((subscriptionData && subscriptionData.overageEnabled) || (currentCompany && currentCompany.overageEnabled));
+  const overagePatch = getOveragePatch(newPlan, overageEnabled);
+  const res = sendSync('PATCH', 'companies/' + companyId, { plan: newPlan, ...overagePatch });
+  if (res && res.error) {
+    showToast(res.message || 'Plan upgrade failed', 'error');
+    return;
+  }
+
+  const comps = getLocalData('companies') || [];
+  const idx = comps.findIndex(c => c.id === companyId);
+  if (idx > -1) {
+    comps[idx].plan = newPlan;
+    comps[idx].extraUsers = overagePatch.extraUsers;
+    comps[idx].extraProjects = overagePatch.extraProjects;
+    setLocalData('companies', comps);
+  }
+
+  showToast(`Successfully switched to ${newPlan} plan!`);
+  loadSubscriptionPortal();
+}
+
+function downloadReceipt(date, amount) {
+  showToast(`Receipt for ${date} (${formatCurrency(amount)}) downloaded to your browser.`, 'success');
+}
+</script>
+</body>
+</html>

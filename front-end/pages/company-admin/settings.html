@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings – Company Admin</title>
+<link rel="stylesheet" href="../../css/main.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<div class="app-layout">
+  <nav class="navbar" id="navbar"></nav>
+  <div class="app-body">
+    <aside class="sidebar" id="sidebar">
+      <nav class="sidebar-nav">
+        <a href="dashboard.html"><i data-lucide="building-2" class="nav-icon"></i> Company Admin</a>
+        <div class="sidebar-divider"></div>
+        <a href="dashboard.html#users"><i data-lucide="users" class="nav-icon"></i> Team Members</a>
+        <a href="dashboard.html#projects"><i data-lucide="folder" class="nav-icon"></i> Projects</a>
+        <a href="dashboard.html#tasks"><i data-lucide="check-square" class="nav-icon"></i> Tasks</a>
+        <a href="dashboard.html#bills"><i data-lucide="receipt" class="nav-icon"></i> Bills & Invoices</a>
+        <a href="dashboard.html#reports"><i data-lucide="file-text" class="nav-icon"></i> Site Reports</a>
+        <a href="dashboard.html#expenses"><i data-lucide="wallet" class="nav-icon"></i> Expenses</a>
+        <div class="sidebar-divider"></div>
+        <a href="settings.html" class="active"><i data-lucide="settings" class="nav-icon"></i> Settings</a>
+        <a href="../../login.html" onclick="logout()"><i data-lucide="log-out" class="nav-icon"></i> Logout</a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Company Workspace Settings</h1>
+        <p>Manage your account profile, workspace company settings, and security preferences</p>
+      </div>
+
+      <!-- Profile Information -->
+      <div class="card" style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <div class="icon-box icon-box-orange"><i data-lucide="user"></i></div>
+          <h3 class="card-title" style="margin-bottom:0">Admin Profile Information</h3>
+        </div>
+        <form onsubmit="handleSaveProfile(event)">
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Full Name <span class="req">*</span></label>
+              <input id="s-name" type="text" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phone Number</label>
+              <input id="s-phone" type="tel" class="form-input" placeholder="10-digit phone number" maxlength="10" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email Address <span class="req">*</span></label>
+            <input id="s-email" type="email" class="form-input" required>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px">
+            <button type="submit" class="btn btn-primary">Save Profile</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Company Workspace Profile -->
+      <div class="card" style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <div class="icon-box icon-box-blue"><i data-lucide="building-2"></i></div>
+          <h3 class="card-title" style="margin-bottom:0">Company Workspace Profile</h3>
+        </div>
+        <form onsubmit="handleSaveCompanyProfile(event)">
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Company Name <span class="req">*</span></label>
+              <input id="c-name" type="text" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Company Code / Slug</label>
+              <input id="c-code" type="text" class="form-input" readonly style="background:var(--bg)">
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Approved Email Domain <span class="req">*</span></label>
+              <input id="c-domain" type="text" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Contact Phone</label>
+              <input id="c-phone" type="tel" class="form-input" maxlength="10" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)">
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px">
+            <button type="submit" class="btn btn-primary">Update Workspace Profile</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Security & Password -->
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <div class="icon-box icon-box-green"><i data-lucide="shield-check"></i></div>
+          <h3 class="card-title" style="margin-bottom:0">Security & Password</h3>
+        </div>
+        <form onsubmit="handleUpdatePassword(event)">
+          <div class="form-group">
+            <label class="form-label">Current Password <span class="req">*</span></label>
+            <input id="p-cur" type="password" class="form-input" required>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">New Password <span class="req">*</span></label>
+              <input id="p-new" type="password" class="form-input" minlength="6" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Confirm New Password <span class="req">*</span></label>
+              <input id="p-conf" type="password" class="form-input" minlength="6" required>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px">
+            <button type="submit" class="btn btn-primary">Change Password</button>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="../../js/data.js"></script>
+<script src="../../js/utils.js"></script>
+<script>
+let currentUser;
+let currentCompany;
+
+window.onload = () => {
+  initDB();
+  currentUser = requireAuth(['company_admin']);
+  if (!currentUser) return;
+
+  renderNavbar(currentUser);
+
+  const compId = currentUser.companyId;
+  currentCompany = getById('companies', compId) || { id: compId, name: 'Company', domain: '', code: '' };
+
+  loadFormData();
+  initLucideIcons();
+};
+
+function loadFormData() {
+  document.getElementById('s-name').value = currentUser.name || '';
+  document.getElementById('s-phone').value = currentUser.phone || '';
+  document.getElementById('s-email').value = currentUser.email || '';
+
+  document.getElementById('c-name').value = currentCompany.name || '';
+  document.getElementById('c-code').value = currentCompany.code || '';
+  document.getElementById('c-domain').value = currentCompany.domain || '';
+  document.getElementById('c-phone').value = currentCompany.phone || '';
+}
+
+function handleSaveProfile(e) {
+  e.preventDefault();
+  const nameEl = document.getElementById('s-name');
+  const emailEl = document.getElementById('s-email');
+  const phoneEl = document.getElementById('s-phone');
+
+  const name = nameEl.value.trim();
+  const email = emailEl.value.trim();
+  const phone = phoneEl.value.trim();
+
+  clearError(nameEl); clearError(emailEl); clearError(phoneEl);
+
+  let isValid = true;
+  if (!name || name.length < 2) { showError(nameEl, 'Name required (min 2 chars)'); isValid = false; }
+  if (!email || !isValidEmail(email)) { showError(emailEl, 'Valid email required'); isValid = false; }
+  if (phone && !isValidPhone(phone)) { showError(phoneEl, 'Phone must be 10 digits and cannot be all zeros'); isValid = false; }
+  if (!isValid) return;
+
+  const res = update('users', currentUser.id, { name, email, phone, avatar: name.substring(0,2).toUpperCase() });
+  if (res && res.error) {
+    showToast(res.message || 'Failed to update profile', 'error');
+    return;
+  }
+
+  currentUser = getById('users', currentUser.id);
+  setCurrentUser(currentUser);
+  renderNavbar(currentUser);
+  showToast('Admin profile updated successfully!');
+}
+
+function handleSaveCompanyProfile(e) {
+  e.preventDefault();
+  const nameEl = document.getElementById('c-name');
+  const domainEl = document.getElementById('c-domain');
+  const phoneEl = document.getElementById('c-phone');
+
+  const name = nameEl.value.trim();
+  const domain = domainEl.value.trim();
+  const phone = phoneEl.value.trim();
+
+  clearError(nameEl); clearError(domainEl); clearError(phoneEl);
+
+  let isValid = true;
+  if (!name) { showError(nameEl, 'Company name required'); isValid = false; }
+  if (!domain || !isValidDomain(domain)) { showError(domainEl, 'Valid domain required (e.g. apex.com)'); isValid = false; }
+  if (phone && !isValidPhone(phone)) { showError(phoneEl, 'Phone must be 10 digits and cannot be all zeros'); isValid = false; }
+  if (!isValid) return;
+
+  const res = update('companies', currentCompany.id, { name, domain, phone });
+  if (res && res.error) {
+    showToast(res.message || 'Failed to update company workspace', 'error');
+    return;
+  }
+
+  currentCompany = getById('companies', currentCompany.id);
+  showToast('Company workspace updated successfully!');
+}
+
+function handleUpdatePassword(e) {
+  e.preventDefault();
+  const curEl = document.getElementById('p-cur');
+  const newEl = document.getElementById('p-new');
+  const confEl = document.getElementById('p-conf');
+
+  const curPass = curEl.value;
+  const newPass = newEl.value;
+  const confPass = confEl.value;
+
+  clearError(curEl); clearError(newEl); clearError(confEl);
+
+  let isValid = true;
+  if (curPass !== currentUser.password) { showError(curEl, 'Current password incorrect'); isValid = false; }
+  if (!newPass || newPass.length < 6) { showError(newEl, 'Password must be at least 6 characters'); isValid = false; }
+  if (newPass !== confPass) { showError(confEl, 'New passwords do not match'); isValid = false; }
+  if (!isValid) return;
+
+  update('users', currentUser.id, { password: newPass });
+  currentUser.password = newPass;
+  setCurrentUser(currentUser);
+
+  curEl.value = ''; newEl.value = ''; confEl.value = '';
+  showToast('Password updated successfully!');
+}
+</script>
+</body>
+</html>
