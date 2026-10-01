@@ -1,17 +1,34 @@
 {
   "openapi": "3.0.0",
   "paths": {
-    "/": {
-      "get": {
-        "operationId": "AppController_getHello",
+    "/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
         "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Authentication successful. Returns access token and sanitized user details."
+          },
+          "401": {
+            "description": "Invalid credentials."
+          },
+          "403": {
+            "description": "Account or company is locked/inactive."
+          }
+        },
+        "summary": "Authenticate user with email and password, returning a signed JWT token",
         "tags": [
-          "App"
+          "Auth"
         ]
       }
     },
@@ -20,9 +37,9 @@
         "operationId": "UsersController_findAll",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Required for all endpoints except GET /users login lookup.",
+            "description": "Bearer JWT token",
             "required": false,
             "schema": {
               "type": "string"
@@ -31,10 +48,10 @@
         ],
         "responses": {
           "200": {
-            "description": "List of all users."
+            "description": "List of users."
           }
         },
-        "summary": "Retrieve all users",
+        "summary": "Retrieve users (Scoped by tenant companyId)",
         "tags": [
           "users"
         ]
@@ -43,9 +60,9 @@
         "operationId": "UsersController_create",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Required for all endpoints except GET /users login lookup.",
+            "description": "Bearer JWT token",
             "required": false,
             "schema": {
               "type": "string"
@@ -74,13 +91,13 @@
             }
           },
           "400": {
-            "description": "Invalid input."
+            "description": "Invalid input or domain mismatch."
           },
           "403": {
             "description": "Forbidden."
           }
         },
-        "summary": "Create a new user (Superuser, Project Manager)",
+        "summary": "Create a new user (Company ID & role validated by backend)",
         "tags": [
           "users"
         ]
@@ -91,9 +108,9 @@
         "operationId": "UsersController_findOne",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Required for all endpoints except GET /users login lookup.",
+            "description": "Bearer JWT token",
             "required": false,
             "schema": {
               "type": "string"
@@ -112,6 +129,9 @@
           "200": {
             "description": "The user details."
           },
+          "403": {
+            "description": "Access denied."
+          },
           "404": {
             "description": "User not found."
           }
@@ -125,9 +145,9 @@
         "operationId": "UsersController_update",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Required for all endpoints except GET /users login lookup.",
+            "description": "Bearer JWT token",
             "required": false,
             "schema": {
               "type": "string"
@@ -163,6 +183,9 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid input or domain mismatch."
+          },
           "403": {
             "description": "Forbidden."
           },
@@ -170,7 +193,7 @@
             "description": "User not found."
           }
         },
-        "summary": "Update an existing user (All authenticated roles)",
+        "summary": "Update an existing user",
         "tags": [
           "users"
         ]
@@ -179,9 +202,9 @@
         "operationId": "UsersController_remove",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Required for all endpoints except GET /users login lookup.",
+            "description": "Bearer JWT token",
             "required": false,
             "schema": {
               "type": "string"
@@ -207,9 +230,321 @@
             "description": "User not found."
           }
         },
-        "summary": "Delete a user (Superuser only)",
+        "summary": "Delete a user (Superuser or Company Admin for company user)",
         "tags": [
           "users"
+        ]
+      }
+    },
+    "/companies/register": {
+      "post": {
+        "operationId": "CompaniesController_registerCompany",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterCompanyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Company and initial admin created successfully."
+          },
+          "400": {
+            "description": "Validation error, domain mismatch, or duplicate company/admin."
+          }
+        },
+        "summary": "Public self-service company registration & initial admin onboarding",
+        "tags": [
+          "Companies"
+        ]
+      }
+    },
+    "/companies/platform/revenue": {
+      "get": {
+        "operationId": "CompaniesController_getPlatformRevenue",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Platform revenue metrics returned successfully."
+          },
+          "403": {
+            "description": "Forbidden for non-superusers."
+          }
+        },
+        "summary": "Retrieve Platform Revenue, MRR, ARR, and SaaS subscription metrics (Superuser only)",
+        "tags": [
+          "Companies"
+        ]
+      }
+    },
+    "/companies/{id}/subscription": {
+      "get": {
+        "operationId": "CompaniesController_getCompanySubscription",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscription details returned."
+          },
+          "403": {
+            "description": "Access denied."
+          }
+        },
+        "summary": "Get company subscription & SaaS plan details",
+        "tags": [
+          "Companies"
+        ]
+      }
+    },
+    "/companies": {
+      "get": {
+        "operationId": "CompaniesController_findAll",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of companies returned successfully."
+          }
+        },
+        "summary": "List companies (Superuser sees all, tenant users see their company)",
+        "tags": [
+          "Companies"
+        ]
+      },
+      "post": {
+        "operationId": "CompaniesController_create",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCompanyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Company created successfully."
+          },
+          "400": {
+            "description": "Validation error or duplicate company code."
+          }
+        },
+        "summary": "Register a new construction company",
+        "tags": [
+          "Companies"
+        ]
+      }
+    },
+    "/companies/{id}": {
+      "get": {
+        "operationId": "CompaniesController_findOne",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Company details returned."
+          },
+          "403": {
+            "description": "Access denied."
+          },
+          "404": {
+            "description": "Company not found."
+          }
+        },
+        "summary": "Get company details by ID",
+        "tags": [
+          "Companies"
+        ]
+      },
+      "patch": {
+        "operationId": "CompaniesController_update",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Company updated successfully."
+          },
+          "403": {
+            "description": "Access denied."
+          },
+          "404": {
+            "description": "Company not found."
+          }
+        },
+        "summary": "Update company details or self-service subscription plan",
+        "tags": [
+          "Companies"
+        ]
+      },
+      "delete": {
+        "operationId": "CompaniesController_remove",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Company deleted successfully."
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Company not found."
+          }
+        },
+        "summary": "Delete a company by ID (Superuser only)",
+        "tags": [
+          "Companies"
+        ]
+      }
+    },
+    "/companies/{id}/overage": {
+      "patch": {
+        "operationId": "CompaniesController_toggleOverage",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Overage billing setting updated successfully."
+          },
+          "403": {
+            "description": "Access denied."
+          }
+        },
+        "summary": "Toggle usage-based overage billing for a tenant",
+        "tags": [
+          "Companies"
         ]
       }
     },
@@ -218,9 +553,9 @@
         "operationId": "ProjectsController_findAll",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -229,10 +564,10 @@
         ],
         "responses": {
           "200": {
-            "description": "List of all projects."
+            "description": "List of projects."
           }
         },
-        "summary": "Retrieve all projects",
+        "summary": "Retrieve projects (Superuser: all, Tenant: company projects, Client: assigned projects)",
         "tags": [
           "projects"
         ]
@@ -241,9 +576,9 @@
         "operationId": "ProjectsController_create",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -272,13 +607,13 @@
             }
           },
           "400": {
-            "description": "Invalid input."
+            "description": "Invalid input or user assignment mismatch."
           },
           "403": {
             "description": "Forbidden."
           }
         },
-        "summary": "Create a new project (Superuser, Project Manager)",
+        "summary": "Create a new project (Company ID derived from authenticated token)",
         "tags": [
           "projects"
         ]
@@ -289,9 +624,9 @@
         "operationId": "ProjectsController_findOne",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -310,6 +645,9 @@
           "200": {
             "description": "The project details."
           },
+          "403": {
+            "description": "Access denied."
+          },
           "404": {
             "description": "Project not found."
           }
@@ -323,9 +661,9 @@
         "operationId": "ProjectsController_update",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -361,14 +699,17 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid input or user assignment mismatch."
+          },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Project not found."
           }
         },
-        "summary": "Update an existing project (Superuser, Project Manager, Site Engineer, Finance Manager)",
+        "summary": "Update an existing project",
         "tags": [
           "projects"
         ]
@@ -377,9 +718,9 @@
         "operationId": "ProjectsController_remove",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -399,13 +740,13 @@
             "description": "The project has been successfully deleted."
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Project not found."
           }
         },
-        "summary": "Delete a project (Superuser, Project Manager)",
+        "summary": "Delete a project",
         "tags": [
           "projects"
         ]
@@ -416,9 +757,9 @@
         "operationId": "TasksController_findAll",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -427,10 +768,10 @@
         ],
         "responses": {
           "200": {
-            "description": "List of all tasks."
+            "description": "List of tasks."
           }
         },
-        "summary": "Retrieve all tasks",
+        "summary": "Retrieve tasks (Superuser: all, Tenant: company tasks)",
         "tags": [
           "tasks"
         ]
@@ -439,9 +780,9 @@
         "operationId": "TasksController_create",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -476,7 +817,7 @@
             "description": "Forbidden."
           }
         },
-        "summary": "Create a new task (Superuser, Project Manager)",
+        "summary": "Create a new task (Company ID derived from authenticated token)",
         "tags": [
           "tasks"
         ]
@@ -487,9 +828,9 @@
         "operationId": "TasksController_findOne",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -508,6 +849,9 @@
           "200": {
             "description": "The task details."
           },
+          "403": {
+            "description": "Access denied."
+          },
           "404": {
             "description": "Task not found."
           }
@@ -521,9 +865,9 @@
         "operationId": "TasksController_update",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -560,13 +904,13 @@
             }
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Task not found."
           }
         },
-        "summary": "Update an existing task (Superuser, Project Manager, Site Engineer)",
+        "summary": "Update an existing task",
         "tags": [
           "tasks"
         ]
@@ -575,9 +919,9 @@
         "operationId": "TasksController_remove",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -597,13 +941,13 @@
             "description": "The task has been successfully deleted."
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Task not found."
           }
         },
-        "summary": "Delete a task (Superuser, Project Manager)",
+        "summary": "Delete a task",
         "tags": [
           "tasks"
         ]
@@ -614,9 +958,9 @@
         "operationId": "ReportsController_findAll",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -625,10 +969,10 @@
         ],
         "responses": {
           "200": {
-            "description": "List of all reports."
+            "description": "List of reports."
           }
         },
-        "summary": "Retrieve all reports",
+        "summary": "Retrieve reports (Superuser: all, Tenant: company reports, Client: assigned project reports)",
         "tags": [
           "reports"
         ]
@@ -637,9 +981,9 @@
         "operationId": "ReportsController_create",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -674,7 +1018,7 @@
             "description": "Forbidden."
           }
         },
-        "summary": "Create a new report (Superuser, Project Manager, Site Engineer)",
+        "summary": "Create a new report (Company ID derived from authenticated token)",
         "tags": [
           "reports"
         ]
@@ -685,9 +1029,9 @@
         "operationId": "ReportsController_findOne",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -706,6 +1050,9 @@
           "200": {
             "description": "The report details."
           },
+          "403": {
+            "description": "Access denied."
+          },
           "404": {
             "description": "Report not found."
           }
@@ -719,9 +1066,9 @@
         "operationId": "ReportsController_update",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -758,13 +1105,13 @@
             }
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Report not found."
           }
         },
-        "summary": "Update an existing report (Superuser, Project Manager, Site Engineer)",
+        "summary": "Update an existing report",
         "tags": [
           "reports"
         ]
@@ -773,9 +1120,9 @@
         "operationId": "ReportsController_remove",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -795,13 +1142,72 @@
             "description": "The report has been successfully deleted."
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Report not found."
           }
         },
-        "summary": "Delete a report (Superuser, Project Manager)",
+        "summary": "Delete a report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/upload": {
+      "post": {
+        "operationId": "ReportsController_uploadPhotos",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Upload up to 10 site report photos (JPEG, PNG, WebP, GIF — max 5 MB each).",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "photos": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  },
+                  "reportId": {
+                    "type": "string",
+                    "description": "Optional report ID to verify authorization"
+                  },
+                  "projectId": {
+                    "type": "string",
+                    "description": "Optional project ID to verify authorization"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Files uploaded successfully. Returns array of URLs."
+          },
+          "400": {
+            "description": "Invalid file type or size."
+          },
+          "403": {
+            "description": "Forbidden."
+          }
+        },
+        "summary": "Upload site report photos with tenant authorization check",
         "tags": [
           "reports"
         ]
@@ -812,9 +1218,9 @@
         "operationId": "BillsController_findAll",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -823,10 +1229,10 @@
         ],
         "responses": {
           "200": {
-            "description": "List of all bills."
+            "description": "List of bills."
           }
         },
-        "summary": "Retrieve all bills",
+        "summary": "Retrieve bills (Superuser: all, Tenant: company bills, Client: assigned bills)",
         "tags": [
           "bills"
         ]
@@ -835,9 +1241,9 @@
         "operationId": "BillsController_create",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -872,7 +1278,7 @@
             "description": "Forbidden."
           }
         },
-        "summary": "Create a new bill (Superuser, Finance Manager, Project Manager)",
+        "summary": "Create a new bill (Company ID derived from authenticated token)",
         "tags": [
           "bills"
         ]
@@ -883,9 +1289,9 @@
         "operationId": "BillsController_findOne",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -904,6 +1310,9 @@
           "200": {
             "description": "The bill details."
           },
+          "403": {
+            "description": "Access denied."
+          },
           "404": {
             "description": "Bill not found."
           }
@@ -917,9 +1326,9 @@
         "operationId": "BillsController_update",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -956,13 +1365,13 @@
             }
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Bill not found."
           }
         },
-        "summary": "Update an existing bill (Superuser, Finance Manager, Project Manager, Client)",
+        "summary": "Update an existing bill",
         "tags": [
           "bills"
         ]
@@ -971,9 +1380,9 @@
         "operationId": "BillsController_remove",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -993,13 +1402,13 @@
             "description": "The bill has been successfully deleted."
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Bill not found."
           }
         },
-        "summary": "Delete a bill (Superuser, Finance Manager)",
+        "summary": "Delete a bill",
         "tags": [
           "bills"
         ]
@@ -1010,9 +1419,9 @@
         "operationId": "ExpensesController_findAll",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1021,10 +1430,10 @@
         ],
         "responses": {
           "200": {
-            "description": "List of all expenses."
+            "description": "List of expenses."
           }
         },
-        "summary": "Retrieve all expenses",
+        "summary": "Retrieve expenses (Superuser: all, Tenant: company expenses)",
         "tags": [
           "expenses"
         ]
@@ -1033,9 +1442,9 @@
         "operationId": "ExpensesController_create",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1070,7 +1479,7 @@
             "description": "Forbidden."
           }
         },
-        "summary": "Create a new expense (Superuser, Finance Manager)",
+        "summary": "Create a new expense (Company ID derived from authenticated token)",
         "tags": [
           "expenses"
         ]
@@ -1081,9 +1490,9 @@
         "operationId": "ExpensesController_findOne",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1102,6 +1511,9 @@
           "200": {
             "description": "The expense details."
           },
+          "403": {
+            "description": "Access denied."
+          },
           "404": {
             "description": "Expense not found."
           }
@@ -1115,9 +1527,9 @@
         "operationId": "ExpensesController_update",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1154,13 +1566,13 @@
             }
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Expense not found."
           }
         },
-        "summary": "Update an existing expense (Superuser, Finance Manager)",
+        "summary": "Update an existing expense",
         "tags": [
           "expenses"
         ]
@@ -1169,9 +1581,9 @@
         "operationId": "ExpensesController_remove",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1191,13 +1603,13 @@
             "description": "The expense has been successfully deleted."
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Expense not found."
           }
         },
-        "summary": "Delete an expense (Superuser, Finance Manager)",
+        "summary": "Delete an expense",
         "tags": [
           "expenses"
         ]
@@ -1208,9 +1620,9 @@
         "operationId": "MessagesController_findAll",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1219,10 +1631,10 @@
         ],
         "responses": {
           "200": {
-            "description": "List of all messages."
+            "description": "List of messages."
           }
         },
-        "summary": "Retrieve all messages",
+        "summary": "Retrieve messages (Superuser: all, Tenant: company messages, Client: direct user messages)",
         "tags": [
           "messages"
         ]
@@ -1231,9 +1643,9 @@
         "operationId": "MessagesController_create",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1268,7 +1680,7 @@
             "description": "Forbidden."
           }
         },
-        "summary": "Create a new message",
+        "summary": "Create a new message (Company ID derived from authenticated token)",
         "tags": [
           "messages"
         ]
@@ -1279,9 +1691,9 @@
         "operationId": "MessagesController_findOne",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1300,6 +1712,9 @@
           "200": {
             "description": "The message details."
           },
+          "403": {
+            "description": "Access denied."
+          },
           "404": {
             "description": "Message not found."
           }
@@ -1313,9 +1728,9 @@
         "operationId": "MessagesController_update",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1352,7 +1767,7 @@
             }
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Message not found."
@@ -1367,9 +1782,9 @@
         "operationId": "MessagesController_remove",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1389,7 +1804,7 @@
             "description": "The message has been successfully deleted."
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Message not found."
@@ -1406,9 +1821,9 @@
         "operationId": "NotificationsController_findAll",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1417,10 +1832,10 @@
         ],
         "responses": {
           "200": {
-            "description": "List of all notifications."
+            "description": "List of notifications."
           }
         },
-        "summary": "Retrieve all notifications",
+        "summary": "Retrieve notifications (Superuser: all, Users: user/company notifications)",
         "tags": [
           "notifications"
         ]
@@ -1429,9 +1844,9 @@
         "operationId": "NotificationsController_create",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1466,7 +1881,7 @@
             "description": "Forbidden."
           }
         },
-        "summary": "Create a new notification",
+        "summary": "Create a new notification (Company ID derived from authenticated token)",
         "tags": [
           "notifications"
         ]
@@ -1477,9 +1892,9 @@
         "operationId": "NotificationsController_findOne",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1498,6 +1913,9 @@
           "200": {
             "description": "The notification details."
           },
+          "403": {
+            "description": "Access denied."
+          },
           "404": {
             "description": "Notification not found."
           }
@@ -1511,9 +1929,9 @@
         "operationId": "NotificationsController_update",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1550,7 +1968,7 @@
             }
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Notification not found."
@@ -1565,9 +1983,9 @@
         "operationId": "NotificationsController_remove",
         "parameters": [
           {
-            "name": "x-role",
+            "name": "Authorization",
             "in": "header",
-            "description": "Role used for RBAC. Allowed values depend on the endpoint.",
+            "description": "Bearer JWT token",
             "required": true,
             "schema": {
               "type": "string"
@@ -1587,7 +2005,7 @@
             "description": "The notification has been successfully deleted."
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Access denied."
           },
           "404": {
             "description": "Notification not found."
@@ -1598,11 +2016,101 @@
           "notifications"
         ]
       }
+    },
+    "/inquiries": {
+      "post": {
+        "operationId": "InquiriesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInquiryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Inquiry successfully submitted."
+          },
+          "400": {
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Public Contact Us inquiry submission",
+        "tags": [
+          "inquiries"
+        ]
+      },
+      "get": {
+        "operationId": "InquiriesController_findAll",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of platform inquiries."
+          },
+          "403": {
+            "description": "Forbidden for non-superuser."
+          }
+        },
+        "summary": "Retrieve platform inquiries (Superuser ONLY)",
+        "tags": [
+          "inquiries"
+        ]
+      }
+    },
+    "/inquiries/{id}": {
+      "patch": {
+        "operationId": "InquiriesController_updateStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inquiry status updated."
+          },
+          "403": {
+            "description": "Forbidden for non-superuser."
+          }
+        },
+        "summary": "Update inquiry status (Superuser ONLY)",
+        "tags": [
+          "inquiries"
+        ]
+      }
     }
   },
   "info": {
     "title": "ConstructHub API",
-    "description": "ConstructHub Construction Management Platform API.\n\n**How to use:** Click \"Try it out\" on any endpoint, fill in the `x-role` header field with one of: `superuser`, `project_manager`, `site_engineer`, `finance_manager`, `client`, then click Execute.",
+    "description": "ConstructHub Construction Management Platform API.\n\n**How to use:** Click \"Try it out\" on any endpoint, fill in the `x-role` header field with one of: `superuser`, `project_manager`, `site_engineer`, `finance_manager`, `client`, then click Execute.\n\n**Middleware active:**\n- 🔒 Security headers + Rate Limiting (120 req/min per IP)\n- 📝 Request logging to `logs/access-YYYY-MM-DD.log`\n- ❌ Error logging to `logs/error-YYYY-MM-DD.log`\n- 🆔 Request ID tracing (`x-request-id` header)\n- 📁 File uploads via `POST /reports/upload`\n- 🛡️ Auth middleware on all protected routes",
     "version": "1.0",
     "contact": {}
   },
@@ -1610,6 +2118,25 @@
   "servers": [],
   "components": {
     "schemas": {
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "User email address",
+            "example": "admin@apex.com"
+          },
+          "password": {
+            "type": "string",
+            "description": "User password",
+            "example": "123456"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
       "CreateUserDto": {
         "type": "object",
         "properties": {
@@ -1633,16 +2160,22 @@
             "description": "Role of the user",
             "enum": [
               "superuser",
+              "company_admin",
               "project_manager",
               "site_engineer",
               "finance_manager",
               "client"
             ]
           },
+          "companyId": {
+            "type": "string",
+            "description": "Company ID user belongs to",
+            "example": "COMP001"
+          },
           "phone": {
             "type": "string",
             "description": "Phone number of the user",
-            "example": "+91 98765 43210"
+            "example": "9876543210"
           },
           "avatar": {
             "type": "string",
@@ -1669,7 +2202,6 @@
           "email",
           "password",
           "role",
-          "phone",
           "status"
         ]
       },
@@ -1696,16 +2228,22 @@
             "description": "Role of the user",
             "enum": [
               "superuser",
+              "company_admin",
               "project_manager",
               "site_engineer",
               "finance_manager",
               "client"
             ]
           },
+          "companyId": {
+            "type": "string",
+            "description": "Company ID user belongs to",
+            "example": "COMP001"
+          },
           "phone": {
             "type": "string",
             "description": "Phone number of the user",
-            "example": "+91 98765 43210"
+            "example": "9876543210"
           },
           "avatar": {
             "type": "string",
@@ -1728,9 +2266,140 @@
           }
         }
       },
+      "CompanyDetailsDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Apex Constructions Ltd"
+          },
+          "code": {
+            "type": "string",
+            "example": "apex"
+          },
+          "domain": {
+            "type": "string",
+            "example": "apex.com"
+          },
+          "phone": {
+            "type": "string",
+            "example": "+91 98000 11111"
+          },
+          "plan": {
+            "type": "string",
+            "example": "Enterprise"
+          }
+        },
+        "required": [
+          "name",
+          "code",
+          "domain"
+        ]
+      },
+      "AdminDetailsDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Siva Sathwik"
+          },
+          "email": {
+            "type": "string",
+            "example": "admin@apex.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "123456"
+          },
+          "phone": {
+            "type": "string",
+            "example": "+91 98000 11111"
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "password"
+        ]
+      },
+      "RegisterCompanyDto": {
+        "type": "object",
+        "properties": {
+          "company": {
+            "$ref": "#/components/schemas/CompanyDetailsDto"
+          },
+          "admin": {
+            "$ref": "#/components/schemas/AdminDetailsDto"
+          }
+        },
+        "required": [
+          "company",
+          "admin"
+        ]
+      },
+      "CreateCompanyDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the construction company",
+            "example": "Apex Builders"
+          },
+          "code": {
+            "type": "string",
+            "description": "Unique company code or slug",
+            "example": "apex"
+          },
+          "domain": {
+            "type": "string",
+            "description": "Approved email domain for company users",
+            "example": "apex.com"
+          },
+          "ownerEmail": {
+            "type": "string",
+            "description": "Owner or Primary Admin Email",
+            "example": "admin@apex.com"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Contact phone number",
+            "example": "9800011111"
+          },
+          "plan": {
+            "type": "string",
+            "description": "Company subscription plan",
+            "enum": [
+              "Basic",
+              "Pro",
+              "Enterprise"
+            ],
+            "default": "Enterprise"
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of company",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "default": "active"
+          }
+        },
+        "required": [
+          "name",
+          "code",
+          "domain",
+          "ownerEmail"
+        ]
+      },
       "CreateProjectDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID project belongs to",
+            "example": "COMP001"
+          },
           "name": {
             "type": "string",
             "description": "Name of the project",
@@ -1824,6 +2493,11 @@
       "UpdateProjectDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID project belongs to",
+            "example": "COMP001"
+          },
           "name": {
             "type": "string",
             "description": "Name of the project",
@@ -1902,6 +2576,11 @@
       "CreateTaskDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID task belongs to",
+            "example": "COMP001"
+          },
           "title": {
             "type": "string",
             "description": "Title of the task",
@@ -1978,6 +2657,11 @@
       "UpdateTaskDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID task belongs to",
+            "example": "COMP001"
+          },
           "title": {
             "type": "string",
             "description": "Title of the task",
@@ -2065,6 +2749,11 @@
       "CreateReportDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID report belongs to",
+            "example": "COMP001"
+          },
           "title": {
             "type": "string",
             "description": "Title of the report",
@@ -2169,6 +2858,11 @@
       "UpdateReportDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID report belongs to",
+            "example": "COMP001"
+          },
           "title": {
             "type": "string",
             "description": "Title of the report",
@@ -2261,6 +2955,11 @@
       "CreateBillDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID bill belongs to",
+            "example": "COMP001"
+          },
           "projectId": {
             "type": "string",
             "description": "ID of the project",
@@ -2336,6 +3035,11 @@
       "UpdateBillDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID bill belongs to",
+            "example": "COMP001"
+          },
           "projectId": {
             "type": "string",
             "description": "ID of the project",
@@ -2401,6 +3105,11 @@
       "CreateExpenseDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID expense belongs to",
+            "example": "COMP001"
+          },
           "projectId": {
             "type": "string",
             "description": "ID of the project",
@@ -2454,6 +3163,11 @@
       "UpdateExpenseDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID expense belongs to",
+            "example": "COMP001"
+          },
           "projectId": {
             "type": "string",
             "description": "ID of the project",
@@ -2499,7 +3213,17 @@
       "CreateMessageDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID message belongs to",
+            "example": "COMP001"
+          },
           "from": {
+            "type": "string",
+            "description": "ID of the sender",
+            "example": "U002"
+          },
+          "senderId": {
             "type": "string",
             "description": "ID of the sender",
             "example": "U002"
@@ -2509,12 +3233,27 @@
             "description": "Name of the sender",
             "example": "Rajesh Kumar"
           },
+          "senderName": {
+            "type": "string",
+            "description": "Name of the sender",
+            "example": "Rajesh Kumar"
+          },
           "to": {
             "type": "string",
             "description": "ID of the recipient",
             "example": "U003"
           },
+          "receiverId": {
+            "type": "string",
+            "description": "ID of the recipient",
+            "example": "U003"
+          },
           "toName": {
+            "type": "string",
+            "description": "Name of the recipient",
+            "example": "Priya Sharma"
+          },
+          "receiverName": {
             "type": "string",
             "description": "Name of the recipient",
             "example": "Priya Sharma"
@@ -2536,15 +3275,23 @@
           }
         },
         "required": [
-          "from",
-          "to",
           "text"
         ]
       },
       "UpdateMessageDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID message belongs to",
+            "example": "COMP001"
+          },
           "from": {
+            "type": "string",
+            "description": "ID of the sender",
+            "example": "U002"
+          },
+          "senderId": {
             "type": "string",
             "description": "ID of the sender",
             "example": "U002"
@@ -2554,12 +3301,27 @@
             "description": "Name of the sender",
             "example": "Rajesh Kumar"
           },
+          "senderName": {
+            "type": "string",
+            "description": "Name of the sender",
+            "example": "Rajesh Kumar"
+          },
           "to": {
             "type": "string",
             "description": "ID of the recipient",
             "example": "U003"
           },
+          "receiverId": {
+            "type": "string",
+            "description": "ID of the recipient",
+            "example": "U003"
+          },
           "toName": {
+            "type": "string",
+            "description": "Name of the recipient",
+            "example": "Priya Sharma"
+          },
+          "receiverName": {
             "type": "string",
             "description": "Name of the recipient",
             "example": "Priya Sharma"
@@ -2584,6 +3346,11 @@
       "CreateNotificationDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID notification belongs to",
+            "example": "COMP001"
+          },
           "userId": {
             "type": "string",
             "description": "ID of the user this notification belongs to",
@@ -2602,6 +3369,11 @@
           "body": {
             "type": "string",
             "description": "Notification body text",
+            "example": "Foundation work has been completed"
+          },
+          "message": {
+            "type": "string",
+            "description": "Notification message text",
             "example": "Foundation work has been completed"
           },
           "time": {
@@ -2617,14 +3389,17 @@
         },
         "required": [
           "userId",
-          "type",
-          "title",
-          "body"
+          "title"
         ]
       },
       "UpdateNotificationDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company ID notification belongs to",
+            "example": "COMP001"
+          },
           "userId": {
             "type": "string",
             "description": "ID of the user this notification belongs to",
@@ -2645,6 +3420,11 @@
             "description": "Notification body text",
             "example": "Foundation work has been completed"
           },
+          "message": {
+            "type": "string",
+            "description": "Notification message text",
+            "example": "Foundation work has been completed"
+          },
           "time": {
             "type": "string",
             "description": "Time description",
@@ -2656,6 +3436,37 @@
             "example": false
           }
         }
+      },
+      "CreateInquiryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Full name of inquirer",
+            "example": "Ramesh Patel"
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address of inquirer",
+            "example": "ramesh@shapoorji.com"
+          },
+          "phone": {
+            "type": "string",
+            "description": "10-digit mobile number",
+            "example": "9876543210"
+          },
+          "message": {
+            "type": "string",
+            "description": "Inquiry message body",
+            "example": "Interested in Construct Hub Enterprise plan."
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "phone",
+          "message"
+        ]
       }
     }
   }
