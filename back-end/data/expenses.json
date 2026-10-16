@@ -1,0 +1,46 @@
+[
+  {
+    "id": "E001",
+    "companyId": "COMP001",
+    "projectId": "P001",
+    "projectName": "Apex Skyline Tower",
+    "category": "Materials",
+    "amount": 450000,
+    "date": "2026-03-02",
+    "recordedBy": "U004",
+    "description": "500 bags OPC Grade 53 cement."
+  },
+  {
+    "id": "E002",
+    "companyId": "COMP001",
+    "projectId": "P002",
+    "projectName": "Apex Commercial Complex",
+    "category": "Equipment",
+    "amount": 280000,
+    "date": "2026-03-01",
+    "recordedBy": "U004",
+    "description": "Tower crane monthly rental."
+  },
+  {
+    "id": "E003",
+    "companyId": "COMP002",
+    "projectId": "P003",
+    "projectName": "L&T Infrastructure Project",
+    "category": "Materials",
+    "amount": 1850000,
+    "date": "2026-03-01",
+    "recordedBy": "U009",
+    "description": "TMT steel rebar shipment for metro girders."
+  },
+  {
+    "id": "E004",
+    "companyId": "COMP002",
+    "projectId": "P004",
+    "projectName": "L&T Metro Development",
+    "category": "Labor",
+    "amount": 350000,
+    "date": "2026-03-02",
+    "recordedBy": "U009",
+    "description": "Site labor payout for excavation."
+  }
+]

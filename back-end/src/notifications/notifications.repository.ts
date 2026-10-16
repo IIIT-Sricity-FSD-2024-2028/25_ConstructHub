@@ -54,6 +54,26 @@ export class NotificationsRepository {
       read: true,
     },
     {
+      id: 'N006',
+      companyId: 'COMP001',
+      userId: 'U001',
+      type: 'system',
+      title: 'Company Profile Active',
+      body: 'Your company profile for Apex Builders is verified and active.',
+      date: '2026-03-01',
+      read: false,
+    },
+    {
+      id: 'N007',
+      companyId: 'COMP001',
+      userId: 'U001',
+      type: 'subscription',
+      title: 'Subscription Status',
+      body: 'Apex Builders is currently on Enterprise tier.',
+      date: '2026-03-02',
+      read: false,
+    },
+    {
       id: 'N000',
       companyId: '',
       userId: 'U000',
@@ -112,5 +132,15 @@ export class NotificationsRepository {
     const startObj = this.memoryData.length;
     this.memoryData = this.memoryData.filter((i) => i.id !== id);
     return this.memoryData.length < startObj;
+  }
+  clearForUser(user?: { userId?: string; role?: string; companyId?: string } | string) {
+    const targetUserId = typeof user === 'string' ? user : user?.userId;
+    const startObj = this.memoryData.length;
+    if (targetUserId) {
+      this.memoryData = this.memoryData.filter((i) => i.userId !== targetUserId);
+    } else {
+      this.memoryData = [];
+    }
+    return { success: true, cleared: startObj - this.memoryData.length };
   }
 }

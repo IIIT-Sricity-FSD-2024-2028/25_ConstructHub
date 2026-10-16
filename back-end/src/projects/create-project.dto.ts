@@ -32,6 +32,21 @@ export class CreateProjectDto {
   @IsNotEmpty()
   managerId: string;
 
+  @ApiPropertyOptional({ description: 'Finance Manager ID associated with the project', example: 'U004' })
+  @IsString()
+  @IsOptional()
+  financeManagerId?: string;
+
+  @ApiPropertyOptional({ description: 'Finance Manager Name', example: 'Amit Shah' })
+  @IsString()
+  @IsOptional()
+  financeManagerName?: string;
+
+  @ApiPropertyOptional({ description: 'Site Engineer ID associated with the project', example: 'U003' })
+  @IsString()
+  @IsOptional()
+  siteEngineerId?: string;
+
   @ApiProperty({ description: 'Total budget of the project', example: 25000000 })
   @IsNumber()
   @Min(0)

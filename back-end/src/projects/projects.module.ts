@@ -6,7 +6,7 @@ import { UsersModule } from '../users/users.module';
 import { CompaniesModule } from '../companies/companies.module';
 
 @Module({
-  imports: [UsersModule, forwardRef(() => CompaniesModule)],
+  imports: [forwardRef(() => UsersModule), forwardRef(() => CompaniesModule)],
   controllers: [ProjectsController],
   providers: [ProjectsService, ProjectsRepository],
   exports: [ProjectsService, ProjectsRepository],

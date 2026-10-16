@@ -14,6 +14,16 @@ export class BillsService {
 
   findByCompanyId(companyId: string) { return this.repo.findByCompanyId(companyId); }
 
+  findByFinanceManager(companyId: string, financeManagerId: string) {
+    const assignedProjectIds = new Set(
+      this.projectsRepo
+        .findByCompanyId(companyId)
+        .filter((p) => p.financeManagerId === financeManagerId)
+        .map((p) => p.id),
+    );
+    return this.repo.findByCompanyId(companyId).filter((b) => assignedProjectIds.has(b.projectId));
+  }
+
   findOne(id: string) {
     const record = this.repo.findById(id);
     if (!record) throw new NotFoundException('Bills record not found.');

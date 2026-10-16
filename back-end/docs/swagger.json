@@ -1,6 +1,105 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/": {
+      "get": {
+        "operationId": "AppController_getHello",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "AppController_getHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Server is healthy."
+          }
+        },
+        "summary": "Health check and server boot ID endpoint",
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/api/logs": {
+      "get": {
+        "operationId": "AppController_listLogs",
+        "parameters": [
+          {
+            "name": "x-role",
+            "required": true,
+            "in": "header",
+            "description": "Must be superuser",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of log filenames."
+          },
+          "403": {
+            "description": "Forbidden — superuser only."
+          }
+        },
+        "summary": "List all log files (Superuser only)",
+        "tags": [
+          "App",
+          "logs"
+        ]
+      }
+    },
+    "/api/logs/{type}": {
+      "get": {
+        "description": "Type must be \"access\" or \"error\".",
+        "operationId": "AppController_readLog",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-role",
+            "required": true,
+            "in": "header",
+            "description": "Must be superuser",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Last 100 lines of the log file."
+          },
+          "403": {
+            "description": "Forbidden — superuser only."
+          },
+          "404": {
+            "description": "Invalid log type."
+          }
+        },
+        "summary": "Read last 100 lines of today's log file (Superuser only)",
+        "tags": [
+          "App",
+          "logs"
+        ]
+      }
+    },
     "/auth/login": {
       "post": {
         "operationId": "AuthController_login",
@@ -1364,6 +1463,9 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid bill update or status change forbidden."
+          },
           "403": {
             "description": "Access denied."
           },
@@ -1835,7 +1937,7 @@
             "description": "List of notifications."
           }
         },
-        "summary": "Retrieve notifications (Superuser: all, Users: user/company notifications)",
+        "summary": "Retrieve notifications",
         "tags": [
           "notifications"
         ]
@@ -1882,6 +1984,29 @@
           }
         },
         "summary": "Create a new notification (Company ID derived from authenticated token)",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "delete": {
+        "operationId": "NotificationsController_clearAll",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All notifications cleared successfully."
+          }
+        },
+        "summary": "Clear all notifications for the current user",
         "tags": [
           "notifications"
         ]
@@ -2012,6 +2137,31 @@
           }
         },
         "summary": "Delete a notification",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/notifications/clear/all": {
+      "delete": {
+        "operationId": "NotificationsController_clearAllAlias",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All notifications cleared successfully."
+          }
+        },
+        "summary": "Clear all notifications for the current user",
         "tags": [
           "notifications"
         ]
@@ -2288,6 +2438,30 @@
           "plan": {
             "type": "string",
             "example": "Enterprise"
+          },
+          "billingCycle": {
+            "type": "string",
+            "example": "monthly"
+          },
+          "customUserLimit": {
+            "type": "number",
+            "example": 50
+          },
+          "customProjectLimit": {
+            "type": "number",
+            "example": 15
+          },
+          "extraUsers": {
+            "type": "number",
+            "example": 0
+          },
+          "extraProjects": {
+            "type": "number",
+            "example": 0
+          },
+          "overageEnabled": {
+            "type": "boolean",
+            "example": false
           }
         },
         "required": [
@@ -2425,6 +2599,21 @@
             "description": "Manager ID associated with the project",
             "example": "U002"
           },
+          "financeManagerId": {
+            "type": "string",
+            "description": "Finance Manager ID associated with the project",
+            "example": "U004"
+          },
+          "financeManagerName": {
+            "type": "string",
+            "description": "Finance Manager Name",
+            "example": "Amit Shah"
+          },
+          "siteEngineerId": {
+            "type": "string",
+            "description": "Site Engineer ID associated with the project",
+            "example": "U003"
+          },
           "budget": {
             "type": "number",
             "description": "Total budget of the project",
@@ -2522,6 +2711,21 @@
             "type": "string",
             "description": "Manager ID associated with the project",
             "example": "U002"
+          },
+          "financeManagerId": {
+            "type": "string",
+            "description": "Finance Manager ID associated with the project",
+            "example": "U004"
+          },
+          "financeManagerName": {
+            "type": "string",
+            "description": "Finance Manager Name",
+            "example": "Amit Shah"
+          },
+          "siteEngineerId": {
+            "type": "string",
+            "description": "Site Engineer ID associated with the project",
+            "example": "U003"
           },
           "budget": {
             "type": "number",
@@ -3454,6 +3658,16 @@
             "type": "string",
             "description": "10-digit mobile number",
             "example": "9876543210"
+          },
+          "company": {
+            "type": "string",
+            "description": "Company or Firm Name",
+            "example": "Apex Builders Ltd"
+          },
+          "type": {
+            "type": "string",
+            "description": "Inquiry type",
+            "example": "firm_request"
           },
           "message": {
             "type": "string",

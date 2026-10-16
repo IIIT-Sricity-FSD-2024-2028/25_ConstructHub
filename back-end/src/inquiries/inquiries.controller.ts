@@ -42,7 +42,7 @@ export class InquiriesController {
   @ApiResponse({ status: 403, description: 'Forbidden for non-superuser.' })
   updateStatus(
     @Param('id') id: string,
-    @Body() body: { status: 'New' | 'Read' | 'Resolved' },
+    @Body() body: { status: 'New' | 'Read' | 'Onboarded' | 'Resolved' },
     @CurrentUser() user?: UserContext,
   ) {
     if (!user || user.role !== 'superuser') {

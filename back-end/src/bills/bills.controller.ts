@@ -26,6 +26,9 @@ export class BillsController {
     if (TenantHelper.isClient(user)) {
       return this.service.findAll().filter((b) => b.clientId === user.userId);
     }
+    if (user.role === 'finance_manager') {
+      return this.service.findByFinanceManager(user.companyId, user.userId);
+    }
     return this.service.findByCompanyId(user.companyId);
   }
 
@@ -41,6 +44,12 @@ export class BillsController {
       if (TenantHelper.isClient(user)) {
         if (bill.clientId !== user.userId) {
           throw new ForbiddenException('Access denied. Client can only view assigned bills.');
+        }
+      } else if (user.role === 'finance_manager') {
+        TenantHelper.validateCompanyAccess(user, bill.companyId);
+        const myBills = this.service.findByFinanceManager(user.companyId, user.userId);
+        if (!myBills.some((b) => b.id === bill.id)) {
+          throw new ForbiddenException('Access denied. Finance Manager can only view bills for assigned projects.');
         }
       } else {
         TenantHelper.validateCompanyAccess(user, bill.companyId);
@@ -65,6 +74,7 @@ export class BillsController {
   @Roles('superuser', 'company_admin', 'finance_manager', 'project_manager', 'client')
   @ApiOperation({ summary: 'Update an existing bill' })
   @ApiResponse({ status: 200, description: 'The bill has been successfully updated.', type: UpdateBillDto })
+  @ApiResponse({ status: 400, description: 'Invalid bill update or status change forbidden.' })
   @ApiResponse({ status: 403, description: 'Access denied.' })
   @ApiResponse({ status: 404, description: 'Bill not found.' })
   update(@Param('id') id: string, @Body() dto: UpdateBillDto, @CurrentUser() user?: UserContext) {
@@ -76,6 +86,22 @@ export class BillsController {
         }
       } else {
         TenantHelper.validateCompanyAccess(user, existing.companyId);
+      }
+
+      // Business rule: Finance manager cannot edit a generated bill once decided by the client (Accepted or Declined),
+      // and cannot modify the payment status directly (only clients decide acceptance/rejection).
+      if (user.role === 'finance_manager') {
+        const s = (existing.status || '').toLowerCase();
+        if (s === 'accepted' || s === 'declined' || s === 'approved' || s === 'rejected') {
+          throw new ForbiddenException(
+            `A finance manager cannot edit a generated bill once a decision has been made by the client (${existing.status}).`,
+          );
+        }
+        if (dto.status !== undefined && dto.status !== existing.status) {
+          throw new ForbiddenException(
+            'A finance manager cannot change the bill payment status. Payment status is determined by client decision.',
+          );
+        }
       }
     }
     const companyId = TenantHelper.isSuperuser(user)

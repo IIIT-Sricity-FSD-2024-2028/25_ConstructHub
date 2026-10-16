@@ -3,20 +3,23 @@ import { BadRequestException } from '@nestjs/common';
 import { CompaniesService } from './companies.service';
 import { CompaniesRepository } from './companies.repository';
 import { UsersRepository } from '../users/users.repository';
+import { ProjectsRepository } from '../projects/projects.repository';
 
 describe('CompaniesService', () => {
   let service: CompaniesService;
   let repo: CompaniesRepository;
   let usersRepo: UsersRepository;
+  let projectsRepo: ProjectsRepository;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CompaniesService, CompaniesRepository, UsersRepository],
+      providers: [CompaniesService, CompaniesRepository, UsersRepository, ProjectsRepository],
     }).compile();
 
     service = module.get<CompaniesService>(CompaniesService);
     repo = module.get<CompaniesRepository>(CompaniesRepository);
     usersRepo = module.get<UsersRepository>(UsersRepository);
+    projectsRepo = module.get<ProjectsRepository>(ProjectsRepository);
   });
 
   it('should be defined', () => {

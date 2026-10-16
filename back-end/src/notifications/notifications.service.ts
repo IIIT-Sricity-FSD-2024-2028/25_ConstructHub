@@ -32,6 +32,10 @@ export class NotificationsService {
     this.findOne(id);
     return this.repo.remove(id);
   }
+
+  clearForUser(user?: any) {
+    return this.repo.clearForUser(user);
+  }
 }
 
 

@@ -1,0 +1,58 @@
+[
+  {
+    "id": "R001",
+    "title": "Daily Site Log - Apex Skyline Tower",
+    "companyId": "COMP001",
+    "projectId": "P001",
+    "projectName": "Apex Skyline Tower",
+    "submittedBy": "U003",
+    "reporterName": "Priya Sharma",
+    "date": "2026-03-02",
+    "workDone": "Concrete pouring for Block A complete.",
+    "issues": "None.",
+    "photos": 0,
+    "photoUrls": []
+  },
+  {
+    "id": "R002",
+    "title": "Structural Work Progress Log",
+    "companyId": "COMP001",
+    "projectId": "P002",
+    "projectName": "Apex Commercial Complex",
+    "submittedBy": "U003",
+    "reporterName": "Priya Sharma",
+    "date": "2026-03-05",
+    "workDone": "Steel framework installation on floors 3-5 completed.",
+    "issues": "Minor material delay.",
+    "photos": 0,
+    "photoUrls": []
+  },
+  {
+    "id": "R003",
+    "title": "Metro Corridor Inspection Log",
+    "companyId": "COMP002",
+    "projectId": "P003",
+    "projectName": "L&T Infrastructure Project",
+    "submittedBy": "U008",
+    "reporterName": "Rohan Gupta",
+    "date": "2026-03-02",
+    "workDone": "Pillar 12 pier cap alignment checked.",
+    "issues": "Traffic diversion required on main highway.",
+    "photos": 0,
+    "photoUrls": []
+  },
+  {
+    "id": "R004",
+    "title": "Smart City Site Excavation Log",
+    "companyId": "COMP002",
+    "projectId": "P004",
+    "projectName": "L&T Metro Development",
+    "submittedBy": "U008",
+    "reporterName": "Rohan Gupta",
+    "date": "2026-03-04",
+    "workDone": "Mass excavation and land clearing finished.",
+    "issues": "None.",
+    "photos": 0,
+    "photoUrls": []
+  }
+]

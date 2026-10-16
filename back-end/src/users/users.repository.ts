@@ -137,6 +137,18 @@ export class UsersRepository {
       status: 'active',
       createdAt: '2026-01-20',
     },
+    {
+      id: 'U011',
+      name: 'Suresh Shah',
+      email: 'client2@apex.com',
+      password: 'password123',
+      role: 'client',
+      companyId: 'COMP001',
+      phone: '+91 98765 43219',
+      avatar: 'SS',
+      status: 'active',
+      createdAt: '2026-01-22',
+    },
   ];
 
   findAll(): any[] {

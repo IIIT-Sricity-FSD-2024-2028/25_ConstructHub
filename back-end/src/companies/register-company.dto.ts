@@ -27,6 +27,31 @@ export class CompanyDetailsDto {
   @IsString()
   @IsOptional()
   plan?: string;
+
+  @ApiProperty({ example: 'monthly', required: false })
+  @IsString()
+  @IsOptional()
+  billingCycle?: string;
+
+  @ApiProperty({ example: 50, required: false })
+  @IsOptional()
+  customUserLimit?: number;
+
+  @ApiProperty({ example: 15, required: false })
+  @IsOptional()
+  customProjectLimit?: number;
+
+  @ApiProperty({ example: 0, required: false })
+  @IsOptional()
+  extraUsers?: number;
+
+  @ApiProperty({ example: 0, required: false })
+  @IsOptional()
+  extraProjects?: number;
+
+  @ApiProperty({ example: false, required: false })
+  @IsOptional()
+  overageEnabled?: boolean;
 }
 
 export class AdminDetailsDto {

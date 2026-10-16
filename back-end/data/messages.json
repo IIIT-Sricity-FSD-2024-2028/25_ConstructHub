@@ -1,0 +1,46 @@
+[
+  {
+    "id": "M001",
+    "companyId": "COMP001",
+    "from": "U002",
+    "fromName": "Rajesh Kumar",
+    "to": "U003",
+    "toName": "Priya Sharma",
+    "text": "Please review the updated project timeline for Apex Skyline Tower.",
+    "time": "10:30 AM",
+    "date": "2026-03-24"
+  },
+  {
+    "id": "M002",
+    "companyId": "COMP001",
+    "from": "U003",
+    "fromName": "Priya Sharma",
+    "to": "U002",
+    "toName": "Rajesh Kumar",
+    "text": "Sure, I will inspect block A site progress and send the report.",
+    "time": "10:32 AM",
+    "date": "2026-03-24"
+  },
+  {
+    "id": "M003",
+    "companyId": "COMP002",
+    "from": "U007",
+    "fromName": "Sanjay Mehta",
+    "to": "U008",
+    "toName": "Rohan Gupta",
+    "text": "Check pier cap alignment for metro pillar 12.",
+    "time": "11:15 AM",
+    "date": "2026-03-24"
+  },
+  {
+    "id": "M004",
+    "companyId": "COMP002",
+    "from": "U008",
+    "fromName": "Rohan Gupta",
+    "to": "U007",
+    "toName": "Sanjay Mehta",
+    "text": "Alignment verified. Concrete pouring scheduled for 2 PM.",
+    "time": "11:30 AM",
+    "date": "2026-03-24"
+  }
+]

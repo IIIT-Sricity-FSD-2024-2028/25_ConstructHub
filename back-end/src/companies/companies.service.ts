@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef 
 import { CompaniesRepository, CompanyRecord } from './companies.repository';
 import { RegisterCompanyDto } from './register-company.dto';
 import { UsersRepository } from '../users/users.repository';
+import { ProjectsRepository } from '../projects/projects.repository';
 import { SUBSCRIPTION_PLANS, OVERAGE_RATES } from './subscription-plans';
 
 @Injectable()
@@ -10,6 +11,8 @@ export class CompaniesService {
     private readonly repo: CompaniesRepository,
     @Inject(forwardRef(() => UsersRepository))
     private readonly usersRepo: UsersRepository,
+    @Inject(forwardRef(() => ProjectsRepository))
+    private readonly projectsRepo: ProjectsRepository,
   ) {}
 
   private validateOwnerEmailDomain(ownerEmail?: string, domain?: string) {
@@ -106,11 +109,13 @@ export class CompaniesService {
       ownerEmail: aEmail,
       phone: company.phone?.trim() || '+91 98000 00000',
       plan: company.plan || 'Basic',
-      billingCycle: 'monthly',
+      billingCycle: company.billingCycle || 'monthly',
       subscriptionStatus: 'active',
-      overageEnabled: false,
-      extraUsers: 0,
-      extraProjects: 0,
+      overageEnabled: company.overageEnabled ?? false,
+      extraUsers: company.extraUsers ?? 0,
+      extraProjects: company.extraProjects ?? 0,
+      customUserLimit: company.customUserLimit,
+      customProjectLimit: company.customProjectLimit,
       status: 'active',
       createdAt: new Date().toISOString().split('T')[0],
     });
@@ -178,8 +183,18 @@ export class CompaniesService {
         ? Math.round((planConfig.annualPrice / 12) * 100) / 100
         : planConfig.monthlyPrice;
 
-      const extraUsersCount = c.overageEnabled ? (c.extraUsers || 0) : 0;
-      const extraProjectsCount = c.overageEnabled ? (c.extraProjects || 0) : 0;
+      const projectLimit = c.customProjectLimit || planConfig.projectLimit;
+      const userLimit = c.customUserLimit || planConfig.userLimit;
+      let extraUsersCount = 0;
+      let extraProjectsCount = 0;
+      if (c.overageEnabled) {
+        const actualUsersCount = this.usersRepo && c.id ? this.usersRepo.findByCompanyId(c.id).length : 0;
+        const actualProjectsCount = this.projectsRepo && c.id ? this.projectsRepo.findByCompanyId(c.id).length : 0;
+        extraUsersCount = Math.max(0, actualUsersCount - userLimit);
+        extraProjectsCount = Math.max(0, actualProjectsCount - projectLimit);
+        if (c.extraUsers && c.extraUsers > extraUsersCount) extraUsersCount = c.extraUsers;
+        if (c.extraProjects && c.extraProjects > extraProjectsCount) extraProjectsCount = c.extraProjects;
+      }
       const companyOverageRev =
         extraUsersCount * OVERAGE_RATES.extraUserMonthly +
         extraProjectsCount * OVERAGE_RATES.extraProjectMonthly;
@@ -244,8 +259,24 @@ export class CompaniesService {
       ? Math.round((planConfig.annualPrice / 12) * 100) / 100
       : planConfig.monthlyPrice;
 
-    const extraUsers = company.overageEnabled ? (company.extraUsers || 0) : 0;
-    const extraProjects = company.overageEnabled ? (company.extraProjects || 0) : 0;
+    const projectLimit = company.customProjectLimit || planConfig.projectLimit;
+    const userLimit = company.customUserLimit || planConfig.userLimit;
+
+    let extraUsers = 0;
+    let extraProjects = 0;
+    if (company.overageEnabled) {
+      const actualUsersCount = this.usersRepo ? this.usersRepo.findByCompanyId(id).length : 0;
+      const actualProjectsCount = this.projectsRepo ? this.projectsRepo.findByCompanyId(id).length : 0;
+      extraUsers = Math.max(0, actualUsersCount - userLimit);
+      extraProjects = Math.max(0, actualProjectsCount - projectLimit);
+      if (company.extraUsers && company.extraUsers > extraUsers) {
+        extraUsers = company.extraUsers;
+      }
+      if (company.extraProjects && company.extraProjects > extraProjects) {
+        extraProjects = company.extraProjects;
+      }
+    }
+
     const userOverageFee = extraUsers * OVERAGE_RATES.extraUserMonthly;
     const projectOverageFee = extraProjects * OVERAGE_RATES.extraProjectMonthly;
     const overageRevenue = userOverageFee + projectOverageFee;
@@ -259,8 +290,8 @@ export class CompaniesService {
       plan: planName,
       planConfig: {
         ...planConfig,
-        userLimit: company.customUserLimit || planConfig.userLimit,
-        projectLimit: company.customProjectLimit || planConfig.projectLimit,
+        userLimit,
+        projectLimit,
       },
       billingCycle: company.billingCycle || 'monthly',
       subscriptionStatus: company.subscriptionStatus || 'active',
@@ -280,10 +311,32 @@ export class CompaniesService {
 
   toggleOverage(id: string, overageEnabled: boolean, usagePatch?: any): CompanyRecord {
     const existing = this.findOne(id);
+    const planName = existing.plan && SUBSCRIPTION_PLANS[existing.plan] ? existing.plan : 'Basic';
+    const planConfig = SUBSCRIPTION_PLANS[planName];
+    const projectLimit = existing.customProjectLimit || planConfig.projectLimit;
+    const userLimit = existing.customUserLimit || planConfig.userLimit;
+
+    let extraUsers = 0;
+    let extraProjects = 0;
+    if (overageEnabled) {
+      if (usagePatch?.extraUsers !== undefined) {
+        extraUsers = Math.max(0, Number(usagePatch.extraUsers) || 0);
+      } else if (this.usersRepo) {
+        const actualUsersCount = this.usersRepo.findByCompanyId(id).length;
+        extraUsers = Math.max(0, actualUsersCount - userLimit);
+      }
+      if (usagePatch?.extraProjects !== undefined) {
+        extraProjects = Math.max(0, Number(usagePatch.extraProjects) || 0);
+      } else if (this.projectsRepo) {
+        const actualProjectsCount = this.projectsRepo.findByCompanyId(id).length;
+        extraProjects = Math.max(0, actualProjectsCount - projectLimit);
+      }
+    }
+
     const updated = this.repo.update(id, {
       overageEnabled: !!overageEnabled,
-      extraUsers: overageEnabled ? Math.max(0, Number(usagePatch?.extraUsers) || 0) : 0,
-      extraProjects: overageEnabled ? Math.max(0, Number(usagePatch?.extraProjects) || 0) : 0,
+      extraUsers,
+      extraProjects,
     });
     if (!updated) throw new NotFoundException('Company record not found.');
     return updated;

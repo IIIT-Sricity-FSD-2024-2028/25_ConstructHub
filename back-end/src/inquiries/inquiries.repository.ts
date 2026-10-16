@@ -5,8 +5,10 @@ export interface InquiryRecord {
   name: string;
   email: string;
   phone: string;
+  company?: string;
+  type?: 'firm_request' | 'general_inquiry';
   message: string;
-  status: 'New' | 'Read' | 'Resolved';
+  status: 'New' | 'Read' | 'Onboarded' | 'Resolved';
   createdAt: string;
 }
 
@@ -18,6 +20,8 @@ export class InquiriesRepository {
       name: 'Rohan Sharma',
       email: 'rohan@builder.com',
       phone: '9876543210',
+      company: 'Apex Metro Works',
+      type: 'firm_request',
       message: 'We are interested in licensing Construct Hub for 50 construction sites.',
       status: 'New',
       createdAt: new Date().toISOString(),
@@ -32,11 +36,16 @@ export class InquiriesRepository {
     return this.memoryData.find((inq) => inq.id === id) || null;
   }
 
-  create(dto: { name: string; email: string; phone: string; message: string }): InquiryRecord {
+  create(dto: { name: string; email: string; phone: string; message: string; company?: string; type?: string }): InquiryRecord {
     const id = `INQ${String(this.memoryData.length + 1).padStart(3, '0')}`;
     const newInquiry: InquiryRecord = {
       id,
-      ...dto,
+      name: dto.name,
+      email: dto.email,
+      phone: dto.phone,
+      company: dto.company || '',
+      type: (dto.type as any) || (dto.company ? 'firm_request' : 'general_inquiry'),
+      message: dto.message,
       status: 'New',
       createdAt: new Date().toISOString(),
     };
@@ -44,7 +53,7 @@ export class InquiriesRepository {
     return newInquiry;
   }
 
-  updateStatus(id: string, status: 'New' | 'Read' | 'Resolved'): InquiryRecord | null {
+  updateStatus(id: string, status: 'New' | 'Read' | 'Onboarded' | 'Resolved'): InquiryRecord | null {
     const inquiry = this.findById(id);
     if (!inquiry) return null;
     inquiry.status = status;

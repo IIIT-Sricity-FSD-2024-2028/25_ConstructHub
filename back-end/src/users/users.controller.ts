@@ -72,8 +72,8 @@ export class UsersController {
     // 2. Authoritative companyId derivation
     const companyId = TenantHelper.getAuthoritativeCompanyId(user, dto.companyId);
 
-    // 3. Backend Email Domain Validation
-    if (companyId) {
+    // 3. Backend Email Domain Validation (Clients are external parties)
+    if (companyId && dto.role !== 'client') {
       const company = this.companiesService.findOne(companyId);
       const emailDomain = dto.email.split('@')[1]?.toLowerCase();
       const targetDomain = company.domain.toLowerCase();
@@ -103,6 +103,11 @@ export class UsersController {
       }
     }
 
+    // Prevent modifying user role upon edit
+    if (dto.role && dto.role !== targetUser.role && !TenantHelper.isSuperuser(user)) {
+      throw new BadRequestException('User role cannot be changed once created.');
+    }
+
     // Role escalation check on update
     if (dto.role) {
       if (dto.role === 'superuser' && targetUser.role !== 'superuser') {
@@ -113,12 +118,17 @@ export class UsersController {
       }
     }
 
+    // Prevent company admin from locking or deactivating own account
+    if (user && user.role === 'company_admin' && id === user.userId && dto.status && dto.status !== 'active') {
+      throw new BadRequestException('A company admin cannot lock or deactivate their own account.');
+    }
+
     const companyId = TenantHelper.isSuperuser(user)
       ? (dto.companyId !== undefined ? dto.companyId : targetUser.companyId)
       : (user ? user.companyId : targetUser.companyId);
 
-    // Email Domain Validation on update
-    if (dto.email && companyId) {
+    // Email Domain Validation on update (Clients are external parties)
+    if (dto.email && companyId && targetUser.role !== 'client' && dto.role !== 'client') {
       const company = this.companiesService.findOne(companyId);
       const emailDomain = dto.email.split('@')[1]?.toLowerCase();
       const targetDomain = company.domain.toLowerCase();
@@ -142,6 +152,9 @@ export class UsersController {
   remove(@Param('id') id: string, @CurrentUser() user?: UserContext) {
     const targetUser = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
+      if (user.role === 'company_admin' && id === user.userId) {
+        throw new BadRequestException('A company admin cannot delete their own account.');
+      }
       TenantHelper.validateCompanyAccess(user, targetUser.companyId);
     }
     return this.service.remove(id);

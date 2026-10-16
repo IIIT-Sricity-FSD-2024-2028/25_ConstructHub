@@ -12,7 +12,7 @@ import { JWT_SECRET } from './jwt-auth.guard';
     CompaniesModule,
     JwtModule.register({
       secret: JWT_SECRET,
-      signOptions: { expiresIn: '1h' },
+      signOptions: { expiresIn: '7d' },
     }),
   ],
   controllers: [AuthController],

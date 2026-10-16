@@ -13,6 +13,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { CompaniesModule } from './companies/companies.module';
 import { AuthModule } from './auth/auth.module';
 import { InquiriesModule } from './inquiries/inquiries.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { InquiriesModule } from './inquiries/inquiries.module';
     CompaniesModule,
     InquiriesModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
@@ -58,6 +62,7 @@ export class AppModule implements NestModule {
         { path: 'messages', method: RequestMethod.ALL },
         { path: 'messages/:id', method: RequestMethod.ALL },
         { path: 'notifications', method: RequestMethod.ALL },
+        { path: 'notifications/clear/all', method: RequestMethod.ALL },
         { path: 'notifications/:id', method: RequestMethod.ALL },
         { path: 'inquiries', method: RequestMethod.GET },
         { path: 'inquiries/:id', method: RequestMethod.PATCH },

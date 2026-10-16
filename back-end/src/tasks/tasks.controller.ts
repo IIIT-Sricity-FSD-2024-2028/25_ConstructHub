@@ -24,7 +24,7 @@ export class TasksController {
       return this.service.findAll();
     }
     if (TenantHelper.isClient(user)) {
-      throw new ForbiddenException('Clients do not have access to internal site tasks.');
+      return [];
     }
     return this.service.findByCompanyId(user.companyId);
   }

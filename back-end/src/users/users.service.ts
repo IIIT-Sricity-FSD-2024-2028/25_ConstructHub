@@ -3,6 +3,7 @@ import { UsersRepository } from './users.repository';
 import { CompaniesRepository } from '../companies/companies.repository';
 import { SUBSCRIPTION_PLANS } from '../companies/subscription-plans';
 import { randomUUID } from 'crypto';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UsersService {
@@ -66,7 +67,11 @@ export class UsersService {
       }
     }
 
-    const record = { ...data, id: data.id || randomUUID() };
+    let password = data.password || '123456';
+    if (!password.startsWith('$2a$') && !password.startsWith('$2b$')) {
+      password = bcrypt.hashSync(password, 10);
+    }
+    const record = { ...data, password, id: data.id || randomUUID() };
     return this.repo.create(record);
   }
 
@@ -79,7 +84,11 @@ export class UsersService {
         throw new BadRequestException(`Email address "${data.email}" is already registered.`);
       }
     }
-    return this.repo.update(id, data);
+    const payload = { ...data };
+    if (payload.password && !payload.password.startsWith('$2a$') && !payload.password.startsWith('$2b$')) {
+      payload.password = bcrypt.hashSync(payload.password, 10);
+    }
+    return this.repo.update(id, payload);
   }
 
   remove(id: string) {

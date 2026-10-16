@@ -96,13 +96,16 @@ export class ProjectsService {
       }
     }
 
-    if (project && project.clientId) {
-      const remaining = this.repo.findAll().filter(p => p.clientId === project.clientId);
-      if (remaining.length === 0) {
-        try {
-          this.usersService.update(project.clientId, { status: 'inactive' });
-        } catch (e) {
-          // ignore if client record not found
+    if (project) {
+      const clientIdToDelete = project.clientId || (project.clientEmail ? this.usersService.findByEmail(project.clientEmail)?.id : null);
+      if (clientIdToDelete) {
+        const remaining = this.repo.findAll().filter(p => p.id !== id && (p.clientId === clientIdToDelete || p.clientEmail === project.clientEmail));
+        if (remaining.length === 0) {
+          try {
+            this.usersService.remove(clientIdToDelete);
+          } catch (e) {
+            // ignore if client record not found or already removed
+          }
         }
       }
     }

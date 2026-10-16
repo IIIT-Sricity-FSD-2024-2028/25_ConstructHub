@@ -47,11 +47,55 @@ export class MessagesRepository {
       time: '11:30 AM',
       date: '2026-03-24',
     },
+    {
+      id: 'M005',
+      companyId: 'COMP001',
+      from: 'U005',
+      fromName: 'Vikram Patel',
+      to: 'U002',
+      toName: 'Rajesh Kumar',
+      text: 'Hi Rajesh, please let me know when we can expect the structural steel framework update.',
+      time: '03:20 PM',
+      date: '2026-03-23',
+    },
+    {
+      id: 'M006',
+      companyId: 'COMP001',
+      from: 'U002',
+      fromName: 'Rajesh Kumar',
+      to: 'U005',
+      toName: 'Vikram Patel',
+      text: 'Hello Vikram! Steel framework installation is scheduled starting March 10th.',
+      time: '03:45 PM',
+      date: '2026-03-23',
+    },
+    {
+      id: 'M007',
+      companyId: 'COMP001',
+      from: 'U004',
+      fromName: 'Amit Verma',
+      to: 'U002',
+      toName: 'Rajesh Kumar',
+      text: 'Rajesh, we recorded the 500 bags OPC Grade 53 cement expense (₹4.50L) for Skyline Tower.',
+      time: '11:30 AM',
+      date: '2026-03-23',
+    },
+    {
+      id: 'M008',
+      companyId: 'COMP001',
+      from: 'U002',
+      fromName: 'Rajesh Kumar',
+      to: 'U004',
+      toName: 'Amit Verma',
+      text: 'Acknowledged Amit. Delivery challans and weighbridge slips are verified on site.',
+      time: '11:50 AM',
+      date: '2026-03-23',
+    },
   ];
 
   private getCompanyId(item: any) {
     if (item.companyId) return item.companyId;
-    if (item.from === 'U005' || item.to === 'U005' || item.from === 'U001' || item.to === 'U001' || item.from === 'U002' || item.to === 'U002' || item.from === 'U003' || item.to === 'U003') return 'COMP001';
+    if (item.from === 'U005' || item.to === 'U005' || item.from === 'U004' || item.to === 'U004' || item.from === 'U001' || item.to === 'U001' || item.from === 'U002' || item.to === 'U002' || item.from === 'U003' || item.to === 'U003') return 'COMP001';
     return 'COMP002';
   }
 
@@ -73,7 +117,7 @@ export class MessagesRepository {
   }
 
   create(record: any) {
-    this.memoryData.unshift(record);
+    this.memoryData.push(record);
     return record;
   }
   update(id: string, record: any) {

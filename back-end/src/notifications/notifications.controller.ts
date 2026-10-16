@@ -17,14 +17,14 @@ export class NotificationsController {
 
   @Get()
   @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
-  @ApiOperation({ summary: 'Retrieve notifications (Superuser: all, Users: user/company notifications)' })
+  @ApiOperation({ summary: 'Retrieve notifications' })
   @ApiResponse({ status: 200, description: 'List of notifications.' })
   findAll(@CurrentUser() user?: UserContext) {
     if (TenantHelper.isSuperuser(user) || !user) {
       return this.service.findAll();
     }
     return this.service.findAll().filter(
-      (n) => n.userId === user.userId || (n.companyId && n.companyId === user.companyId)
+      (n) => n.userId === user.userId
     );
   }
 
@@ -77,6 +77,22 @@ export class NotificationsController {
     return this.service.update(id, payload);
   }
 
+  @Delete()
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @ApiOperation({ summary: 'Clear all notifications for the current user' })
+  @ApiResponse({ status: 200, description: 'All notifications cleared successfully.' })
+  clearAll(@CurrentUser() user?: UserContext) {
+    return this.service.clearForUser(user);
+  }
+
+  @Delete('clear/all')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @ApiOperation({ summary: 'Clear all notifications for the current user' })
+  @ApiResponse({ status: 200, description: 'All notifications cleared successfully.' })
+  clearAllAlias(@CurrentUser() user?: UserContext) {
+    return this.service.clearForUser(user);
+  }
+
   @Delete(':id')
   @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
   @ApiOperation({ summary: 'Delete a notification' })
@@ -86,8 +102,8 @@ export class NotificationsController {
   remove(@Param('id') id: string, @CurrentUser() user?: UserContext) {
     const existing = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
-      if (existing.userId !== user.userId) {
-        TenantHelper.validateCompanyAccess(user, existing.companyId);
+      if (existing.userId && existing.userId !== user.userId) {
+        throw new ForbiddenException('Access denied. You can only delete your own notifications.');
       }
     }
     return this.service.remove(id);

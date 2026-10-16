@@ -19,7 +19,11 @@ export class ProjectsController {
     private readonly usersService: UsersService,
   ) {}
 
-  private validateProjectUserAssignments(dto: any, projectCompanyId: string) {
+  private validateProjectUserAssignments(
+    dto: any,
+    projectCompanyId: string,
+    excludeProjectId?: string,
+  ) {
     if (!projectCompanyId) return;
 
     // 1. Manager Assignment Validation
@@ -37,7 +41,7 @@ export class ProjectsController {
       }
     }
 
-    // 2. Client Assignment Validation
+    // 2. Client Assignment Validation (Enforce 1 project per client)
     if (dto.clientId) {
       const clientUser = this.usersService.findOne(dto.clientId);
       if (clientUser.companyId && clientUser.companyId !== projectCompanyId) {
@@ -48,6 +52,28 @@ export class ProjectsController {
       if (clientUser.role !== 'client') {
         throw new BadRequestException(
           `Assigned user (${clientUser.name}) must have the client role (actual role: ${clientUser.role}).`,
+        );
+      }
+      const existingClientProject = this.service
+        .findAll()
+        .find((p) => p.clientId === dto.clientId && p.id !== excludeProjectId);
+      if (existingClientProject) {
+        throw new BadRequestException(
+          `Client (${clientUser.name}) is already assigned to project "${existingClientProject.name}". A client can only have one project.`,
+        );
+      }
+    }
+    if (dto.clientEmail) {
+      const existingWithEmail = this.service
+        .findAll()
+        .find(
+          (p) =>
+            (p.clientEmail || '').toLowerCase() === dto.clientEmail.toLowerCase() &&
+            p.id !== excludeProjectId,
+        );
+      if (existingWithEmail) {
+        throw new BadRequestException(
+          `Client (${dto.clientEmail}) is already assigned to project "${existingWithEmail.name}". A client can only have one project.`,
         );
       }
     }
@@ -94,6 +120,9 @@ export class ProjectsController {
     if (TenantHelper.isClient(user)) {
       return this.service.findAll().filter((p) => p.clientId === user.userId);
     }
+    if (user.role === 'finance_manager') {
+      return this.service.findByCompanyId(user.companyId).filter((p) => p.financeManagerId === user.userId);
+    }
     return this.service.findByCompanyId(user.companyId);
   }
 
@@ -110,6 +139,11 @@ export class ProjectsController {
         if (project.clientId !== user.userId) {
           throw new ForbiddenException('Access denied. Client can only access assigned projects.');
         }
+      } else if (user.role === 'finance_manager') {
+        TenantHelper.validateCompanyAccess(user, project.companyId);
+        if (project.financeManagerId !== user.userId) {
+          throw new ForbiddenException('Access denied. Finance Manager can only access assigned projects.');
+        }
       } else {
         TenantHelper.validateCompanyAccess(user, project.companyId);
       }
@@ -125,6 +159,23 @@ export class ProjectsController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   create(@Body() dto: CreateProjectDto, @CurrentUser() user?: UserContext) {
     const companyId = TenantHelper.getAuthoritativeCompanyId(user, dto.companyId);
+
+    if (companyId) {
+      const companyUsers = this.usersService.findByCompanyId(companyId);
+      const hasPM = companyUsers.some((u) => u.role === 'project_manager');
+      const hasFM = companyUsers.some((u) => u.role === 'finance_manager');
+      const hasSE = companyUsers.some((u) => u.role === 'site_engineer');
+      if (!hasPM || !hasFM || !hasSE) {
+        const missingRoles: string[] = [];
+        if (!hasPM) missingRoles.push('Project Manager');
+        if (!hasFM) missingRoles.push('Finance Manager');
+        if (!hasSE) missingRoles.push('Site Engineer');
+        throw new BadRequestException(
+          `Company setup incomplete: You must create at least one ${missingRoles.join(', ')} before creating projects.`,
+        );
+      }
+    }
+
     this.validateProjectUserAssignments(dto, companyId);
     const payload = { ...dto, companyId };
     return this.service.create(payload);
@@ -146,7 +197,7 @@ export class ProjectsController {
       ? (dto.companyId !== undefined ? dto.companyId : existing.companyId)
       : (user ? user.companyId : existing.companyId);
 
-    this.validateProjectUserAssignments(dto, companyId);
+    this.validateProjectUserAssignments(dto, companyId, id);
 
     const payload = { ...dto, companyId };
     return this.service.update(id, payload);

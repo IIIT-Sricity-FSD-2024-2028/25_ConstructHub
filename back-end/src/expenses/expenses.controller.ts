@@ -24,7 +24,10 @@ export class ExpensesController {
       return this.service.findAll();
     }
     if (TenantHelper.isClient(user)) {
-      throw new ForbiddenException('Clients do not have access to internal company expenses.');
+      return [];
+    }
+    if (user.role === 'finance_manager') {
+      return this.service.findByFinanceManager(user.companyId, user.userId);
     }
     return this.service.findByCompanyId(user.companyId);
   }
@@ -41,7 +44,15 @@ export class ExpensesController {
     }
     const expense = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
-      TenantHelper.validateCompanyAccess(user, expense.companyId);
+      if (user.role === 'finance_manager') {
+        TenantHelper.validateCompanyAccess(user, expense.companyId);
+        const myExpenses = this.service.findByFinanceManager(user.companyId, user.userId);
+        if (!myExpenses.some((e) => e.id === expense.id)) {
+          throw new ForbiddenException('Access denied. Finance Manager can only view expenses for assigned projects.');
+        }
+      } else {
+        TenantHelper.validateCompanyAccess(user, expense.companyId);
+      }
     }
     return expense;
   }

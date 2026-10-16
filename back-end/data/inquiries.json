@@ -1,0 +1,11 @@
+[
+  {
+    "id": "INQ001",
+    "name": "Rohan Sharma",
+    "email": "rohan@builder.com",
+    "phone": "9876543210",
+    "message": "We are interested in licensing Construct Hub for 50 construction sites.",
+    "status": "New",
+    "createdAt": "2026-10-16T06:09:40.876Z"
+  }
+]
