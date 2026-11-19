@@ -1,10 +1,16 @@
+import { attachStore } from '../utils/json-store';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class TasksRepository {
+  constructor() {
+    attachStore('tasks', this.memoryData, () => this.memoryData, (v) => { this.memoryData = v; });
+  }
+
   private memoryData: any[] = [
     {
       id: 'T001',
+      milestoneId: 'MS001',
       title: 'Foundation Concrete Pouring',
       companyId: 'COMP001',
       projectId: 'P001',
@@ -12,15 +18,16 @@ export class TasksRepository {
       assignedTo: 'U003',
       assignedName: 'Priya Sharma',
       priority: 'High',
-      status: 'In Progress',
-      progress: 75,
+      status: 'Completed',
+      progress: 100,
       startDate: '2026-03-01',
       deadline: '2026-03-08',
       description: 'Pour concrete for blocks A and B.',
-      remarks: '75% done. Block A complete.',
+      remarks: 'Blocks A and B poured and cured.',
     },
     {
       id: 'T002',
+      milestoneId: 'MS002',
       title: 'Steel Framework Installation',
       companyId: 'COMP001',
       projectId: 'P001',
@@ -37,6 +44,7 @@ export class TasksRepository {
     },
     {
       id: 'T003',
+      milestoneId: 'MS003',
       title: 'Electrical Wiring - Floor 2',
       companyId: 'COMP001',
       projectId: 'P002',
@@ -53,6 +61,7 @@ export class TasksRepository {
     },
     {
       id: 'T004',
+      milestoneId: 'MS003',
       title: 'Plumbing Line Inspection',
       companyId: 'COMP001',
       projectId: 'P002',
@@ -69,6 +78,7 @@ export class TasksRepository {
     },
     {
       id: 'T005',
+      milestoneId: 'MS005',
       title: 'Pier Cap Casting - Zone 1',
       companyId: 'COMP002',
       projectId: 'P003',
@@ -85,6 +95,7 @@ export class TasksRepository {
     },
     {
       id: 'T006',
+      milestoneId: 'MS006',
       title: 'Viaduct Girder Launching',
       companyId: 'COMP002',
       projectId: 'P003',
@@ -101,6 +112,7 @@ export class TasksRepository {
     },
     {
       id: 'T007',
+      milestoneId: 'MS007',
       title: 'Land Clearing & Excavation',
       companyId: 'COMP002',
       projectId: 'P004',
@@ -117,6 +129,7 @@ export class TasksRepository {
     },
     {
       id: 'T008',
+      milestoneId: 'MS008',
       title: 'Drainage Pipeline Installation',
       companyId: 'COMP002',
       projectId: 'P004',

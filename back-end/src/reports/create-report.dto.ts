@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsNumber, IsOptional, IsArray, ValidateNested, Min, Max } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsInt, IsOptional, IsArray, ValidateNested, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class MaterialDto {
@@ -114,4 +114,25 @@ export class CreateReportDto {
   @IsString()
   @IsOptional()
   remarks?: string;
+
+  @ApiPropertyOptional({ description: 'Milestone this report belongs to (required on projects that have milestones)', example: 'MS001' })
+  @IsString()
+  @IsOptional()
+  milestoneId?: string;
+
+  @ApiPropertyOptional({ description: 'Task this report belongs to (must be a task of the milestone)', example: 'T001' })
+  @IsString()
+  @IsOptional()
+  taskId?: string;
+
+  @ApiPropertyOptional({ description: 'Site weather (required on milestone projects)', example: 'Sunny' })
+  @IsString()
+  @IsOptional()
+  weather?: string;
+
+  @ApiPropertyOptional({ description: 'Workers on site that day (required on milestone projects)', example: 18 })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  laborCount?: number;
 }

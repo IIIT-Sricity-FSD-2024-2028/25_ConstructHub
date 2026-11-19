@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate, Link } from 'react-router-dom';
 import {
   CheckSquare,
   Calendar,
-  Clock,
-  Eye,
   Edit3
 } from 'lucide-react';
 import { api } from '../../../services/api';
@@ -13,8 +11,6 @@ import {
   statusBadge,
   priorityBadge
 } from '../../../services/utils';
-import Button from '../../../components/common/Button';
-
 export default function SiteEngineerMyTasks() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
@@ -26,19 +22,20 @@ export default function SiteEngineerMyTasks() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
 
-  useEffect(() => {
-    loadTasks();
-  }, [user]);
+
 
   async function loadTasks() {
     if (!user) return;
-    const [allTasks, allProjects] = await Promise.all([
+    const [allTasks, allProjects, allMilestones] = await Promise.all([
       api.getTasks(user.companyId),
-      api.getProjects(user.companyId)
+      api.getProjects(user.companyId),
+      api.getMilestones()
     ]);
+    const msById = Object.fromEntries((Array.isArray(allMilestones) ? allMilestones : []).map((m) => [m.id, m]));
     const myTasks = (allTasks || []).filter((t) => t.assignedTo === user.id);
     const enrichedTasks = myTasks.map((t) => ({
       ...t,
+      milestone: t.milestoneId ? msById[t.milestoneId] : null,
       projectName: t.projectName || (allProjects || []).find((p) => p.id === t.projectId)?.name || 'Commercial Construction Project'
     }));
     setTasks(enrichedTasks);
@@ -46,6 +43,10 @@ export default function SiteEngineerMyTasks() {
     const myProjectIds = new Set(myTasks.map((t) => t.projectId));
     setProjects((allProjects || []).filter((p) => myProjectIds.has(p.id)));
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadTasks());
+  }, [user]);
 
   const filteredTasks = tasks.filter((t) => {
     const matchesSearch =
@@ -153,6 +154,9 @@ export default function SiteEngineerMyTasks() {
 
                 <div className="task-card-meta" style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0 10px' }}>
                   Project: {t.projectName}
+                  {t.milestone && (
+                    <> · Milestone: <strong>{t.milestone.name}</strong> (due {formatDate(t.milestone.deadline)})</>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>

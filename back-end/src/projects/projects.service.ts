@@ -58,7 +58,23 @@ export class ProjectsService {
   update(id: string, data: any) {
     const existing = this.findOne(id);
     if (!data || Object.keys(data).length === 0) throw new BadRequestException('Payload cannot be empty.');
-    
+
+    // The advance gate opens only when Bill #1 is fully paid (BillsService), never by editing the status by hand.
+    if (existing.status === 'Awaiting Advance' && data && data.status && data.status !== 'Awaiting Advance') {
+      throw new BadRequestException('This project is waiting for the mobilization advance. It starts automatically when the client pays Bill #1.');
+    }
+
+    // Once a project has milestones its progress is CALCULATED from tasks and milestone weights
+    // (see ProgressService). Typed-in values are ignored so the figure cannot be inflated by hand.
+    if (existing.progressMode === 'milestones') {
+      data = { ...data };
+      for (const key of ['progress', 'milestoneCompletion', 'weightAllocated', 'progressMode']) delete data[key];
+      if (data.status === 'Completed' && Number(existing.progress) < 100) {
+        throw new BadRequestException('A project can only be marked completed when all of its milestones are complete (progress is calculated from milestones).');
+      }
+      if (Object.keys(data).length === 0) return existing;
+    }
+
     // Validate the resulting state after applying updates
     const merged = { ...existing, ...data };
     this.validateBusinessRules(merged);
@@ -100,7 +116,11 @@ export class ProjectsService {
       const clientIdToDelete = project.clientId || (project.clientEmail ? this.usersService.findByEmail(project.clientEmail)?.id : null);
       if (clientIdToDelete) {
         const remaining = this.repo.findAll().filter(p => p.id !== id && (p.clientId === clientIdToDelete || p.clientEmail === project.clientEmail));
-        if (remaining.length === 0) {
+        // Clients are platform-level users. Only clean up clients this company created itself;
+        // self-registered clients keep their account even when a project is deleted.
+        const clientUser = this.usersService.findByEmail(project.clientEmail || '') || (() => { try { return this.usersService.findOne(clientIdToDelete); } catch { return null; } })();
+        const ownedByThisCompany = !!clientUser && clientUser.invitedByCompanyId === project.companyId;
+        if (remaining.length === 0 && ownedByThisCompany) {
           try {
             this.usersService.remove(clientIdToDelete);
           } catch (e) {

@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, Link, useOutletContext } from 'react-router-dom';
 import {
   ArrowLeft,
-  Calendar,
-  CheckSquare,
   Edit3
 } from 'lucide-react';
 import { api } from '../../../services/api';
@@ -12,8 +10,6 @@ import {
   statusBadge,
   priorityBadge
 } from '../../../services/utils';
-import Button from '../../../components/common/Button';
-
 export default function SiteEngineerTaskDetail() {
   const { id: paramId } = useParams();
   const [searchParams] = useSearchParams();
@@ -23,10 +19,6 @@ export default function SiteEngineerTaskDetail() {
 
   const [task, setTask] = useState(null);
   const [project, setProject] = useState(null);
-
-  useEffect(() => {
-    loadTask();
-  }, [id, user]);
 
   async function loadTask() {
     if (!id || !user) return;
@@ -41,6 +33,10 @@ export default function SiteEngineerTaskDetail() {
       setProject(foundProject || null);
     }
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadTask());
+  }, [id, user]);
 
   if (!task) {
     return (

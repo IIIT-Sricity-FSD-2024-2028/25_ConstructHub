@@ -1,14 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import {
   CheckSquare,
-  Clock,
   CheckCircle2,
   FileText,
   Edit3,
-  Send,
-  Calendar,
-  AlertCircle
+  Calendar
 } from 'lucide-react';
 import { api } from '../../../services/api';
 import {
@@ -26,9 +23,7 @@ export default function SiteEngineerDashboard() {
   const [myReports, setMyReports] = useState([]);
   const [myProjects, setMyProjects] = useState([]);
 
-  useEffect(() => {
-    loadData();
-  }, [user]);
+
 
   async function loadData() {
     if (!user) return;
@@ -54,8 +49,11 @@ export default function SiteEngineerDashboard() {
     setMyReports(reports);
   }
 
+  useEffect(() => {
+    void Promise.resolve().then(() => loadData());
+  }, [user]);
+
   const completedCount = myTasks.filter((t) => t.status === 'Completed').length;
-  const pendingCount = myTasks.filter((t) => t.status !== 'Completed').length;
 
   return (
     <div className="page-container">
@@ -120,45 +118,58 @@ export default function SiteEngineerDashboard() {
 
       {/* Active Work Sites (Engineering Pool Overview) */}
       {myProjects.length > 0 && (
-        <div className="card" style={{ marginBottom: '20px' }}>
-          <div className="section-title" style={{ marginBottom: '12px', fontSize: 15, fontWeight: 700 }}>
+        <div style={{ marginBottom: '22px' }}>
+          <div className="section-title" style={{ marginBottom: '12px', fontSize: 17, fontWeight: 700 }}>
             Active Project Deployments ({myProjects.length})
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
             {myProjects.map((proj) => {
               const projTasks = myTasks.filter((t) => t.projectId === proj.id);
               const doneCount = projTasks.filter((t) => t.status === 'Completed').length;
+              const openCount = projTasks.length - doneCount;
               const totalTaskProgress = projTasks.reduce((sum, t) => {
                 const p = t.status === 'Completed' ? 100 : Number(t.progress) || 0;
                 return sum + p;
               }, 0);
               const avgTaskProgress = projTasks.length > 0 ? Math.round(totalTaskProgress / projTasks.length) : 0;
+              const r = 24;
+              const circ = 2 * Math.PI * r;
+              const offset = circ * (1 - avgTaskProgress / 100);
 
               return (
-                <div
+                <Link
                   key={proj.id}
-                  style={{
-                    background: 'var(--bg)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius)',
-                    padding: '12px 14px'
-                  }}
+                  to="/site-engineer/my-tasks"
+                  className="portfolio-ring-card"
+                  style={{ textDecoration: 'none', color: 'inherit' }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                    <strong style={{ fontSize: 14 }}>{proj.name}</strong>
-                    <span className={`badge ${statusBadge(proj.status)}`}>{proj.status}</span>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-head)', fontSize: 16.5, fontWeight: 700, lineHeight: 1.3 }}>{proj.name}</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 3 }}>
+                          {proj.location || 'Active Site'} · PM: {proj.managerName || 'Operations Manager'}
+                        </div>
+                      </div>
+                      <span className={`badge ${statusBadge(proj.status)}`}>{proj.status}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                      <svg width="60" height="60" viewBox="0 0 60 60" style={{ flexShrink: 0, transform: 'rotate(-90deg)' }} aria-hidden="true">
+                        <circle cx="30" cy="30" r={r} fill="none" stroke="#e5e7eb" strokeWidth="6" />
+                        <circle cx="30" cy="30" r={r} fill="none" stroke="var(--primary)" strokeWidth="6" strokeLinecap="round" strokeDasharray={circ.toFixed(2)} strokeDashoffset={offset.toFixed(2)} />
+                      </svg>
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-head)', fontSize: 15.5, fontWeight: 700 }}>{avgTaskProgress}% avg completion</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>{doneCount} of {projTasks.length} assigned task(s) done</div>
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-                    Location: {proj.location || 'Active Site'} · PM: {proj.managerName || 'Operations Manager'}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, paddingTop: 12, borderTop: '1px solid var(--border-light)' }}>
+                    <div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Your Tasks</div><div style={{ fontFamily: 'var(--font-head)', fontSize: 14.5, fontWeight: 700 }}>{projTasks.length}</div></div>
+                    <div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Done</div><div style={{ fontFamily: 'var(--font-head)', fontSize: 14.5, fontWeight: 700, color: 'var(--green)' }}>{doneCount}</div></div>
+                    <div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Open</div><div style={{ fontFamily: 'var(--font-head)', fontSize: 14.5, fontWeight: 700 }}>{openCount}</div></div>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                    <span>Your Tasks: <strong>{doneCount}/{projTasks.length} done</strong></span>
-                    <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{avgTaskProgress}% avg completion</span>
-                  </div>
-                  <div className="progress-track" style={{ height: 6 }}>
-                    <div className="progress-fill" style={{ width: `${avgTaskProgress}%`, background: 'var(--primary)' }} />
-                  </div>
-                </div>
+                </Link>
               );
             })}
           </div>

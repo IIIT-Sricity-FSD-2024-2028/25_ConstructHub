@@ -68,4 +68,9 @@ export class CreateTaskDto {
   @IsString()
   @IsOptional()
   remarks?: string;
+
+  @ApiPropertyOptional({ description: 'Milestone this task belongs to (null to unassign)', example: 'MS001' })
+  @IsString()
+  @IsOptional()
+  milestoneId?: string | null;
 }

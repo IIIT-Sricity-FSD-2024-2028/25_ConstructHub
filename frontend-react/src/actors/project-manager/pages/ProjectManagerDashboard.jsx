@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import LiveSummary from '../../../components/dashboard/LiveSummary';
+import { useState, useEffect } from 'react';
 import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import {
   Folder,
@@ -6,8 +7,6 @@ import {
   Clock,
   DollarSign,
   Users,
-  Eye,
-  Plus,
   AlertCircle
 } from 'lucide-react';
 import { api } from '../../../services/api';
@@ -31,6 +30,7 @@ export default function ProjectManagerDashboard() {
 
   const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [milestones, setMilestones] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
   const [engineers, setEngineers] = useState([]);
   const [company, setCompany] = useState(null);
@@ -61,6 +61,7 @@ export default function ProjectManagerDashboard() {
   const [taskForm, setTaskForm] = useState({
     title: '',
     projectId: '',
+    milestoneId: '',
     engineerId: '',
     startDate: '',
     deadline: '',
@@ -308,6 +309,7 @@ export default function ProjectManagerDashboard() {
       const eng = engineers.find((e) => e.id === taskForm.engineerId);
 
       const newTask = await api.createTask({
+        milestoneId: taskForm.milestoneId || null,
         title: taskForm.title.trim(),
         projectId: taskForm.projectId,
         projectName: proj ? proj.name : '',
@@ -321,6 +323,10 @@ export default function ProjectManagerDashboard() {
         description: taskForm.description.trim(),
         remarks: ''
       });
+      if (newTask && newTask.error) {
+        setTaskErrors({ form: newTask.message });
+        return;
+      }
 
       // Notify engineer
       await api.createNotification({
@@ -334,6 +340,7 @@ export default function ProjectManagerDashboard() {
       setTaskForm({
         title: '',
         projectId: '',
+        milestoneId: '',
         engineerId: '',
         startDate: '',
         deadline: '',
@@ -358,11 +365,11 @@ export default function ProjectManagerDashboard() {
           <Button variant="secondary" onClick={() => setIsAddTaskOpen(true)}>
             + Add Task
           </Button>
-          <Button variant="primary" onClick={() => setIsAddProjectOpen(true)}>
-            + Add Project
-          </Button>
+
         </div>
       </div>
+
+      <LiveSummary />
 
       {/* Stats Grid */}
       <div className="stats-grid" style={{ marginBottom: '20px' }}>
@@ -873,7 +880,11 @@ export default function ProjectManagerDashboard() {
               <select
                 className={`form-select ${taskErrors.projectId ? 'input-error' : ''}`}
                 value={taskForm.projectId}
-                onChange={(e) => setTaskForm({ ...taskForm, projectId: e.target.value })}
+                onChange={(e) => {
+                  const nextPid = e.target.value;
+                  const firstOpenMs = milestones.find((m) => m.projectId === nextPid && m.status !== 'Completed');
+                  setTaskForm({ ...taskForm, projectId: nextPid, milestoneId: firstOpenMs ? firstOpenMs.id : '' });
+                }}
               >
                 <option value="">Select project</option>
                 {projects.map((p) => (
@@ -883,6 +894,22 @@ export default function ProjectManagerDashboard() {
                 ))}
               </select>
               {taskErrors.projectId && <span className="field-error">{taskErrors.projectId}</span>}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Milestone <span className="req">*</span></label>
+              <select
+                className="form-select"
+                value={taskForm.milestoneId || ''}
+                onChange={(e) => setTaskForm({ ...taskForm, milestoneId: e.target.value })}
+              >
+                <option value="">Select milestone</option>
+                {milestones
+                  .filter((m) => m.projectId === taskForm.projectId && m.status !== 'Completed')
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+              </select>
             </div>
 
             <div className="form-group">

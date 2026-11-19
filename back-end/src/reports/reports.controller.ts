@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Body, Patch, Param, Delete,
+  Controller, Get, Post, Body, Patch, Param, Delete, Query,
   UseGuards, UseInterceptors, UploadedFiles,
   BadRequestException, Req, ForbiddenException,
 } from '@nestjs/common';
@@ -42,7 +42,19 @@ export class ReportsController {
       const projectIds = new Set(clientProjects.map(p => p.id));
       return this.service.findAll().filter(r => projectIds.has(r.projectId));
     }
+    if (user.role === 'finance_manager') {
+      // A Finance Manager reads the reports (the proof behind stage bills) of the projects they run, nothing else.
+      const mine = new Set(this.projectsService.findAll().filter((p) => p.financeManagerId === user.userId).map((p) => p.id));
+      return this.service.findByCompanyId(user.companyId).filter((r) => mine.has(r.projectId));
+    }
     return this.service.findByCompanyId(user.companyId);
+  }
+
+  @Get('stock-available')
+  @Roles('site_engineer')
+  @ApiOperation({ summary: 'Material issued to the calling engineer on a project and not yet reported as used' })
+  stockAvailable(@Query('projectId') projectId: string, @CurrentUser() user: UserContext) {
+    return this.service.stockAvailable(user, projectId);
   }
 
   @Get(':id')
@@ -62,6 +74,9 @@ export class ReportsController {
         }
       } else {
         TenantHelper.validateCompanyAccess(user, report.companyId);
+        if (user.role === 'finance_manager' && this.projectsService.findOne(report.projectId).financeManagerId !== user.userId) {
+          throw new ForbiddenException('Access denied. A Finance Manager can only view reports of the projects they run.');
+        }
       }
     }
     return report;
@@ -76,7 +91,7 @@ export class ReportsController {
   create(@Body() dto: CreateReportDto, @CurrentUser() user?: UserContext) {
     const companyId = TenantHelper.getAuthoritativeCompanyId(user, dto.companyId);
     const payload = { ...dto, companyId };
-    return this.service.create(payload);
+    return this.service.create(payload, user);
   }
 
   @Post('upload')
@@ -156,7 +171,7 @@ export class ReportsController {
       : (user ? user.companyId : existing.companyId);
 
     const payload = { ...dto, companyId };
-    return this.service.update(id, payload);
+    return this.service.update(id, payload, user);
   }
 
   @Delete(':id')

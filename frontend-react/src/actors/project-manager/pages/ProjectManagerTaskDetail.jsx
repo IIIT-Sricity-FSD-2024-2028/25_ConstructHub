@@ -1,12 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
 import {
-  ArrowLeft,
-  CheckSquare,
-  Users,
-  Calendar,
-  Clock,
-  Edit3
+  ArrowLeft
 } from 'lucide-react';
 import { api } from '../../../services/api';
 import {
@@ -25,9 +20,7 @@ export default function ProjectManagerTaskDetail() {
 
   const [task, setTask] = useState(null);
 
-  useEffect(() => {
-    loadTask();
-  }, [id, user]);
+
 
   async function loadTask() {
     if (!id || !user) return;
@@ -35,6 +28,10 @@ export default function ProjectManagerTaskDetail() {
     const found = (allTasks || []).find((t) => t.id === id);
     setTask(found || null);
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadTask());
+  }, [id, user]);
 
   if (!task) {
     return (

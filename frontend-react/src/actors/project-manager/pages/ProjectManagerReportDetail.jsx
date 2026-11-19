@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   ArrowLeft,
   Camera,
-  AlertTriangle,
-  FileText
+  AlertTriangle
 } from 'lucide-react';
-import { api } from '../../../services/api';
+import { api, API_ORIGIN } from '../../../services/api';
 import {
   formatDate,
   statusBadge,
@@ -23,9 +22,7 @@ export default function ProjectManagerReportDetail() {
 
   const [report, setReport] = useState(null);
 
-  useEffect(() => {
-    loadReport();
-  }, [id, user]);
+
 
   async function loadReport() {
     if (!id || !user) return;
@@ -33,6 +30,10 @@ export default function ProjectManagerReportDetail() {
     const found = (allReports || []).find((r) => r.id === id);
     setReport(found || null);
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadReport());
+  }, [id, user]);
 
   if (!report) {
     return (
@@ -204,7 +205,7 @@ export default function ProjectManagerReportDetail() {
                 }}
               >
                 <img
-                  src={url.startsWith('http') ? url : `http://localhost:3000${url}`}
+                  src={url.startsWith('http') ? url : `${API_ORIGIN}${url}`}
                   alt={`Site photo ${idx + 1}`}
                   style={{ width: '100%', height: '140px', objectFit: 'cover', display: 'block' }}
                   onError={(e) => {

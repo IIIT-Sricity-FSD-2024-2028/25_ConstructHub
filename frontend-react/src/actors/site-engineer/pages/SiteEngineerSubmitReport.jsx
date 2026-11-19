@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   FileText,
@@ -12,7 +12,7 @@ import {
   AlertCircle,
   X
 } from 'lucide-react';
-import { api } from '../../../services/api';
+import { api, API_ORIGIN } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
@@ -47,9 +47,15 @@ export default function SiteEngineerSubmitReport() {
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [engineerTasks, setEngineerTasks] = useState([]);
 
-  useEffect(() => {
-    loadProjects();
-  }, [user]);
+  // Milestone projects: the report is tied to a milestone (and task), records weather and labor,
+  // and may only declare material that Site Stock issued to this engineer. Progress is not typed in.
+  const [milestones, setMilestones] = useState([]);
+  const [milestoneId, setMilestoneId] = useState('');
+  const [taskId, setTaskId] = useState('');
+  const [weather, setWeather] = useState('');
+  const [laborCount, setLaborCount] = useState('');
+  const [stockItems, setStockItems] = useState([]);
+  const milestoneMode = milestones.length > 0;
 
   async function loadProjects() {
     if (!user) return;
@@ -75,6 +81,37 @@ export default function SiteEngineerSubmitReport() {
     if (assignedProjects && assignedProjects.length > 0) {
       setProjectId(assignedProjects[0].id);
     }
+  }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadProjects());
+  }, [user]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    let live = true;
+    Promise.all([api.getProjectProgress(projectId), api.getStockAvailable(projectId)]).then(([prog, stock]) => {
+      if (!live) return;
+      setMilestones(prog && !prog.error ? (prog.milestones || []).filter((m) => m.status !== 'Completed') : []);
+      setStockItems(Array.isArray(stock) ? stock : []);
+      setMilestoneId('');
+      setTaskId('');
+      setMaterials([{ name: '', qty: '', unit: '' }]);
+    });
+    return () => { live = false; };
+  }, [projectId]);
+
+  const milestoneTasks = engineerTasks.filter((t) => t.projectId === projectId && t.milestoneId === milestoneId);
+  const linkedProgress = (() => {
+    if (taskId) return Number(engineerTasks.find((t) => t.id === taskId)?.progress) || 0;
+    return Number(milestones.find((m) => m.id === milestoneId)?.progress) || 0;
+  })();
+
+  function pickStock(index, key) {
+    const hit = stockItems.find((i) => `${i.description}|${i.unit}` === key);
+    const updated = [...materials];
+    updated[index] = { name: hit ? hit.description : '', unit: hit ? hit.unit : '', qty: '' };
+    setMaterials(updated);
   }
 
   // Materials Row Handlers
@@ -137,7 +174,11 @@ export default function SiteEngineerSubmitReport() {
     if (!workDone.trim()) errs.workDone = 'Please describe the work completed today';
     if (workDone.length > 1000) errs.workDone = 'Max 1000 characters';
 
-    if (progress === '') {
+    if (milestoneMode) {
+      if (!milestoneId) errs.milestoneId = 'Select the milestone this report belongs to';
+      if (!weather) errs.weather = 'Select the site weather';
+      if (laborCount === '' || !Number.isInteger(Number(laborCount)) || Number(laborCount) < 0) errs.laborCount = 'Enter the number of workers on site';
+    } else if (progress === '') {
       errs.progress = 'Please enter overall progress';
     } else {
       const p = Number(progress);
@@ -176,7 +217,8 @@ export default function SiteEngineerSubmitReport() {
         submittedBy: user.id,
         submittedName: user.name,
         date: reportDate,
-        progress: Number(progress),
+        progress: milestoneMode ? linkedProgress : Number(progress),
+        ...(milestoneMode ? { milestoneId, taskId: taskId || undefined, weather, laborCount: Number(laborCount) } : {}),
         status: 'In Progress',
         workDone: workDone.trim(),
         issues: issues.trim(),
@@ -188,8 +230,13 @@ export default function SiteEngineerSubmitReport() {
         remarks: remarks.trim()
       });
 
-      // Update project progress if greater
-      if (proj && Number(progress) > (proj.progress || 0)) {
+      if (newReport && newReport.error) {
+        setErrors({ form: newReport.message || 'Report could not be submitted' });
+        return;
+      }
+
+      // Projects without milestones still use the typed progress. Milestone projects calculate it from tasks.
+      if (!milestoneMode && proj && Number(progress) > (proj.progress || 0)) {
         await api.updateProject(projectId, {
           progress: Number(progress),
           status: Number(progress) >= 100 ? 'Completed' : 'In Progress'
@@ -289,19 +336,60 @@ export default function SiteEngineerSubmitReport() {
             {errors.workDone && <span className="field-error">{errors.workDone}</span>}
           </div>
 
+          {milestoneMode ? (
+            <div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Milestone <span className="req">*</span></label>
+                  <select className={`form-select ${errors.milestoneId ? 'input-error' : ''}`} value={milestoneId} onChange={(e) => { setMilestoneId(e.target.value); setTaskId(''); }}>
+                    <option value="">Select milestone</option>
+                    {milestones.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.progress}%)</option>)}
+                  </select>
+                  {errors.milestoneId && <span className="field-error">{errors.milestoneId}</span>}
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Task</label>
+                  <select className="form-select" value={taskId} disabled={!milestoneId} onChange={(e) => setTaskId(e.target.value)}>
+                    <option value="">{milestoneId ? 'Whole milestone' : 'Select a milestone first'}</option>
+                    {milestoneTasks.map((t) => <option key={t.id} value={t.id}>{t.title} ({t.progress || 0}%)</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Weather <span className="req">*</span></label>
+                  <select className={`form-select ${errors.weather ? 'input-error' : ''}`} value={weather} onChange={(e) => setWeather(e.target.value)}>
+                    <option value="">Select weather</option>
+                    {['Sunny', 'Cloudy', 'Rainy', 'Stormy', 'Hot', 'Cold', 'Foggy'].map((w) => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                  {errors.weather && <span className="field-error">{errors.weather}</span>}
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Workers on site <span className="req">*</span></label>
+                  <input type="number" min="0" step="1" className={`form-input ${errors.laborCount ? 'input-error' : ''}`} value={laborCount} onChange={(e) => setLaborCount(e.target.value)} />
+                  {errors.laborCount && <span className="field-error">{errors.laborCount}</span>}
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Progress</label>
+                <div style={{ fontSize: 14 }}><strong>{linkedProgress}%</strong> <span style={{ color: 'var(--text-muted)' }}>(calculated from {taskId ? 'the task' : 'the milestone tasks'}; update it from Update Task Status)</span></div>
+              </div>
+            </div>
+          ) : (
           <div className="form-group">
-            <label className="form-label">Overall Progress (%) <span className="req">*</span></label>
-            <input
-              type="number"
-              className={`form-input ${errors.progress ? 'input-error' : ''}`}
-              min="0"
-              max="100"
-              placeholder="e.g., 75"
-              value={progress}
-              onChange={(e) => setProgress(e.target.value)}
-            />
-            {errors.progress && <span className="field-error">{errors.progress}</span>}
-          </div>
+              <label className="form-label">Overall Progress (%) <span className="req">*</span></label>
+              <input
+                type="number"
+                className={`form-input ${errors.progress ? 'input-error' : ''}`}
+                min="0"
+                max="100"
+                placeholder="e.g., 75"
+                value={progress}
+                onChange={(e) => setProgress(e.target.value)}
+              />
+              {errors.progress && <span className="field-error">{errors.progress}</span>}
+            </div>
+          )}
         </div>
 
         {/* Section 2: Issues & Challenges */}
@@ -366,7 +454,7 @@ export default function SiteEngineerSubmitReport() {
               <div className="icon-box icon-box-green">
                 <Wrench size={18} />
               </div>
-              <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Materials Used</h3>
+              <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Materials Consumed{milestoneMode ? ' (from your issued stock)' : ''}</h3>
             </div>
             <Button variant="secondary" size="sm" type="button" onClick={addMaterialRow}>
               + Add Material
@@ -379,6 +467,34 @@ export default function SiteEngineerSubmitReport() {
             </div>
           )}
 
+          {milestoneMode && stockItems.length === 0 && (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>No material has been issued to you on this project yet, so there is nothing to report as consumed.</p>
+          )}
+          {milestoneMode ? (
+            <div>
+              {materials.map((m, idx) => {
+                const hit = stockItems.find((i) => i.description === m.name && i.unit === m.unit);
+                return (
+                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '10px', marginBottom: '10px', alignItems: 'end' }}>
+                    <div>
+                      <label className="form-label">Issued material</label>
+                      <select className="form-select" value={hit ? `${hit.description}|${hit.unit}` : ''} onChange={(e) => pickStock(idx, e.target.value)}>
+                        <option value="">Select material</option>
+                        {stockItems.filter((i) => i.available > 0).map((i) => <option key={`${i.description}|${i.unit}`} value={`${i.description}|${i.unit}`}>{i.description} ({i.unit}) - {i.available} available</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="form-label">Quantity used</label>
+                      <input type="number" className="form-input" min="0" max={hit ? hit.available : undefined} step="any" value={m.qty} disabled={!hit} onChange={(e) => updateMaterial(idx, 'qty', e.target.value)} />
+                    </div>
+                    <div>
+                      <Button variant="danger" size="sm" type="button" onClick={() => removeMaterialRow(idx)} disabled={materials.length <= 1}>Remove</Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
           <div>
             {materials.map((m, idx) => (
               <div
@@ -443,6 +559,7 @@ export default function SiteEngineerSubmitReport() {
               </div>
             ))}
           </div>
+          )}
         </div>
 
         {/* Section 5: Upload Photos */}
@@ -497,7 +614,7 @@ export default function SiteEngineerSubmitReport() {
               {uploadedPhotos.map((url, idx) => (
                 <div key={idx} style={{ position: 'relative', width: '80px', height: '80px' }}>
                   <img
-                    src={url.startsWith('http') || url.startsWith('blob:') ? url : `http://localhost:3000${url}`}
+                    src={url.startsWith('http') || url.startsWith('blob:') ? url : `${API_ORIGIN}${url}`}
                     alt={`Upload ${idx + 1}`}
                     style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '2px solid var(--emerald-500, #10b981)' }}
                   />

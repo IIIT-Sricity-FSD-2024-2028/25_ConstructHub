@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, Link, useOutletContext } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -9,10 +9,7 @@ import {
   Wallet,
   Edit3,
   Plus,
-  Users,
-  Calendar,
-  Camera,
-  FileText
+  Camera
 } from 'lucide-react';
 import { api } from '../../../services/api';
 import {
@@ -23,6 +20,7 @@ import {
 } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
+import { MilestoneStatusBadge, DelayBadge } from '../../../components/milestones/MilestoneUi';
 
 export default function ProjectManagerProjectDetail() {
   const { id: paramId } = useParams();
@@ -35,6 +33,7 @@ export default function ProjectManagerProjectDetail() {
   const [tasks, setTasks] = useState([]);
   const [reports, setReports] = useState([]);
   const [client, setClient] = useState(null);
+  const [progressSummary, setProgressSummary] = useState(null);
 
   // Edit Modal
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -55,12 +54,14 @@ export default function ProjectManagerProjectDetail() {
 
   async function loadProject() {
     if (!id || !user) return;
-    const [allProjects, allTasks, allReports, allUsers] = await Promise.all([
+    const [allProjects, allTasks, allReports, allUsers, prog] = await Promise.all([
       api.getProjects(user.companyId),
       api.getTasks(user.companyId),
       api.getReports(user.companyId),
-      api.getUsers(user.companyId)
+      api.getUsers(user.companyId),
+      api.getProjectProgress(id)
     ]);
+    setProgressSummary(prog && !prog.error ? prog : null);
 
     const proj = (allProjects || []).find((p) => p.id === id);
     if (!proj) {
@@ -94,7 +95,7 @@ export default function ProjectManagerProjectDetail() {
     e.preventDefault();
     if (!project) return;
     try {
-      await api.updateProject(project.id, {
+      const updated = await api.updateProject(project.id, {
         name: editForm.name.trim(),
         location: editForm.location.trim(),
         status: editForm.status,
@@ -104,6 +105,10 @@ export default function ProjectManagerProjectDetail() {
         progress: Number(editForm.progress) || 0,
         description: editForm.description.trim()
       });
+      if (updated && updated.error) {
+        alert('Failed to update project: ' + updated.message);
+        return;
+      }
       setIsEditOpen(false);
       loadProject();
     } catch (err) {
@@ -249,6 +254,55 @@ export default function ProjectManagerProjectDetail() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Milestones & Stage Schedule */}
+      <div className="card" style={{ marginBottom: '20px' }}>
+        <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+          <div>
+            <div className="section-title">
+              Project Milestones ({progressSummary?.milestones?.length || 0})
+            </div>
+            {progressSummary?.milestones?.length > 0 && (
+              <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                {progressSummary.milestonesApproved} of {progressSummary.milestonesTotal} stages approved · {progressSummary.physicalProgress}% built
+              </div>
+            )}
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => navigate('/project-manager/milestones')}>
+            Manage Milestones
+          </Button>
+        </div>
+
+        {!progressSummary?.milestones?.length ? (
+          <div className="empty-state" style={{ padding: '24px' }}>
+            <p>No milestones defined for this project yet.</p>
+          </div>
+        ) : (
+          <div className="hairline-list">
+            {progressSummary.milestones.map((m) => (
+              <div key={m.id} className="hairline-row">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <strong style={{ fontSize: 14.5 }}>{m.name}</strong>
+                    <span className="badge badge-gray">{m.weight}% weight</span>
+                    <MilestoneStatusBadge status={m.status} />
+                    {m.delayed && <DelayBadge daysLate={m.daysLate} />}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+                    Due: <strong>{formatDate(m.deadline)}</strong> · {m.completedTasks || 0}/{m.taskCount || 0} tasks done
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div className="progress-track" style={{ flex: 1, height: 6 }}>
+                    <div className="progress-fill" style={{ width: `${m.progress || 0}%` }} />
+                  </div>
+                  <strong style={{ fontSize: 12.5, minWidth: 36, textAlign: 'right' }}>{m.progress || 0}%</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Associated Tasks */}
@@ -436,8 +490,14 @@ export default function ProjectManagerProjectDetail() {
                   min="0"
                   max="100"
                   value={editForm.progress}
+                  disabled={project.progressMode === 'milestones'}
                   onChange={(e) => setEditForm({ ...editForm, progress: e.target.value })}
                 />
+                {project.progressMode === 'milestones' && (
+                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                    Calculated from milestones and tasks. Manage it on the Milestones page.
+                  </span>
+                )}
               </div>
             </div>
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useOutletContext, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useOutletContext, Link } from 'react-router-dom';
 import {
   FileText,
   File,
@@ -19,10 +19,7 @@ import Button from '../../../components/common/Button';
 
 export default function ProjectManagerReports() {
   const { user } = useOutletContext();
-  const navigate = useNavigate();
-
   const [reports, setReports] = useState([]);
-  const [projects, setProjects] = useState([]);
   const [activeFilter, setActiveFilter] = useState('');
 
   useEffect(() => {
@@ -39,8 +36,6 @@ export default function ProjectManagerReports() {
     const myProjects = (allProjects || []).filter(
       (p) => p.managerId === user.id || !p.managerId || user.role === 'superuser'
     );
-    setProjects(myProjects);
-
     const myProjectIds = myProjects.map((p) => p.id);
     const myReports = (allReports || []).filter((r) => myProjectIds.includes(r.projectId));
     myReports.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));

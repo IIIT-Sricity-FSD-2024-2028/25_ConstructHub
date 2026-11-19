@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useOutletContext, useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   CheckSquare,
   Users,
@@ -21,6 +21,7 @@ export default function ProjectManagerTasks() {
 
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [milestones, setMilestones] = useState([]);
   const [engineers, setEngineers] = useState([]);
 
   // Filters
@@ -43,6 +44,7 @@ export default function ProjectManagerTasks() {
     priority: 'Medium',
     status: 'Pending',
     progress: 0,
+    milestoneId: '',
     description: ''
   });
   const [errors, setErrors] = useState({});
@@ -53,11 +55,13 @@ export default function ProjectManagerTasks() {
 
   async function loadData() {
     if (!user) return;
-    const [allProjects, allTasks, allUsers] = await Promise.all([
+    const [allProjects, allTasks, allUsers, allMilestones] = await Promise.all([
       api.getProjects(user.companyId),
       api.getTasks(user.companyId),
-      api.getUsers(user.companyId)
+      api.getUsers(user.companyId),
+      api.getMilestones()
     ]);
+    setMilestones(Array.isArray(allMilestones) ? allMilestones : []);
 
     const myProjects = (allProjects || []).filter(
       (p) => p.managerId === user.id || !p.managerId || user.role === 'superuser'
@@ -85,6 +89,7 @@ export default function ProjectManagerTasks() {
       priority: 'Medium',
       status: 'Pending',
       progress: 0,
+      milestoneId: '',
       description: ''
     });
     setErrors({});
@@ -102,6 +107,7 @@ export default function ProjectManagerTasks() {
       priority: t.priority || 'Medium',
       status: t.status || 'Pending',
       progress: t.progress || 0,
+      milestoneId: t.milestoneId || '',
       description: t.description || ''
     });
     setErrors({});
@@ -131,7 +137,8 @@ export default function ProjectManagerTasks() {
       const eng = engineers.find((e) => e.id === form.engineerId);
 
       if (editingTask) {
-        await api.updateTask(editingTask.id, {
+        const updated = await api.updateTask(editingTask.id, {
+          milestoneId: form.milestoneId || null,
           title: form.title.trim(),
           projectId: form.projectId,
           projectName: proj ? proj.name : editingTask.projectName,
@@ -144,8 +151,13 @@ export default function ProjectManagerTasks() {
           deadline: form.deadline,
           description: form.description.trim()
         });
+        if (updated && updated.error) {
+          setErrors({ form: updated.message });
+          return;
+        }
       } else {
         const newTask = await api.createTask({
+          milestoneId: form.milestoneId || null,
           title: form.title.trim(),
           projectId: form.projectId,
           projectName: proj ? proj.name : '',
@@ -159,6 +171,10 @@ export default function ProjectManagerTasks() {
           description: form.description.trim(),
           remarks: ''
         });
+        if (newTask && newTask.error) {
+          setErrors({ form: newTask.message });
+          return;
+        }
 
         await api.createNotification({
           userId: form.engineerId,
@@ -178,7 +194,11 @@ export default function ProjectManagerTasks() {
   async function handleDeleteConfirm() {
     if (!deleteTarget) return;
     try {
-      await api.deleteTask(deleteTarget.id);
+      const del = await api.deleteTask(deleteTarget.id);
+      if (del && del.error) {
+        alert('Failed to delete task: ' + del.message);
+        return;
+      }
       setDeleteTarget(null);
       loadData();
     } catch (err) {
@@ -283,6 +303,9 @@ export default function ProjectManagerTasks() {
 
                 <div className="task-card-meta" style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0 10px' }}>
                   {t.projectName}
+                  {t.milestoneId && milestones.find((m) => m.id === t.milestoneId) && (
+                    <> · Milestone: <strong>{milestones.find((m) => m.id === t.milestoneId).name}</strong></>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
@@ -359,7 +382,11 @@ export default function ProjectManagerTasks() {
               <select
                 className={`form-select ${errors.projectId ? 'input-error' : ''}`}
                 value={form.projectId}
-                onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+                onChange={(e) => {
+                  const nextPid = e.target.value;
+                  const firstOpenMs = milestones.find((m) => m.projectId === nextPid && m.status !== 'Completed');
+                  setForm({ ...form, projectId: nextPid, milestoneId: firstOpenMs ? firstOpenMs.id : '' });
+                }}
               >
                 <option value="">Select project</option>
                 {projects.map((p) => (
@@ -369,6 +396,22 @@ export default function ProjectManagerTasks() {
                 ))}
               </select>
               {errors.projectId && <span className="field-error">{errors.projectId}</span>}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Milestone</label>
+              <select
+                className="form-select"
+                value={form.milestoneId}
+                onChange={(e) => setForm({ ...form, milestoneId: e.target.value })}
+              >
+                <option value="">No milestone</option>
+                {milestones
+                  .filter((m) => m.projectId === form.projectId && (m.status !== 'Completed' || m.id === form.milestoneId))
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+              </select>
             </div>
 
             <div className="form-group">

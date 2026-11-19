@@ -41,7 +41,7 @@ export class ProjectsController {
       }
     }
 
-    // 2. Client Assignment Validation (Enforce 1 project per client)
+    // 2. Client Assignment Validation (a client may have several projects)
     if (dto.clientId) {
       const clientUser = this.usersService.findOne(dto.clientId);
       if (clientUser.companyId && clientUser.companyId !== projectCompanyId) {
@@ -52,28 +52,6 @@ export class ProjectsController {
       if (clientUser.role !== 'client') {
         throw new BadRequestException(
           `Assigned user (${clientUser.name}) must have the client role (actual role: ${clientUser.role}).`,
-        );
-      }
-      const existingClientProject = this.service
-        .findAll()
-        .find((p) => p.clientId === dto.clientId && p.id !== excludeProjectId);
-      if (existingClientProject) {
-        throw new BadRequestException(
-          `Client (${clientUser.name}) is already assigned to project "${existingClientProject.name}". A client can only have one project.`,
-        );
-      }
-    }
-    if (dto.clientEmail) {
-      const existingWithEmail = this.service
-        .findAll()
-        .find(
-          (p) =>
-            (p.clientEmail || '').toLowerCase() === dto.clientEmail.toLowerCase() &&
-            p.id !== excludeProjectId,
-        );
-      if (existingWithEmail) {
-        throw new BadRequestException(
-          `Client (${dto.clientEmail}) is already assigned to project "${existingWithEmail.name}". A client can only have one project.`,
         );
       }
     }
@@ -109,8 +87,17 @@ export class ProjectsController {
     }
   }
 
+  /**
+   * What a client may see of a project. The contractor's internal site budget, spend and cost split stay hidden;
+   * `budget` is replaced by the contract value (what the client pays), so existing client screens keep working.
+   */
+  private clientView(p: any) {
+    const { allocations, spent, internalBaseCost, markupPercent, ...rest } = p;
+    return { ...rest, budget: Number(p.contractValue ?? p.budget) || 0 };
+  }
+
   @Get()
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Retrieve projects (Superuser: all, Tenant: company projects, Client: assigned projects)' })
   @ApiResponse({ status: 200, description: 'List of projects.' })
   findAll(@CurrentUser() user?: UserContext) {
@@ -118,7 +105,7 @@ export class ProjectsController {
       return this.service.findAll();
     }
     if (TenantHelper.isClient(user)) {
-      return this.service.findAll().filter((p) => p.clientId === user.userId);
+      return this.service.findAll().filter((p) => p.clientId === user.userId).map((p) => this.clientView(p));
     }
     if (user.role === 'finance_manager') {
       return this.service.findByCompanyId(user.companyId).filter((p) => p.financeManagerId === user.userId);
@@ -127,7 +114,7 @@ export class ProjectsController {
   }
 
   @Get(':id')
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Retrieve a specific project by ID' })
   @ApiResponse({ status: 200, description: 'The project details.' })
   @ApiResponse({ status: 403, description: 'Access denied.' })
@@ -139,6 +126,7 @@ export class ProjectsController {
         if (project.clientId !== user.userId) {
           throw new ForbiddenException('Access denied. Client can only access assigned projects.');
         }
+        return this.clientView(project);
       } else if (user.role === 'finance_manager') {
         TenantHelper.validateCompanyAccess(user, project.companyId);
         if (project.financeManagerId !== user.userId) {
@@ -182,7 +170,7 @@ export class ProjectsController {
   }
 
   @Patch(':id')
-  @Roles('superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager')
+  @Roles('superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Update an existing project' })
   @ApiResponse({ status: 200, description: 'The project has been successfully updated.', type: UpdateProjectDto })
   @ApiResponse({ status: 400, description: 'Invalid input or user assignment mismatch.' })
@@ -192,6 +180,12 @@ export class ProjectsController {
     const existing = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
       TenantHelper.validateCompanyAccess(user, existing.companyId);
+    }
+    // The site budget of an awarded (staged) project is the Finance Manager's cap. Only the Company Admin can raise it,
+    // and the normal way is a contingency top-up request (see /budget-topups), so staff cannot move it by hand.
+    if (existing.internalBaseCost !== undefined && user && !['company_admin', 'superuser'].includes(user.role)
+      && (dto as any).budget !== undefined && Number((dto as any).budget) !== Number(existing.budget)) {
+      throw new ForbiddenException('The site budget of this project is fixed. Ask the Company Admin for a contingency top-up instead.');
     }
     const companyId = TenantHelper.isSuperuser(user)
       ? (dto.companyId !== undefined ? dto.companyId : existing.companyId)

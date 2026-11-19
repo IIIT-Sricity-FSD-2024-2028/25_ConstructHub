@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -25,10 +25,6 @@ export default function SiteEngineerUpdateTask() {
   const [errors, setErrors] = useState({});
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, [user]);
-
   async function loadData() {
     if (!user) return;
     const [allTasks, allProjects] = await Promise.all([
@@ -53,6 +49,10 @@ export default function SiteEngineerUpdateTask() {
       }
     }
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadData());
+  }, [user]);
 
   function handleTaskSelect(id) {
     setSelectedTaskId(id);
@@ -103,11 +103,15 @@ export default function SiteEngineerUpdateTask() {
     if (Object.keys(errs).length > 0) return;
 
     try {
-      await api.updateTask(selectedTaskId, {
+      const result = await api.updateTask(selectedTaskId, {
         progress: numProg,
         status,
         remarks: remarks.trim()
       });
+      if (result && result.error) {
+        setErrors({ form: result.message });
+        return;
+      }
 
       if (status === 'Completed') {
         const completedTask = selectedTask;

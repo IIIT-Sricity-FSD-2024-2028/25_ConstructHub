@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useOutletContext, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useOutletContext, Link } from 'react-router-dom';
 import {
   Folder,
   Building2,
@@ -23,10 +23,10 @@ import {
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 
+const NEW_CLIENT = '__new__';
+
 export default function ProjectManagerProjects() {
   const { user } = useOutletContext();
-  const navigate = useNavigate();
-
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
   const [company, setCompany] = useState(null);
@@ -41,6 +41,7 @@ export default function ProjectManagerProjects() {
   // Form State
   const [form, setForm] = useState({
     name: '',
+    clientId: '',
     clientName: '',
     clientEmail: '',
     clientPhone: '',
@@ -82,6 +83,7 @@ export default function ProjectManagerProjects() {
     const fms = (users || []).filter((u) => u.role === 'finance_manager');
     setForm({
       name: '',
+      clientId: (users || []).find((u) => u.role === 'client')?.id || '',
       clientName: '',
       clientEmail: '',
       clientPhone: '',
@@ -131,7 +133,8 @@ export default function ProjectManagerProjects() {
     if (!form.name.trim()) errs.name = 'Project name is required';
     if (!form.location.trim()) errs.location = 'Location is required';
 
-    if (!editingProject) {
+    if (!editingProject && !form.clientId) errs.clientId = 'Choose a client';
+    if (!editingProject && form.clientId === NEW_CLIENT) {
       if (!form.clientName.trim()) {
         errs.clientName = 'Client name is required';
       } else if (!isValidName(form.clientName.trim())) {
@@ -206,8 +209,10 @@ export default function ProjectManagerProjects() {
           ...(financeManagerId ? { financeManagerId, financeManagerName } : {})
         });
       } else {
-        const cleanPhone = (form.clientPhone || '').replace(/\D/g, '').slice(-10);
-        const clientUser = await api.createUser({
+        const existingClient = form.clientId !== NEW_CLIENT ? (users || []).find((u) => u.id === form.clientId && u.role === 'client') : null;
+        const cleanPhone = existingClient ? String(existingClient.phone || '').replace(/\D/g, '').slice(-10) : (form.clientPhone || '').replace(/\D/g, '').slice(-10);
+        // A client picked from the list already has an account (and may already own other projects); only brand-new clients are created here.
+        const clientUser = existingClient || await api.createUser({
           role: 'client',
           companyId: user.companyId,
           name: form.clientName.trim(),
@@ -231,8 +236,8 @@ export default function ProjectManagerProjects() {
           name: form.name.trim(),
           companyId: user.companyId,
           clientId: clientId,
-          clientName: form.clientName.trim(),
-          clientEmail: form.clientEmail.trim(),
+          clientName: existingClient ? existingClient.name : form.clientName.trim(),
+          clientEmail: existingClient ? existingClient.email : form.clientEmail.trim(),
           clientPhone: cleanPhone || '',
           location: form.location.trim(),
           startDate: form.startDate,
@@ -282,7 +287,9 @@ export default function ProjectManagerProjects() {
     if (!deleteTarget) return;
     try {
       await api.deleteProject(deleteTarget.id);
-      if (deleteTarget.clientId) {
+      // Only remove the client's account when this was their last project (clients can own several now).
+      const sharesClient = projects.some((p) => p.id !== deleteTarget.id && p.clientId === deleteTarget.clientId);
+      if (deleteTarget.clientId && !sharesClient) {
         await api.deleteUser(deleteTarget.clientId).catch(() => {});
       }
       setDeleteTarget(null);
@@ -486,6 +493,24 @@ export default function ProjectManagerProjects() {
             </div>
 
             {!editingProject && (
+              <div className="form-group">
+                <label className="form-label">Client <span className="req">*</span></label>
+                <select
+                  className={`form-select ${errors.clientId ? 'input-error' : ''}`}
+                  value={form.clientId}
+                  onChange={(e) => setForm({ ...form, clientId: e.target.value })}
+                >
+                  <option value="">Select client</option>
+                  {(users || []).filter((u) => u.role === 'client').map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
+                  ))}
+                  <option value={NEW_CLIENT}>+ New client (enter details)</option>
+                </select>
+                {errors.clientId && <span className="field-error">{errors.clientId}</span>}
+              </div>
+            )}
+
+            {!editingProject && form.clientId === NEW_CLIENT && (
               <>
                 <div className="form-row">
                   <div className="form-group">
