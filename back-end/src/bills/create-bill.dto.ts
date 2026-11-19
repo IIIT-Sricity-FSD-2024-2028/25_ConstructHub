@@ -17,9 +17,9 @@ export class CreateBillDto {
   @IsOptional()
   projectName?: string;
 
-  @ApiProperty({ description: 'Client ID', example: 'U005' })
+  @ApiPropertyOptional({ description: 'Client ID', example: 'U005' })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   clientId: string;
 
   @ApiPropertyOptional({ description: 'Client name', example: 'Vikram Patel' })
@@ -27,30 +27,30 @@ export class CreateBillDto {
   @IsOptional()
   clientName?: string;
 
-  @ApiProperty({ description: 'Bill amount', example: 2500000 })
+  @ApiPropertyOptional({ description: 'Bill amount', example: 2500000 })
   @IsNumber()
   @Min(1)
-  @IsNotEmpty()
+  @IsOptional()
   amount: number;
 
-  @ApiProperty({ description: 'Milestone associated with the bill', example: 'Foundation Complete' })
+  @ApiPropertyOptional({ description: 'Milestone associated with the bill', example: 'Foundation Complete' })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   milestone: string;
 
-  @ApiProperty({ description: 'Bill description', example: 'Billing for completed foundation work...' })
+  @ApiPropertyOptional({ description: 'Bill description', example: 'Billing for completed foundation work...' })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   description: string;
 
-  @ApiProperty({ description: 'ID of the user who generated the bill', example: 'U004' })
+  @ApiPropertyOptional({ description: 'ID of the user who generated the bill', example: 'U004' })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   generatedBy: string;
 
-  @ApiProperty({ description: 'Status of the bill', example: 'Approved' })
+  @ApiPropertyOptional({ description: 'Status of the bill', example: 'Approved' })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   status: string;
 
   @ApiPropertyOptional({ description: 'Date of decision', example: '2026-03-05' })
@@ -58,13 +58,18 @@ export class CreateBillDto {
   @IsOptional()
   decisionDate?: string;
 
-  @ApiProperty({ description: 'Due date for the bill', example: '2026-03-11' })
+  @ApiPropertyOptional({ description: 'Due date for the bill', example: '2026-03-11' })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   dueDate: string;
 
   @ApiPropertyOptional({ description: 'Reason for rejection if any', example: '' })
   @IsString()
   @IsOptional()
   rejectionReason?: string;
+
+  @ApiPropertyOptional({ description: 'Completed milestone this bill is for (required on projects with milestones). The amount is then the quoted stage amount.', example: 'MS001' })
+  @IsString()
+  @IsOptional()
+  milestoneId?: string;
 }

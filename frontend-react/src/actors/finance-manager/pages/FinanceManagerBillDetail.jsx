@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import BillPayments from '../../../components/billing/BillPayments';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
-import { ArrowLeft, Receipt, CheckCircle2, X } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { api } from '../../../services/api';
+import ReportPreviewModal from '../../../components/common/ReportPreviewModal';
 import { formatCurrency, formatDate, statusBadgeClass, normalizeBillStatus } from '../../../services/utils';
-import Button from '../../../components/common/Button';
-
 export default function FinanceManagerBillDetail() {
   const { id: paramId } = useParams();
   const [searchParams] = useSearchParams();
@@ -13,6 +13,7 @@ export default function FinanceManagerBillDetail() {
   const { user } = useOutletContext();
 
   const [bill, setBill] = useState(null);
+  const [previewId, setPreviewId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -119,7 +120,7 @@ export default function FinanceManagerBillDetail() {
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Milestone</span>
-              <strong>{bill.milestone || (bill.description ? bill.description.replace(/\.?$/, '') : 'Milestone 1 - Foundation & Groundwork')}</strong>
+              <strong>{bill.milestone || (bill.description ? bill.description.replace(/\.?$/, '') : '-')}</strong>
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Due Date</span>
@@ -161,6 +162,31 @@ export default function FinanceManagerBillDetail() {
           {bill.description || 'No description provided.'}
         </p>
       </div>
+
+      {(bill.stageAmount || (bill.siteReportIds || []).length > 0) && (
+        <div className="card">
+          <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>Stage billing proof</h3>
+          {bill.stageAmount ? (
+            <p style={{ fontSize: '13.5px', margin: '0 0 10px' }}>
+              Quoted stage amount <strong>{formatCurrency(bill.stageAmount)}</strong>
+              {bill.advanceRecovery ? <> less mobilization advance recovery <strong>{formatCurrency(bill.advanceRecovery)}</strong></> : null}
+              {' '}= this bill <strong>{formatCurrency(bill.amount)}</strong>.
+            </p>
+          ) : null}
+          {(bill.siteReportIds || []).length > 0 ? (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Site reports attached (click to preview):</span>
+              {bill.siteReportIds.map((rid) => (
+                <button key={rid} type="button" className="btn btn-secondary btn-sm" onClick={() => setPreviewId(rid)}>{rid.length > 12 ? rid.slice(0, 8) : rid}</button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      <ReportPreviewModal reportId={previewId} onClose={() => setPreviewId(null)} />
+
+      <BillPayments bill={bill} role="finance_manager" onChanged={loadBill} />
     </div>
   );
 }

@@ -1,104 +1,102 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, UseInterceptors, UploadedFiles, Res } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { ExpensesService } from './expenses.service';
-import { CreateExpenseDto } from './create-expense.dto';
+import { CreateExpenseDto, DecisionNoteDto, ReimburseDto } from './create-expense.dto';
 import { UpdateExpenseDto } from './update-expense.dto';
-import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { expenseUploadConfig, MAX_RECEIPTS_PER_UPLOAD } from './expense-upload.config';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, UserContext } from '../auth/current-user.decorator';
-import { TenantHelper } from '../auth/tenant-helper';
 
-@ApiTags('expenses')
-@ApiHeader({ name: 'Authorization', required: true, description: 'Bearer JWT token' })
+const READERS = ['superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer'] as const;
+
+@ApiTags('Expenses')
 @UseGuards(RolesGuard)
 @Controller('expenses')
 export class ExpensesController {
   constructor(private readonly service: ExpensesService) {}
 
   @Get()
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
-  @ApiOperation({ summary: 'Retrieve expenses (Superuser: all, Tenant: company expenses)' })
-  @ApiResponse({ status: 200, description: 'List of expenses.' })
-  findAll(@CurrentUser() user?: UserContext) {
-    if (TenantHelper.isSuperuser(user) || !user) {
-      return this.service.findAll();
-    }
-    if (TenantHelper.isClient(user)) {
-      return [];
-    }
-    if (user.role === 'finance_manager') {
-      return this.service.findByFinanceManager(user.companyId, user.userId);
-    }
-    return this.service.findByCompanyId(user.companyId);
+  @Roles(...READERS, 'client')
+  @ApiOperation({ summary: 'Site engineer: own claims. PM / FM: expenses of their projects. Company admin: all. Clients: none.' })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'projectId', required: false })
+  findAll(@Query() query: Record<string, any>, @CurrentUser() user: UserContext) {
+    if (user.role === 'client') return [];
+    return this.service.list(user, query);
   }
 
   @Get(':id')
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
-  @ApiOperation({ summary: 'Retrieve a specific expense by ID' })
-  @ApiResponse({ status: 200, description: 'The expense details.' })
-  @ApiResponse({ status: 403, description: 'Access denied.' })
-  @ApiResponse({ status: 404, description: 'Expense not found.' })
-  findOne(@Param('id') id: string, @CurrentUser() user?: UserContext) {
-    if (TenantHelper.isClient(user)) {
-      throw new ForbiddenException('Clients do not have access to internal company expenses.');
-    }
-    const expense = this.service.findOne(id);
-    if (!TenantHelper.isSuperuser(user) && user) {
-      if (user.role === 'finance_manager') {
-        TenantHelper.validateCompanyAccess(user, expense.companyId);
-        const myExpenses = this.service.findByFinanceManager(user.companyId, user.userId);
-        if (!myExpenses.some((e) => e.id === expense.id)) {
-          throw new ForbiddenException('Access denied. Finance Manager can only view expenses for assigned projects.');
-        }
-      } else {
-        TenantHelper.validateCompanyAccess(user, expense.companyId);
-      }
-    }
-    return expense;
-  }
+  @Roles(...READERS)
+  @ApiOperation({ summary: 'Expense with its history and budget position' })
+  findOne(@Param('id') id: string, @CurrentUser() user: UserContext) { return this.service.get(user, id); }
 
   @Post()
-  @Roles('superuser', 'company_admin', 'finance_manager')
-  @ApiOperation({ summary: 'Create a new expense (Company ID derived from authenticated token)' })
-  @ApiResponse({ status: 201, description: 'The expense has been successfully created.', type: CreateExpenseDto })
-  @ApiResponse({ status: 400, description: 'Invalid input.' })
-  @ApiResponse({ status: 403, description: 'Forbidden.' })
-  create(@Body() dto: CreateExpenseDto, @CurrentUser() user?: UserContext) {
-    const companyId = TenantHelper.getAuthoritativeCompanyId(user, dto.companyId);
-    const payload = { ...dto, companyId };
-    return this.service.create(payload);
-  }
+  @Roles('site_engineer')
+  @ApiOperation({ summary: 'Site engineer submits an expense claim (attach receipts afterwards)' })
+  submit(@Body() dto: CreateExpenseDto, @CurrentUser() user: UserContext) { return this.service.submit(user, dto); }
 
   @Patch(':id')
-  @Roles('superuser', 'company_admin', 'finance_manager')
-  @ApiOperation({ summary: 'Update an existing expense' })
-  @ApiResponse({ status: 200, description: 'The expense has been successfully updated.', type: UpdateExpenseDto })
-  @ApiResponse({ status: 403, description: 'Access denied.' })
-  @ApiResponse({ status: 404, description: 'Expense not found.' })
-  update(@Param('id') id: string, @Body() dto: UpdateExpenseDto, @CurrentUser() user?: UserContext) {
-    const existing = this.service.findOne(id);
-    if (!TenantHelper.isSuperuser(user) && user) {
-      TenantHelper.validateCompanyAccess(user, existing.companyId);
-    }
-    const companyId = TenantHelper.isSuperuser(user)
-      ? (dto.companyId !== undefined ? dto.companyId : existing.companyId)
-      : (user ? user.companyId : existing.companyId);
+  @Roles('site_engineer')
+  @ApiOperation({ summary: 'Correct a RETURNED expense and resubmit it' })
+  resubmit(@Param('id') id: string, @Body() dto: UpdateExpenseDto, @CurrentUser() user: UserContext) { return this.service.resubmit(user, id, dto); }
 
-    const payload = { ...dto, companyId };
-    return this.service.update(id, payload);
+  @Post(':id/withdraw')
+  @Roles('site_engineer')
+  @ApiOperation({ summary: 'Withdraw your own expense before it is verified' })
+  withdraw(@Param('id') id: string, @CurrentUser() user: UserContext) { return this.service.withdraw(user, id); }
+
+  @Post(':id/receipts')
+  @Roles('site_engineer')
+  @UseInterceptors(FilesInterceptor('receipts', MAX_RECEIPTS_PER_UPLOAD, expenseUploadConfig))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ schema: { type: 'object', properties: { receipts: { type: 'array', items: { type: 'string', format: 'binary' } } } } })
+  @ApiOperation({ summary: 'Attach receipts (PDF or image, 5 MB each, max 8 per expense)' })
+  upload(@Param('id') id: string, @UploadedFiles() files: any[], @CurrentUser() user: UserContext) { return this.service.addReceipts(user, id, files); }
+
+  @Get(':id/receipts/:receiptId')
+  @Roles(...READERS)
+  @ApiOperation({ summary: 'Download a receipt (authenticated; never served publicly)' })
+  download(@Param('id') id: string, @Param('receiptId') receiptId: string, @CurrentUser() user: UserContext, @Res() res: Response) {
+    const file = this.service.getReceiptFile(user, id, receiptId);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.download(file.path, file.name);
   }
 
-  @Delete(':id')
-  @Roles('superuser', 'company_admin', 'finance_manager')
-  @ApiOperation({ summary: 'Delete an expense' })
-  @ApiResponse({ status: 200, description: 'The expense has been successfully deleted.' })
-  @ApiResponse({ status: 403, description: 'Access denied.' })
-  @ApiResponse({ status: 404, description: 'Expense not found.' })
-  remove(@Param('id') id: string, @CurrentUser() user?: UserContext) {
-    const existing = this.service.findOne(id);
-    if (!TenantHelper.isSuperuser(user) && user) {
-      TenantHelper.validateCompanyAccess(user, existing.companyId);
-    }
-    return this.service.remove(id);
-  }
+  @Post(':id/verify')
+  @Roles('project_manager')
+  @ApiOperation({ summary: 'Project manager verifies the expense (receipt required above INR 1,000)' })
+  verify(@Param('id') id: string, @Body() dto: DecisionNoteDto, @CurrentUser() user: UserContext) { return this.service.pmDecision(user, id, 'verify', dto?.note); }
+
+  @Post(':id/pm-return')
+  @Roles('project_manager')
+  @ApiOperation({ summary: 'Project manager returns the expense to the engineer (reason required)' })
+  pmReturn(@Param('id') id: string, @Body() dto: DecisionNoteDto, @CurrentUser() user: UserContext) { return this.service.pmDecision(user, id, 'return', dto?.note); }
+
+  @Post(':id/pm-reject')
+  @Roles('project_manager')
+  @ApiOperation({ summary: 'Project manager rejects the expense (reason required)' })
+  pmReject(@Param('id') id: string, @Body() dto: DecisionNoteDto, @CurrentUser() user: UserContext) { return this.service.pmDecision(user, id, 'reject', dto?.note); }
+
+  @Post(':id/approve')
+  @Roles('finance_manager', 'company_admin')
+  @ApiOperation({ summary: 'Finance Manager approves a verified expense; it then counts as project spend' })
+  approve(@Param('id') id: string, @Body() dto: DecisionNoteDto, @CurrentUser() user: UserContext) { return this.service.fmDecision(user, id, 'approve', dto?.note); }
+
+  @Post(':id/return')
+  @Roles('finance_manager', 'company_admin')
+  @ApiOperation({ summary: 'Finance Manager returns a verified expense to the engineer (reason required)' })
+  fmReturn(@Param('id') id: string, @Body() dto: DecisionNoteDto, @CurrentUser() user: UserContext) { return this.service.fmDecision(user, id, 'return', dto?.note); }
+
+  @Post(':id/reject')
+  @Roles('finance_manager', 'company_admin')
+  @ApiOperation({ summary: 'Finance Manager rejects a verified expense (reason required)' })
+  fmReject(@Param('id') id: string, @Body() dto: DecisionNoteDto, @CurrentUser() user: UserContext) { return this.service.fmDecision(user, id, 'reject', dto?.note); }
+
+  @Post(':id/reimburse')
+  @Roles('finance_manager', 'company_admin')
+  @ApiOperation({ summary: 'Record that the engineer was paid back (separate from approval)' })
+  reimburse(@Param('id') id: string, @Body() dto: ReimburseDto, @CurrentUser() user: UserContext) { return this.service.reimburse(user, id, dto?.reference); }
 }

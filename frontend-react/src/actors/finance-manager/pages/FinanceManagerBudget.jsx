@@ -1,13 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { HardHat, Wrench, Package, Edit2 } from 'lucide-react';
+import { HardHat, Wrench, Package, Edit2, PlusCircle } from 'lucide-react';
 import { api } from '../../../services/api';
 import { formatCurrency } from '../../../services/utils';
+import { useToast } from '../../../hooks/useToast';
 import Modal from '../../../components/common/Modal';
 
 export default function FinanceManagerBudget() {
   const { user } = useOutletContext();
+  const toast = useToast();
   const [projects, setProjects] = useState([]);
+  const [topups, setTopups] = useState([]);
+  const [topupProj, setTopupProj] = useState(null);
+  const [topupAmount, setTopupAmount] = useState('');
+  const [topupReason, setTopupReason] = useState('');
+  const [topupError, setTopupError] = useState('');
+  const [topupBusy, setTopupBusy] = useState(false);
   const [expenses, setExpenses] = useState([]);
 
   // Edit Budget Modal
@@ -25,15 +33,18 @@ export default function FinanceManagerBudget() {
 
   async function loadBudgets() {
     if (!user) return;
-    const [pList, eList] = await Promise.all([
+    const [pList, eList, tList] = await Promise.all([
       api.getProjects(user.companyId),
-      api.getExpenses(user.companyId)
+      api.getExpenses(user.companyId),
+      api.getBudgetTopups()
     ]);
+    setTopups(Array.isArray(tList) ? tList : []);
     const myProjects = (pList || []).filter(
       (p) => p.financeManagerId === user.id || (!p.financeManagerId && user.role === 'superuser')
     );
     const myProjectIds = new Set(myProjects.map((p) => p.id));
-    const myExpenses = (eList || []).filter((e) => myProjectIds.has(e.projectId));
+    // Only approved expenses count as project spend (older demo expenses without a status count as approved).
+    const myExpenses = (eList || []).filter((e) => myProjectIds.has(e.projectId) && (!e.status || e.status === 'approved'));
 
     setProjects(myProjects);
     setExpenses(myExpenses);
@@ -48,6 +59,29 @@ export default function FinanceManagerBudget() {
     setEquipment(alloc.Equipment || 0);
     setErrorMsg('');
     setModalOpen(true);
+  }
+
+  const isFixed = (p) => p && p.internalBaseCost !== undefined;
+
+  function openTopup(p) {
+    setTopupProj(p);
+    setTopupAmount('');
+    setTopupReason('');
+    setTopupError('');
+  }
+
+  async function submitTopup(e) {
+    e.preventDefault();
+    setTopupError('');
+    if (!(Number(topupAmount) > 0)) return setTopupError('Enter the extra budget you need.');
+    if (topupReason.trim().length < 10) return setTopupError('Explain why the budget is not enough (at least 10 characters).');
+    setTopupBusy(true);
+    const res = await api.requestBudgetTopup({ projectId: topupProj.id, amount: Number(topupAmount), reason: topupReason.trim() });
+    setTopupBusy(false);
+    if (res && res.error) return setTopupError(res.message);
+    toast.success('Top-up request sent to the Company Admin.');
+    setTopupProj(null);
+    loadBudgets();
   }
 
   const otherAlloc = Math.max(0, Number(totalBudget) - (Number(labor) + Number(materials) + Number(equipment)));
@@ -77,10 +111,12 @@ export default function FinanceManagerBudget() {
       Other: t - (l + m + eq)
     };
 
-    await api.updateProject(selectedProj.id, {
-      budget: t,
-      allocations: newAlloc
-    });
+    // An awarded project's total site budget is fixed (changes go through a top-up request); only the split can change.
+    const res = await api.updateProject(selectedProj.id, isFixed(selectedProj) ? { allocations: newAlloc } : { budget: t, allocations: newAlloc });
+    if (res && res.error) {
+      setErrorMsg(res.message);
+      return;
+    }
 
     setModalOpen(false);
     loadBudgets();
@@ -137,10 +173,28 @@ export default function FinanceManagerBudget() {
                     className="btn btn-secondary btn-sm"
                     onClick={() => openEditBudget(p)}
                   >
-                    <Edit2 size={13} /> Edit Budget
+                    <Edit2 size={13} /> {isFixed(p) ? 'Edit Split' : 'Edit Budget'}
                   </button>
+                  {isFixed(p) && (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      disabled={topups.some((t) => t.projectId === p.id && t.status === 'pending')}
+                      onClick={() => openTopup(p)}
+                    >
+                      <PlusCircle size={13} /> Request top-up
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {topups.filter((t) => t.projectId === p.id).slice(0, 3).map((t) => (
+                <div key={t.id} style={{ fontSize: 12.5, background: 'var(--bg)', borderRadius: 6, padding: '6px 10px', marginBottom: 8 }}>
+                  Top-up {t.id}: <strong>{formatCurrency(t.amount)}</strong> ·{' '}
+                  <span className={`badge ${t.status === 'approved' ? 'badge-green' : t.status === 'rejected' ? 'badge-red' : 'badge-orange'}`}>{t.status}</span>
+                  {t.decisionNote ? ` · ${t.decisionNote}` : ''}
+                </div>
+              ))}
 
               {/* Overall budget spent */}
               <div style={{ marginBottom: 20 }}>
@@ -203,6 +257,30 @@ export default function FinanceManagerBudget() {
         })}
       </div>
 
+      <Modal
+        isOpen={!!topupProj}
+        onClose={() => setTopupProj(null)}
+        title="Request contingency top-up"
+        subtitle={topupProj ? `${topupProj.name} · current site budget ${formatCurrency(topupProj.budget)}` : ''}
+      >
+        <form onSubmit={submitTopup}>
+          {topupError && <div className="error-msg" style={{ display: 'block' }}>{topupError}</div>}
+          <div className="form-group">
+            <label className="form-label">Extra budget needed (₹) <span className="req">*</span></label>
+            <input type="number" className="form-input" min={1} value={topupAmount} onChange={(e) => setTopupAmount(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Why is the budget not enough? <span className="req">*</span></label>
+            <textarea className="form-textarea" rows={3} maxLength={500} value={topupReason} onChange={(e) => setTopupReason(e.target.value)} />
+            <span className="form-hint">The Company Admin releases this from the project's profit margin, so give the cause (price rise, extra work, overrun).</span>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={() => setTopupProj(null)}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={topupBusy}>{topupBusy ? 'Sending...' : 'Send request'}</button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Edit Budget Modal */}
       <Modal
         isOpen={modalOpen}
@@ -224,7 +302,9 @@ export default function FinanceManagerBudget() {
               onChange={(e) => setTotalBudget(e.target.value)}
               min={1}
               required
+              disabled={isFixed(selectedProj)}
             />
+            {isFixed(selectedProj) && <span className="form-hint">This project's site budget is fixed. To raise it, send a top-up request to the Company Admin. You can still change how it is split below.</span>}
           </div>
 
           <div className="form-group">

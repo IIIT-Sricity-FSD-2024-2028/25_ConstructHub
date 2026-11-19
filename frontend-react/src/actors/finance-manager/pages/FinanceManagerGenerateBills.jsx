@@ -1,284 +1,258 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import { CheckCircle2, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, ArrowLeft, Lock } from 'lucide-react';
 import { api } from '../../../services/api';
-import { formatCurrency, generateId, normalizeBillStatus } from '../../../services/utils';
+import { formatCurrency } from '../../../services/utils';
+import { useToast } from '../../../hooks/useToast';
 import Modal from '../../../components/common/Modal';
+import ReportPreviewModal from '../../../components/common/ReportPreviewModal';
 
+const plusDays = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+};
+
+/**
+ * Stage (RA) billing. On a project with milestones the Finance Manager can only bill a milestone the project manager
+ * approved: the amount is the quoted stage price, the site reports of that milestone are attached as proof,
+ * and the invoice number is issued by the server.
+ */
 export default function FinanceManagerGenerateBills() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
+  const toast = useToast();
   const [projects, setProjects] = useState([]);
-  const [bills, setBills] = useState([]);
-
-  // Form
   const [projectId, setProjectId] = useState('');
-  const [milestone, setMilestone] = useState('');
-  const [amount, setAmount] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [description, setDescription] = useState('');
+  const [sheet, setSheet] = useState(null);
+  const [loadError, setLoadError] = useState('');
 
-  const [errors, setErrors] = useState({});
-  const [successModalOpen, setSuccessModalOpen] = useState(false);
-  const [generatedBillId, setGeneratedBillId] = useState('');
+  const [milestoneId, setMilestoneId] = useState('');
+  const [dueDate, setDueDate] = useState(plusDays(15));
+  const [description, setDescription] = useState('');
+  // Projects without a milestone plan keep the older free-form bill.
+  const [legacyMilestone, setLegacyMilestone] = useState('');
+  const [legacyAmount, setLegacyAmount] = useState('');
+
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState(null);
+  const [previewId, setPreviewId] = useState(null);
 
   useEffect(() => {
-    loadProjectsAndBills();
-    // Default due date = 7 days from now
-    const d = new Date();
-    d.setDate(d.getDate() + 7);
-    setDueDate(d.toISOString().split('T')[0]);
+    if (!user) return;
+    void Promise.resolve().then(async () => {
+      const all = await api.getProjects(user.companyId);
+      const mine = (all || []).filter((p) => p.financeManagerId === user.id || (!p.financeManagerId && user.role === 'superuser'));
+      setProjects(mine);
+      setProjectId((cur) => cur || mine[0]?.id || '');
+    });
   }, [user]);
 
-  async function loadProjectsAndBills() {
-    if (!user) return;
-    const [pList, bList] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getBills(user.companyId)
-    ]);
-    const myProjects = (pList || []).filter(
-      (p) => p.financeManagerId === user.id || (!p.financeManagerId && user.role === 'superuser')
-    );
-    const myProjectIds = new Set(myProjects.map((p) => p.id));
-    const myBills = (bList || []).filter((b) => myProjectIds.has(b.projectId));
-    setProjects(myProjects);
-    setBills(myBills);
-    if (myProjects.length > 0 && !projectId) {
-      setProjectId(myProjects[0].id);
-    }
-  }
-
-  const selectedProj = projects.find((p) => p.id === projectId);
-
-  const billedSoFar = selectedProj
-    ? bills
-        .filter((b) => b.projectId === selectedProj.id && normalizeBillStatus(b.status) !== 'Declined')
-        .reduce((sum, b) => sum + (Number(b.amount) || 0), 0)
-    : 0;
-
-  const remainingBudget = selectedProj ? selectedProj.budget - billedSoFar : 0;
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setErrors({});
-
-    const newErrors = {};
-    if (!projectId) newErrors.projectId = 'Project is required';
-    if (!milestone.trim()) newErrors.milestone = 'Milestone is required';
-    if (!amount || Number(amount) <= 0) newErrors.amount = 'Amount must be greater than 0';
-
-    if (selectedProj && Number(amount) > remainingBudget) {
-      if (!window.confirm(`Bill amount (${formatCurrency(Number(amount))}) exceeds remaining project budget (${formatCurrency(remainingBudget)}). Continue anyway?`)) {
-        return;
-      }
-    }
-
-    if (!dueDate) newErrors.dueDate = 'Due date is required';
-    else if (new Date(dueDate) < new Date(new Date().setHours(0, 0, 0, 0))) {
-      newErrors.dueDate = 'Due date cannot be in the past';
-    }
-
-    if (!description.trim()) newErrors.description = 'Description is required';
-    else if (description.trim().length > 500) newErrors.description = 'Max 500 characters';
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+  const loadSheet = useCallback(async () => {
+    if (!projectId) return;
+    const res = await api.getBillableSheet(projectId);
+    if (res && res.error) {
+      setLoadError(res.message);
+      setSheet(null);
       return;
     }
+    setLoadError('');
+    setSheet(res);
+  }, [projectId]);
 
-    const billNumber = 'INV-' + (user.companyId || 'BILL') + '-' + String(bills.length + 1).padStart(3, '0');
-    const billData = {
-      billNumber,
-      companyId: user.companyId || (selectedProj ? selectedProj.companyId : ''),
-      projectId,
-      projectName: selectedProj ? selectedProj.name : '',
-      clientId: selectedProj ? selectedProj.clientId : '',
-      clientName: selectedProj ? selectedProj.clientName : '',
-      amount: Number(amount),
-      milestone: milestone.trim(),
-      description: description.trim(),
-      generatedBy: user.id,
-      status: 'Pending Decision',
-      date: new Date().toISOString().split('T')[0],
-      dueDate,
-      decisionDate: '',
-      rejectionReason: ''
-    };
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      setMilestoneId('');
+      setError('');
+      return loadSheet();
+    });
+  }, [loadSheet]);
 
-    const saved = await api.createBill(billData);
+  const project = projects.find((p) => p.id === projectId);
+  const rows = sheet?.milestones || [];
+  const legacy = !!sheet && rows.length === 0;
+  const billable = rows.filter((m) => m.billable);
+  const picked = rows.find((m) => m.id === milestoneId);
 
-    if (saved && selectedProj?.clientId) {
+  async function submit(e) {
+    e.preventDefault();
+    setError('');
+    let payload;
+    if (legacy) {
+      if (!legacyMilestone.trim()) return setError('Enter what this bill is for.');
+      if (!(Number(legacyAmount) > 0)) return setError('Amount must be greater than 0.');
+      if (!description.trim()) return setError('Description is required.');
+      payload = { projectId, milestone: legacyMilestone.trim(), amount: Number(legacyAmount), description: description.trim(), dueDate };
+    } else {
+      if (!picked) return setError('Choose an approved milestone to bill.');
+      payload = { projectId, milestoneId: picked.id, description: description.trim() || undefined, dueDate };
+    }
+    if (!dueDate || dueDate < plusDays(0)) return setError('Due date cannot be in the past.');
+    setBusy(true);
+    const saved = await api.createBill(payload);
+    setBusy(false);
+    if (saved && saved.error) return setError(saved.message);
+    if (project?.clientId) {
       await api.createNotification({
-        userId: selectedProj.clientId,
-        title: 'New Bill Pending',
-        body: `Invoice for ${selectedProj.name} (${formatCurrency(Number(amount))}) requires your approval.`,
-        time: 'just now',
-        read: false
+        userId: project.clientId, title: 'New Bill Pending',
+        body: `Invoice ${saved.billNumber} for ${project.name} (${formatCurrency(saved.amount)}) requires your decision.`,
+        time: 'just now', read: false,
       });
     }
-
-    setGeneratedBillId(saved?.id || billNumber);
-    setSuccessModalOpen(true);
-  }
-
-  function handleReset() {
-    setMilestone('');
-    setAmount('');
+    toast.success(`${saved.billNumber} sent to the client.`);
+    setCreated(saved);
+    setMilestoneId('');
     setDescription('');
-    const d = new Date();
-    d.setDate(d.getDate() + 7);
-    setDueDate(d.toISOString().split('T')[0]);
-    setErrors({});
-    setSuccessModalOpen(false);
+    setLegacyMilestone('');
+    setLegacyAmount('');
+    loadSheet();
   }
 
   return (
     <div>
-      <button
-        type="button"
-        className="back-btn"
-        onClick={() => navigate(-1)}
-      >
+      <button type="button" onClick={() => navigate(-1)} className="btn btn-secondary btn-sm" style={{ marginBottom: 12 }}>
         <ArrowLeft size={16} /> Back
       </button>
-
       <div className="page-header">
-        <h1>Generate Bills</h1>
-        <p>Create new project milestone invoices and notify clients</p>
+        <h1>Generate Stage Bill</h1>
+        <p>Bill the client for a milestone the project manager has approved. The quoted stage price and the site reports are attached automatically.</p>
       </div>
 
-      <div style={{ maxWidth: '640px' }}>
-        <div className="card">
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label className="form-label">
-                Project <span className="req">*</span>
-              </label>
-              <select
-                className={`form-select ${errors.projectId ? 'input-error' : ''}`}
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-              >
-                <option value="">Select project</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              {errors.projectId && <span className="field-error">{errors.projectId}</span>}
-            </div>
+      {loadError && <div className="error-msg" style={{ display: 'block', marginBottom: 12 }}>{loadError}</div>}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="form-group" style={{ maxWidth: 420 }}>
+          <label className="form-label">Project</label>
+          <select className="form-select" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        {sheet && (
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 13.5 }}>
+            <span>Contract value: <strong>{formatCurrency(sheet.project.contractValue)}</strong></span>
+            <span>Billed so far: <strong>{formatCurrency(sheet.project.billedTotal)}</strong></span>
+            <span>Remaining to bill: <strong>{formatCurrency(sheet.project.remaining)}</strong></span>
+          </div>
+        )}
+      </div>
 
-            {selectedProj && (
-              <div style={{ background: 'var(--bg)', padding: '12px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
-                <div>Client: <strong>{selectedProj.clientName || 'Assigned Client (Vikram Patel)'}</strong></div>
-                <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>
-                  Project Budget: {formatCurrency(selectedProj.budget)} | Billed: {formatCurrency(billedSoFar)} | Remaining: <strong style={{ color: 'var(--green)' }}>{formatCurrency(remainingBudget)}</strong>
+      {sheet && !legacy && (
+        <div className="card" style={{ marginBottom: 16, overflowX: 'auto' }}>
+          <h3 className="section-title" style={{ marginBottom: 10 }}>Milestones</h3>
+          <table className="data-table" style={{ minWidth: 820 }}>
+            <thead>
+              <tr>
+                <th>Milestone</th><th>Status</th><th style={{ textAlign: 'right' }}>Quoted stage amount</th><th style={{ textAlign: 'right' }}>Bill after advance recovery</th><th style={{ textAlign: 'right' }}>Site reports</th>
+                <th style={{ textAlign: 'right' }}>PO spend</th><th style={{ textAlign: 'right' }}>Expense spend</th><th style={{ textAlign: 'right' }}>Internal budget</th><th>Billing</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((m) => (
+                <tr key={m.id}>
+                  <td><strong>{m.name}</strong></td>
+                  <td>{m.status}</td>
+                  <td style={{ textAlign: 'right' }}>{m.clientStageAmount !== null ? formatCurrency(m.clientStageAmount) : '-'}</td>
+                  <td style={{ textAlign: 'right' }}>{m.netBillAmount !== null ? formatCurrency(m.netBillAmount) : '-'}</td>
+                  <td style={{ textAlign: 'right' }}>{m.siteReportCount}</td>
+                  <td style={{ textAlign: 'right' }}>{formatCurrency(m.poSpend)}</td>
+                  <td style={{ textAlign: 'right' }}>{formatCurrency(m.expenseSpend)}</td>
+                  <td style={{ textAlign: 'right' }}>{m.internalBudget !== null ? formatCurrency(m.internalBudget) : '-'}</td>
+                  <td>
+                    {m.billed ? <span className="badge badge-green">Billed {m.billNumber}</span>
+                      : m.billable ? <span className="badge badge-blue">Ready to bill</span>
+                        : <span className="badge badge-gray"><Lock size={11} /> {m.status === 'Completed' ? 'No site report' : 'Not approved'}</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {sheet && (
+        <div className="card">
+          <form onSubmit={submit}>
+            {error && <div className="error-msg" style={{ display: 'block', marginBottom: 12 }}>{error}</div>}
+            {legacy ? (
+              <div className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Bill for <span className="req">*</span></label>
+                  <input className="form-input" value={legacyMilestone} maxLength={100} onChange={(e) => setLegacyMilestone(e.target.value)} />
                 </div>
+                <div className="form-group">
+                  <label className="form-label">Amount (₹) <span className="req">*</span></label>
+                  <input className="form-input" type="number" min="1" value={legacyAmount} onChange={(e) => setLegacyAmount(e.target.value)} />
+                </div>
+                <p style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--text-muted)' }}>This project has no milestone plan, so a free-form bill is allowed.</p>
+              </div>
+            ) : (
+              <div>
+                <div className="form-group" style={{ maxWidth: 480 }}>
+                  <label className="form-label">Approved milestone <span className="req">*</span></label>
+                  <select className="form-select" value={milestoneId} onChange={(e) => setMilestoneId(e.target.value)} disabled={billable.length === 0}>
+                    <option value="">{billable.length === 0 ? 'No approved milestone is waiting to be billed' : 'Select milestone'}</option>
+                    {billable.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                </div>
+                {picked && (
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 14, marginBottom: 14 }}>
+                    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 8 }}>
+                      <div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>BILL AMOUNT</div><div style={{ fontSize: 20, fontWeight: 800 }}>{picked.netBillAmount !== null ? formatCurrency(picked.netBillAmount) : 'Set by you on the server'}</div>
+                        {picked.clientStageAmount !== null && picked.advanceRecovery > 0 && (
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Quoted stage {formatCurrency(picked.clientStageAmount)} less advance recovery {formatCurrency(picked.advanceRecovery)}</div>
+                        )}</div>
+                      <div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>INTERNAL SPEND SO FAR</div><div style={{ fontSize: 16, fontWeight: 700 }}>{formatCurrency(picked.poSpend + picked.expenseSpend)} <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 12 }}>of {picked.internalBudget !== null ? formatCurrency(picked.internalBudget) : 'n/a'}</span></div></div>
+                    </div>
+                    <div style={{ fontSize: 13 }}>
+                      Proof attached: <strong>{picked.siteReportCount} site report(s)</strong>{' '}
+                      {picked.siteReportIds.map((id) => (
+                        <button key={id} type="button" className="btn btn-secondary btn-sm" style={{ marginLeft: 6 }} onClick={() => setPreviewId(id)}>{id.length > 12 ? id.slice(0, 8) : id}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {picked && picked.clientStageAmount === null && (
+                  <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 10 }}>This milestone has no quoted price (it was created by hand), so the amount cannot be filled in automatically.</p>
+                )}
               </div>
             )}
-
-            <div className="form-group">
-              <label className="form-label">
-                Milestone <span className="req">*</span>
-              </label>
-              <input
-                type="text"
-                className={`form-input ${errors.milestone ? 'input-error' : ''}`}
-                placeholder="e.g. Foundation Complete, Floor 2 Structural Pouring"
-                value={milestone}
-                onChange={(e) => setMilestone(e.target.value)}
-                maxLength={100}
-              />
-              {errors.milestone && <span className="field-error">{errors.milestone}</span>}
-            </div>
-
-            <div className="form-row">
+            <div className="grid-2">
               <div className="form-group">
-                <label className="form-label">
-                  Bill Amount (₹) <span className="req">*</span>
-                </label>
-                <input
-                  type="number"
-                  className={`form-input ${errors.amount ? 'input-error' : ''}`}
-                  placeholder="e.g. 5000000"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  min={1}
-                />
-                {errors.amount && <span className="field-error">{errors.amount}</span>}
+                <label className="form-label">Due date</label>
+                <input className="form-input" type="date" min={plusDays(0)} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               </div>
-
               <div className="form-group">
-                <label className="form-label">
-                  Due Date <span className="req">*</span>
-                </label>
-                <input
-                  type="date"
-                  className={`form-input ${errors.dueDate ? 'input-error' : ''}`}
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                />
-                {errors.dueDate && <span className="field-error">{errors.dueDate}</span>}
+                <label className="form-label">Note to the client {legacy && <span className="req">*</span>}</label>
+                <textarea className="form-textarea" rows={2} maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} />
               </div>
             </div>
-
-            <div className="form-group">
-              <label className="form-label">
-                Description <span className="req">*</span>
-              </label>
-              <textarea
-                className={`form-textarea ${errors.description ? 'input-error' : ''}`}
-                placeholder="Bill details, scope of work completed, milestone verification notes..."
-                value={description}
-                maxLength={500}
-                onChange={(e) => setDescription(e.target.value)}
-              ></textarea>
-              {errors.description && <span className="field-error">{errors.description}</span>}
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="submit" className="btn btn-primary" disabled={busy || (!legacy && !picked)}>{busy ? 'Generating...' : 'Generate bill'}</button>
             </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary btn-full"
-              style={{ padding: '12px', marginTop: 8 }}
-            >
-              Generate & Send Bill
-            </button>
           </form>
         </div>
-      </div>
+      )}
 
-      {/* Success Modal */}
+      <ReportPreviewModal reportId={previewId} onClose={() => setPreviewId(null)} />
+
       <Modal
-        isOpen={successModalOpen}
-        onClose={() => setSuccessModalOpen(false)}
-        title="Bill Generated & Sent!"
-        subtitle="Invoice has been generated and sent to the client successfully."
+        isOpen={!!created}
+        onClose={() => setCreated(null)}
+        title="Bill generated"
+        size="sm"
+        footer={
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => setCreated(null)}>Bill another</button>
+            <button type="button" className="btn btn-primary" onClick={() => navigate('/finance-manager/bill-decisions')}>View bills</button>
+          </>
+        }
       >
-        <div style={{ textAlign: 'center', padding: '16px 0' }}>
-          <div className="icon-box icon-box-lg icon-box-green" style={{ margin: '0 auto 16px', borderRadius: '50%' }}>
-            <CheckCircle2 size={32} />
+        {created && (
+          <div style={{ textAlign: 'center' }}>
+            <CheckCircle2 size={40} color="var(--green)" />
+            <p style={{ marginTop: 10 }}><strong>{created.billNumber}</strong> for {formatCurrency(created.amount)} was sent to {created.clientName || 'the client'}.</p>
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>
-            Invoice {generatedBillId} has been generated and queued for client approval.
-          </p>
-          <div style={{ display: 'grid', gap: 10 }}>
-            <button
-              type="button"
-              className="btn btn-primary btn-full"
-              onClick={() => navigate('/finance-manager/bill-decisions')}
-            >
-              View All Bill Decisions
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-full"
-              onClick={handleReset}
-            >
-              Generate Another Bill
-            </button>
-          </div>
-        </div>
+        )}
       </Modal>
     </div>
   );

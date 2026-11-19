@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { Edit2, Eye, Receipt, Plus } from 'lucide-react';
+import { Edit2, Eye, Plus } from 'lucide-react';
 import { api } from '../../../services/api';
 import {
   formatCurrency,

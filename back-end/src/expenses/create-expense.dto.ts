@@ -1,50 +1,44 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, IsIn, Min, Max, MinLength, MaxLength, Matches } from 'class-validator';
 
+export const EXPENSE_CATEGORIES = ['Materials', 'Labor', 'Equipment', 'Transport', 'Safety', 'Other'];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A site engineer submits an expense claim. Status, ids and company are always set by the server. */
 export class CreateExpenseDto {
-  @ApiPropertyOptional({ description: 'Company ID expense belongs to', example: 'COMP001' })
-  @IsString()
-  @IsOptional()
-  companyId?: string;
-
-  @ApiProperty({ description: 'ID of the project', example: 'P001' })
-  @IsString()
-  @IsNotEmpty()
+  @ApiProperty({ description: 'Project the cost belongs to', example: 'P001' })
+  @IsString() @IsNotEmpty()
   projectId: string;
 
-  @ApiPropertyOptional({ description: 'Name of the project', example: 'Skyline Tower' })
-  @IsString()
-  @IsOptional()
-  projectName?: string;
-
-  @ApiProperty({ description: 'Expense category', example: 'Materials' })
-  @IsString()
-  @IsNotEmpty()
+  @ApiProperty({ enum: EXPENSE_CATEGORIES, example: 'Materials' })
+  @IsIn(EXPENSE_CATEGORIES)
   category: string;
 
-  @ApiProperty({ description: 'Expense amount', example: 850000 })
-  @IsNumber()
-  @Min(1)
-  @IsNotEmpty()
+  @ApiProperty({ description: 'Amount in INR', example: 4500 })
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(1) @Max(100000000)
   amount: number;
 
-  @ApiProperty({ description: 'Expense description', example: 'Cement and steel for foundation' })
-  @IsString()
-  @IsNotEmpty()
-  description: string;
-
-  @ApiProperty({ description: 'Date of expense', example: '2026-03-01' })
-  @IsString()
-  @IsNotEmpty()
+  @ApiProperty({ description: 'Date the money was spent', example: '2026-11-08' })
+  @Matches(DATE_RE, { message: 'date must be YYYY-MM-DD' })
   date: string;
 
-  @ApiProperty({ description: 'ID of user who recorded expense', example: 'U004' })
-  @IsString()
-  @IsNotEmpty()
-  recordedBy: string;
+  @ApiProperty({ example: 'Diesel for the concrete mixer' })
+  @IsString() @MinLength(3) @MaxLength(500)
+  description: string;
 
-  @ApiPropertyOptional({ description: 'Receipt file name or URL', example: 'receipt_001.pdf' })
-  @IsString()
-  @IsOptional()
-  receipt?: string;
+  @ApiPropertyOptional({ description: 'Milestone the cost belongs to (required on projects that have milestones)', example: 'MS001' })
+  @IsOptional() @IsString() @MaxLength(40)
+  milestoneId?: string;
+}
+
+export class DecisionNoteDto {
+  @ApiPropertyOptional({ description: 'Required when returning or rejecting (and when approving over budget)' })
+  @IsOptional() @IsString() @MaxLength(500)
+  note?: string;
+}
+
+export class ReimburseDto {
+  @ApiPropertyOptional({ description: 'Payment reference (UPI id, transfer no., voucher no.)', example: 'UPI-88213' })
+  @IsOptional() @IsString() @MaxLength(80)
+  reference?: string;
 }

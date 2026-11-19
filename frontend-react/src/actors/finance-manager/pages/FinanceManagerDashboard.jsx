@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import LiveSummary from '../../../components/dashboard/LiveSummary';
+import { useState, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import {
   DollarSign,
   TrendingUp,
   Receipt,
-  AlertTriangle,
-  ArrowRight
+  AlertTriangle
 } from 'lucide-react';
 import { api } from '../../../services/api';
-import { formatCurrency, formatDate, statusBadgeClass, normalizeBillStatus } from '../../../services/utils';
+import { formatCurrency, formatDate, normalizeBillStatus } from '../../../services/utils';
 
 export default function FinanceManagerDashboard() {
   const { user } = useOutletContext();
@@ -16,9 +16,7 @@ export default function FinanceManagerDashboard() {
   const [bills, setBills] = useState([]);
   const [expenses, setExpenses] = useState([]);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [user]);
+
 
   async function loadDashboardData() {
     if (!user) return;
@@ -33,12 +31,17 @@ export default function FinanceManagerDashboard() {
     );
     const myProjectIds = new Set(myProjects.map((p) => p.id));
     const myBills = (bList || []).filter((b) => myProjectIds.has(b.projectId));
-    const myExpenses = (eList || []).filter((e) => myProjectIds.has(e.projectId));
+    // Only approved expenses count as project spend (older demo expenses without a status count as approved).
+    const myExpenses = (eList || []).filter((e) => myProjectIds.has(e.projectId) && (!e.status || e.status === 'approved'));
 
     setProjects(myProjects);
     setBills(myBills);
     setExpenses(myExpenses);
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadDashboardData());
+  }, [user]);
 
   const totalBudget = projects.reduce((sum, p) => sum + (Number(p.budget) || 0), 0);
   const totalUtilized = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
@@ -70,6 +73,8 @@ export default function FinanceManagerDashboard() {
         <h1>Finance Manager Dashboard</h1>
         <p>Monitor budgets, expenses, and financial operations</p>
       </div>
+
+      <LiveSummary />
 
       {/* Stats Cards */}
       <div className="stats-grid">
