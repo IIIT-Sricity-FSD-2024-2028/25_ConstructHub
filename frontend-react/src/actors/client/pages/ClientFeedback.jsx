@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
-  MessageSquare,
   Send,
   CheckCircle2,
   AlertCircle
@@ -10,7 +9,7 @@ import { api } from '../../../services/api';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 
-export default function ClientFeedback() {
+export default function ClientFeedback({ projectId } = {}) {
   const { user } = useOutletContext();
   const navigate = useNavigate();
 
@@ -22,19 +21,34 @@ export default function ClientFeedback() {
 
   const [errors, setErrors] = useState({});
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const [history, setHistory] = useState([]);
+
+  async function loadHistory() {
+    const res = await api.getFeedback();
+    const all = Array.isArray(res) ? res : [];
+    setHistory(projectId ? all.filter((f) => f.projectId === projectId) : all);
+  }
 
   useEffect(() => {
-    loadProject();
-  }, [user]);
+    void Promise.resolve().then(loadHistory);
+  }, [projectId]);
+
+
 
   async function loadProject() {
     if (!user) return;
     const allProjects = await api.getProjects(user.companyId);
-    const myProj = (allProjects || []).find(
-      (p) => p.clientId === user.id || p.clientEmail === user.email || p.clientName === user.name
+    const myProj = (allProjects || []).find((p) =>
+      projectId
+        ? p.id === projectId
+        : p.clientId === user.id || p.clientEmail === user.email || p.clientName === user.name
     );
     setProject(myProj || (allProjects && allProjects[0]) || null);
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadProject());
+  }, [user]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -61,20 +75,18 @@ export default function ClientFeedback() {
     if (Object.keys(errs).length > 0) return;
 
     try {
-      await api.createNotification({
-        userId: project.managerId || user.companyId,
-        type: 'feedback',
-        title: 'Client Feedback',
-        body: message.trim(),
-        clientId: user.id,
-        clientName: user.name,
+      const saved = await api.submitFeedback({
         projectId: project.id,
-        projectName: project.name,
         category,
         subject: subject.trim(),
-        priority,
-        createdAt: new Date().toISOString()
+        message: message.trim(),
+        priority
       });
+      if (saved && saved.error) {
+        setErrors({ form: saved.message });
+        return;
+      }
+      loadHistory();
 
       setSubject('');
       setMessage('');
@@ -164,6 +176,28 @@ export default function ClientFeedback() {
         </div>
       </div>
 
+      <div className="card" style={{ marginTop: '20px', overflowX: 'auto' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '12px' }}>Submitted Feedback</h3>
+        {history.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: 13.5 }}>You have not sent any feedback yet. Everything you send is kept here.</p>
+        ) : (
+          <table className="data-table" style={{ minWidth: 560 }}>
+            <thead><tr><th>Date</th><th>Project</th><th>Category</th><th>Subject</th><th>Priority</th></tr></thead>
+            <tbody>
+              {history.map((f) => (
+                <tr key={f.id}>
+                  <td>{new Date(f.createdAt).toLocaleDateString('en-IN')}</td>
+                  <td>{f.projectName}</td>
+                  <td>{f.category}</td>
+                  <td><strong>{f.subject}</strong><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{f.message}</div></td>
+                  <td>{f.priority}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
       {/* Success Modal */}
       {isSuccessOpen && (
         <Modal
@@ -171,7 +205,7 @@ export default function ClientFeedback() {
           title=""
           onClose={() => {
             setIsSuccessOpen(false);
-            navigate('/client/dashboard');
+            if (!projectId) navigate('/client/dashboard');
           }}
         >
           <div style={{ textAlign: 'center', padding: '10px 0' }}>
@@ -190,10 +224,10 @@ export default function ClientFeedback() {
               style={{ width: '100%' }}
               onClick={() => {
                 setIsSuccessOpen(false);
-                navigate('/client/dashboard');
+                if (!projectId) navigate('/client/dashboard');
               }}
             >
-              Go to Dashboard
+              {projectId ? 'Done' : 'Go to Dashboard'}
             </Button>
           </div>
         </Modal>

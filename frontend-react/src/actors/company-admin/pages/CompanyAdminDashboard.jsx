@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams, useOutletContext, Link } from 'react-router-dom';
+import LiveSummary from '../../../components/dashboard/LiveSummary';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useOutletContext } from 'react-router-dom';
 import {
   ShieldCheck,
-  Building2,
   Users,
   Folder,
   CheckSquare,
@@ -14,17 +14,14 @@ import {
   Edit2,
   Trash2,
   Power,
-  Search,
-  Plus,
   Eye,
   Camera,
-  Calendar,
   AlertTriangle,
   Lock,
   CheckCircle2,
   Clock
 } from 'lucide-react';
-import { api } from '../../../services/api';
+import { api, API_ORIGIN } from '../../../services/api';
 import {
   formatCurrency,
   formatDate,
@@ -38,6 +35,23 @@ import {
 } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import DataTable from '../../../components/common/DataTable';
+
+/** Read-only headline numbers for the oversight tabs (the work itself is done by the PM and FM). */
+function KpiStrip({ items, note }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div className="metric-ribbon" style={{ marginBottom: 6 }}>
+        {items.map(([label, value]) => (
+          <div key={label} className="metric-cell">
+            <div className="metric-cell-label">{label}</div>
+            <div className="metric-cell-value">{value}</div>
+          </div>
+        ))}
+      </div>
+      {note && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{note}</p>}
+    </div>
+  );
+}
 
 export default function CompanyAdminDashboard() {
   const { user } = useOutletContext();
@@ -86,16 +100,6 @@ export default function CompanyAdminDashboard() {
     clientPassword: 'password123'
   });
   const [projectFormErrors, setProjectFormErrors] = useState({});
-
-  // Expense modal
-  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({
-    category: 'Materials',
-    amount: '',
-    projectId: '',
-    date: new Date().toISOString().split('T')[0],
-    description: ''
-  });
 
   // Report detail modal
   const [selectedReport, setSelectedReport] = useState(null);
@@ -395,10 +399,10 @@ export default function CompanyAdminDashboard() {
       }
     }
 
-    let clientId = '';
-    let clientName = '';
-    let clientEmail = '';
-    let clientPhone = '';
+    let clientId;
+    let clientName;
+    let clientEmail;
+    let clientPhone;
 
     if (!isEditingProject) {
       // New client required for each project (1 client = 1 project)
@@ -553,40 +557,6 @@ export default function CompanyAdminDashboard() {
       }
       loadCompanyData();
     }
-  }
-
-  // --- Bill status update ---
-  async function handleUpdateBillStatus(billId, status) {
-    await api.updateBill(billId, {
-      status,
-      decisionDate: new Date().toISOString().split('T')[0]
-    });
-    loadCompanyData();
-  }
-
-  // --- Expense submit ---
-  async function handleSaveExpense(e) {
-    e.preventDefault();
-    if (!expenseForm.amount || !expenseForm.projectId) return;
-
-    await api.createExpense({
-      companyId: user.companyId,
-      category: expenseForm.category,
-      amount: Number(expenseForm.amount),
-      projectId: expenseForm.projectId,
-      date: expenseForm.date,
-      description: expenseForm.description
-    });
-
-    setExpenseModalOpen(false);
-    setExpenseForm({
-      category: 'Materials',
-      amount: '',
-      projectId: '',
-      date: new Date().toISOString().split('T')[0],
-      description: ''
-    });
-    loadCompanyData();
   }
 
   const filteredTeamUsers = teamUsers.filter((u) => {
@@ -820,6 +790,8 @@ export default function CompanyAdminDashboard() {
       )}
 
       {/* Module Tabs */}
+      <LiveSummary />
+
       <div className="module-tabs">
         <button
           type="button"
@@ -895,6 +867,7 @@ export default function CompanyAdminDashboard() {
               <option value="project_manager">Project Manager</option>
               <option value="site_engineer">Site Engineer</option>
               <option value="finance_manager">Finance Manager</option>
+              <option value="procurement_storekeeper">Procurement / Storekeeper</option>
               <option value="client">Client</option>
             </select>
             <button
@@ -1103,6 +1076,15 @@ export default function CompanyAdminDashboard() {
       {/* TAB 3: Tasks */}
       {currentTab === 'tasks' && (
         <div className="card">
+          <KpiStrip
+            items={[
+              ['Tasks', tasks.length],
+              ['In progress', tasks.filter((t) => t.status === 'In Progress').length],
+              ['Completed', tasks.filter((t) => t.status === 'Completed').length],
+              ['Overdue', tasks.filter((t) => t.status !== 'Completed' && t.deadline && t.deadline < new Date().toISOString().slice(0, 10)).length],
+            ]}
+            note="Read-only overview. Project managers plan and assign tasks."
+          />
           <DataTable
             data={tasks}
             emptyMessage="No tasks found for your company."
@@ -1162,6 +1144,15 @@ export default function CompanyAdminDashboard() {
       {/* TAB 4: Bills */}
       {currentTab === 'bills' && (
         <div className="card">
+          <KpiStrip
+            items={[
+              ['Billed (not declined)', formatCurrency(bills.filter((b) => normalizeBillStatus(b.status) !== 'Declined').reduce((s, b) => s + (Number(b.amount) || 0), 0))],
+              ['Waiting for client', bills.filter((b) => normalizeBillStatus(b.status) === 'Pending Decision').length],
+              ['Accepted', formatCurrency(bills.filter((b) => normalizeBillStatus(b.status) === 'Accepted').reduce((s, b) => s + (Number(b.amount) || 0), 0))],
+              ['Still to collect', formatCurrency(bills.filter((b) => normalizeBillStatus(b.status) === 'Accepted').reduce((s, b) => s + (Number(b.outstanding ?? b.amount) || 0), 0))],
+            ]}
+            note="Read-only overview. Finance managers generate stage bills from approved milestones."
+          />
           <DataTable
             data={bills}
             emptyMessage="No invoices found."
@@ -1269,6 +1260,14 @@ export default function CompanyAdminDashboard() {
           <div className="section-header">
             <h3 className="section-title">Recorded Project Expenses</h3>
           </div>
+          <KpiStrip
+            items={[
+              ['Approved spend', formatCurrency(expenses.filter((e) => !e.status || e.status === 'approved').reduce((s, e) => s + (Number(e.amount) || 0), 0))],
+              ['Awaiting approval', expenses.filter((e) => ['submitted', 'pm_verified'].includes(e.status)).length],
+              ['Returned / rejected', expenses.filter((e) => ['returned', 'rejected'].includes(e.status)).length],
+            ]}
+            note="Read-only overview. Project managers verify claims and finance managers approve them."
+          />
 
           <DataTable
             data={expenses}
@@ -1365,6 +1364,8 @@ export default function CompanyAdminDashboard() {
                       ? 'Project Manager'
                       : userForm.role === 'finance_manager'
                       ? 'Finance Manager'
+                      : userForm.role === 'procurement_storekeeper'
+                      ? 'Procurement / Storekeeper'
                       : userForm.role === 'site_engineer'
                       ? 'Site Engineer'
                       : userForm.role === 'company_admin'
@@ -1392,6 +1393,7 @@ export default function CompanyAdminDashboard() {
                   <option value="project_manager">Project Manager</option>
                   <option value="site_engineer">Site Engineer</option>
                   <option value="finance_manager">Finance Manager</option>
+                  <option value="procurement_storekeeper">Procurement / Storekeeper</option>
                 </select>
               )}
             </div>
@@ -1821,7 +1823,7 @@ export default function CompanyAdminDashboard() {
                       p.clientName === viewUserModal.name
                   );
                   if (userProjects.length === 0) {
-                    return <div>Assigned across company operations ({projects[0]?.name || 'Apex Skyline Tower'})</div>;
+                    return <div>Assigned across company operations ({projects[0]?.name || 'no projects yet'})</div>;
                   }
                   return (
                     <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 4 }}>
@@ -1868,7 +1870,7 @@ export default function CompanyAdminDashboard() {
               (viewProjectModal.managerName && u.name === viewProjectModal.managerName)
           );
 
-          const clientName = viewProjectModal.clientName || clientUser?.name || 'Vikram Patel';
+          const clientName = viewProjectModal.clientName || clientUser?.name || '-';
           const clientEmail = viewProjectModal.clientEmail || clientUser?.email || 'client@apex.com';
           const clientPhone = viewProjectModal.clientPhone || clientUser?.phone || '+91 98765 43213';
 
@@ -2058,7 +2060,7 @@ export default function CompanyAdminDashboard() {
         isOpen={!!viewTaskModal}
         onClose={() => setViewTaskModal(null)}
         title={viewTaskModal?.title || 'Task Details'}
-        subtitle={viewTaskModal ? `Project: ${viewTaskModal.projectName || projects.find(p => p.id === viewTaskModal.projectId)?.name || 'Apex Skyline Tower'}` : ''}
+        subtitle={viewTaskModal ? `Project: ${viewTaskModal.projectName || projects.find(p => p.id === viewTaskModal.projectId)?.name || '-'}` : ''}
         footer={
           <button
             type="button"
@@ -2070,8 +2072,8 @@ export default function CompanyAdminDashboard() {
         }
       >
         {viewTaskModal && (() => {
-          const se = teamUsers.find((u) => u.id === viewTaskModal.assignedTo) || teamUsers.find((u) => u.name === viewTaskModal.assignedName) || teamUsers.find((u) => u.role === 'site_engineer');
-          const projectName = viewTaskModal.projectName || projects.find((p) => p.id === viewTaskModal.projectId)?.name || 'Apex Skyline Tower';
+          const se = teamUsers.find((u) => u.id === viewTaskModal.assignedTo) || teamUsers.find((u) => u.name === viewTaskModal.assignedName) || null;
+          const projectName = viewTaskModal.projectName || projects.find((p) => p.id === viewTaskModal.projectId)?.name || '-';
           return (
             <div style={{ display: 'grid', gap: 16 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, fontSize: '13.5px' }}>
@@ -2093,11 +2095,11 @@ export default function CompanyAdminDashboard() {
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Assigned Site Engineer</span>
-                  <strong>{viewTaskModal.assignedName || se?.name || 'Priya Sharma'}</strong>
+                  <strong>{viewTaskModal.assignedName || se?.name || 'Unassigned'}</strong>
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Start Date</span>
-                  <strong>{formatDate(viewTaskModal.startDate || '2026-03-01')}</strong>
+                  <strong>{viewTaskModal.startDate ? formatDate(viewTaskModal.startDate) : '-'}</strong>
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Deadline</span>
@@ -2131,7 +2133,7 @@ export default function CompanyAdminDashboard() {
               <div>
                 <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: 4 }}>Scope of Work</span>
                 <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, background: 'var(--bg)', padding: 10, borderRadius: 'var(--radius)' }}>
-                  {viewTaskModal.description || 'Complete scheduled engineering activity according to specifications.'}
+                  {viewTaskModal.description || '-'}
                 </p>
               </div>
 
@@ -2139,7 +2141,7 @@ export default function CompanyAdminDashboard() {
               <div>
                 <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: 4 }}>Field Engineer Remarks</span>
                 <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, background: 'var(--bg)', padding: 10, borderRadius: 'var(--radius)' }}>
-                  {viewTaskModal.remarks || 'Site execution proceeding as scheduled with quality checks verified.'}
+                  {viewTaskModal.remarks || '-'}
                 </p>
               </div>
             </div>
@@ -2152,7 +2154,7 @@ export default function CompanyAdminDashboard() {
         isOpen={!!viewBillModal}
         onClose={() => setViewBillModal(null)}
         title={`Bill: ${viewBillModal?.billNumber || viewBillModal?.id || 'Details'}`}
-        subtitle={viewBillModal ? `Project: ${viewBillModal.projectName || projects.find(p => p.id === viewBillModal.projectId)?.name || 'Apex Skyline Tower'}` : ''}
+        subtitle={viewBillModal ? `Project: ${viewBillModal.projectName || projects.find(p => p.id === viewBillModal.projectId)?.name || '-'}` : ''}
         footer={
           <button
             type="button"
@@ -2166,10 +2168,10 @@ export default function CompanyAdminDashboard() {
         {viewBillModal && (() => {
           const norm = normalizeBillStatus(viewBillModal.status);
           const p = projects.find((x) => x.id === viewBillModal.projectId);
-          const projectName = viewBillModal.projectName || p?.name || 'Apex Skyline Tower';
-          const clientName = viewBillModal.clientName || p?.clientName || 'Vikram Patel';
-          const milestone = viewBillModal.milestone || (viewBillModal.description ? viewBillModal.description.replace(/\.?$/, '') : 'Milestone 1 - Foundation & Framing');
-          const fm = teamUsers.find((u) => u.id === viewBillModal.generatedBy || u.role === 'finance_manager');
+          const projectName = viewBillModal.projectName || p?.name || '-';
+          const clientName = viewBillModal.clientName || p?.clientName || '-';
+          const milestone = viewBillModal.milestone || (viewBillModal.description ? viewBillModal.description.replace(/\.?$/, '') : '-');
+          const fm = teamUsers.find((u) => u.id === viewBillModal.generatedBy);
           return (
             <div style={{ display: 'grid', gap: 16 }}>
               {/* Amount Banner */}
@@ -2225,7 +2227,7 @@ export default function CompanyAdminDashboard() {
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Issue Date</span>
-                  <strong>{formatDate(viewBillModal.date || '2026-03-01')}</strong>
+                  <strong>{viewBillModal.date ? formatDate(viewBillModal.date) : '-'}</strong>
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Due Date</span>
@@ -2279,7 +2281,7 @@ export default function CompanyAdminDashboard() {
       >
         {viewExpenseModal && (() => {
           const p = projects.find((x) => x.id === viewExpenseModal.projectId);
-          const projectName = p ? p.name : (viewExpenseModal.projectName || 'Apex Skyline Tower');
+          const projectName = p ? p.name : (viewExpenseModal.projectName || '-');
           const recorder = teamUsers.find((u) => u.id === viewExpenseModal.recordedBy || u.role === 'finance_manager');
           return (
             <div style={{ display: 'grid', gap: 16 }}>
@@ -2350,7 +2352,7 @@ export default function CompanyAdminDashboard() {
         isOpen={!!selectedReport}
         onClose={() => setSelectedReport(null)}
         title={selectedReport?.title || 'Report Details'}
-        subtitle={`Submitted by: ${selectedReport?.reporterName || selectedReport?.submittedName || 'Priya Sharma (Site Engineer)'} on ${formatDate(selectedReport?.date)}`}
+        subtitle={`Submitted by: ${selectedReport?.reporterName || selectedReport?.submittedName || 'Unknown'} on ${formatDate(selectedReport?.date)}`}
         footer={
           <button
             type="button"
@@ -2363,8 +2365,8 @@ export default function CompanyAdminDashboard() {
       >
         {selectedReport && (() => {
           const photoUrls = Array.isArray(selectedReport.photoUrls) ? selectedReport.photoUrls : [];
-          const projectName = selectedReport.projectName || projects.find(p => p.id === selectedReport.projectId)?.name || 'Apex Skyline Tower';
-          const reporter = selectedReport.reporterName || selectedReport.submittedName || teamUsers.find(u => u.id === selectedReport.submittedBy)?.name || 'Priya Sharma (Site Engineer)';
+          const projectName = selectedReport.projectName || projects.find(p => p.id === selectedReport.projectId)?.name || '-';
+          const reporter = selectedReport.reporterName || selectedReport.submittedName || teamUsers.find(u => u.id === selectedReport.submittedBy)?.name || 'Unknown';
           return (
             <div style={{ display: 'grid', gap: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, fontSize: '13.5px' }}>
@@ -2460,7 +2462,7 @@ export default function CompanyAdminDashboard() {
                         }}
                       >
                         <img
-                          src={url.startsWith('http') ? url : `http://localhost:3000${url}`}
+                          src={url.startsWith('http') ? url : `${API_ORIGIN}${url}`}
                           alt={`Site photo ${idx + 1}`}
                           style={{ width: '100%', height: '100px', objectFit: 'cover', display: 'block' }}
                           onError={(e) => {

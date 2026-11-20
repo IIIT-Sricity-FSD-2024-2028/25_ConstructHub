@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { HardHat, Bell, Settings, LogOut, CheckCircle2, X, Trash2 } from 'lucide-react';
+import { Bell, Settings, LogOut, X, Trash2, Menu } from 'lucide-react';
+import ConstructHubLogo from '../common/ConstructHubLogo';
 import { api } from '../../services/api';
 import { roleLabel, avatarColor } from '../../services/utils';
 import Modal from '../common/Modal';
 
-export default function SharedHeader({ user, onNotificationClick }) {
+export default function SharedHeader({ user, onLogout, onToggleMobileNav }) {
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -42,7 +43,8 @@ export default function SharedHeader({ user, onNotificationClick }) {
   }, []);
 
   function handleLogout() {
-    api.logout();
+    if (onLogout) onLogout();
+    else api.logout();
   }
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -75,17 +77,24 @@ export default function SharedHeader({ user, onNotificationClick }) {
     setNotifications((prev) => prev.filter((n) => n.id !== notifId));
   }
 
-  const rolePath = user?.role ? `/${user.role.replace('_', '-')}` : '/login';
+  const rolePath = user?.role ? `/${user.role.replaceAll('_', '-')}` : '/login';
 
   return (
     <>
       <header className="navbar">
         <div className="nav-left">
+          {onToggleMobileNav && (
+            <button
+              type="button"
+              className="mobile-menu-btn"
+              onClick={onToggleMobileNav}
+              aria-label="Toggle navigation menu"
+            >
+              <Menu size={20} />
+            </button>
+          )}
           <Link to={`${rolePath}/dashboard`} className="nav-logo">
-            <div className="logo-icon" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center' }}>
-              <HardHat size={26} />
-            </div>
-            <span className="logo-text">ConstructHub</span>
+            <ConstructHubLogo size={30} textSize={17} />
           </Link>
         </div>
 

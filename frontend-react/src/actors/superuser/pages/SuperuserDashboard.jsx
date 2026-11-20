@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import LiveSummary from '../../../components/dashboard/LiveSummary';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   ShieldCheck,
@@ -10,16 +11,14 @@ import {
   PlusCircle,
   Edit2,
   Power,
-  Trash2,
-  Search,
   CheckCircle2,
-  Clock,
-  Phone
+  Phone,
+  ClipboardCheck,
+  Tag
 } from 'lucide-react';
 import { api } from '../../../services/api';
 import {
   formatCurrency,
-  formatDate,
   roleLabel,
   roleBadgeClass,
   statusBadgeClass,
@@ -29,21 +28,30 @@ import {
 } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import DataTable from '../../../components/common/DataTable';
+import PendingApprovals from '../components/PendingApprovals';
+import PlanEditor from '../components/PlanEditor';
+import { useToast } from '../../../hooks/useToast';
 
-const BASE_QUOTAS = {
+// Defaults used until the live plans load from the server (the platform admin can edit them on the Plans tab).
+const DEFAULT_QUOTAS = {
   Basic: { users: 10, projects: 3, price: 4999 },
   Pro: { users: 50, projects: 15, price: 9999 },
   Enterprise: { users: 500, projects: 100, price: 19999 }
 };
+const DEFAULT_OVERAGE = { extraUserMonthly: 499, extraProjectMonthly: 1999 };
 
 export default function SuperuserDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
+  // (BASE_QUOTAS / overage rates are derived from plansData further down)
   const currentTab = searchParams.get('tab') || 'companies';
 
+  const toast = useToast();
+  const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
   const [companies, setCompanies] = useState([]);
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [inquiries, setInquiries] = useState([]);
+  const [plansData, setPlansData] = useState(null);
 
   // Modals
   const [compModalOpen, setCompModalOpen] = useState(false);
@@ -77,12 +85,14 @@ export default function SuperuserDashboard() {
   }, []);
 
   async function loadAllData() {
-    const [c, u, p, inq] = await Promise.all([
+    const [c, u, p, inq, pl] = await Promise.all([
       api.getCompanies(),
       api.getUsers(),
       api.getProjects(),
-      api.getInquiries()
+      api.getInquiries(),
+      api.getPlans()
     ]);
+    setPlansData(pl);
     setCompanies(c || []);
     setUsers(u || []);
     setProjects(p || []);
@@ -176,7 +186,8 @@ export default function SuperuserDashboard() {
       billingCycle: c.billingCycle || 'monthly',
       extraUsers,
       extraProjects,
-      overageEnabled: !!c.overageEnabled
+      overageEnabled: !!c.overageEnabled,
+      adminPassword: ''
     });
     setCompFormErrors({});
     setCompModalOpen(true);
@@ -242,7 +253,8 @@ export default function SuperuserDashboard() {
         return;
       }
     } else {
-      const regRes = await api.registerCompany({
+      const initialPassword = (compForm.adminPassword || '').trim() || 'password123';
+      const regRes = await api.onboardCompany({
         company: {
           name: compForm.name.trim(),
           code: compForm.code.trim().toLowerCase(),
@@ -258,9 +270,9 @@ export default function SuperuserDashboard() {
           overageEnabled: compForm.overageEnabled
         },
         admin: {
-          name: `${compForm.name} Admin`,
+          name: `${compForm.name.trim()} Admin`,
           email: compForm.ownerEmail.trim().toLowerCase(),
-          password: 'password123',
+          password: initialPassword,
           phone: compForm.phone ? `+91 ${compForm.phone}` : ''
         }
       });
@@ -278,17 +290,25 @@ export default function SuperuserDashboard() {
       }
     }
 
-    // Auto-update onboarding inquiry status to Onboarded
-    if (onboardingInquiryId) {
-      await api.updateInquiry(onboardingInquiryId, { status: 'Onboarded' }).catch(() => {});
-    }
-    const matchingInquiry = inquiries.find(
-      (inq) => (inq.email || '').toLowerCase() === compForm.ownerEmail.trim().toLowerCase()
-    );
-    if (matchingInquiry && matchingInquiry.status !== 'Onboarded') {
-      await api.updateInquiry(matchingInquiry.id, { status: 'Onboarded' }).catch(() => {});
+    // Remove the onboarding inquiry once the firm is created so it cannot be re-onboarded
+    if (!isEditingComp) {
+      const idsToRemove = new Set();
+      if (onboardingInquiryId) idsToRemove.add(onboardingInquiryId);
+      const matchingInquiry = inquiries.find(
+        (inq) => (inq.email || '').toLowerCase() === compForm.ownerEmail.trim().toLowerCase()
+      );
+      if (matchingInquiry) idsToRemove.add(matchingInquiry.id);
+      for (const rmId of idsToRemove) {
+        await api.deleteInquiry(rmId).catch(() => {});
+      }
     }
 
+    if (!isEditingComp) {
+      const pw = (compForm.adminPassword || '').trim() || 'password123';
+      toast.success(`Firm onboarded & approved! Admin login: ${compForm.ownerEmail.trim().toLowerCase()} / ${pw}`);
+    } else {
+      toast.success('Company updated.');
+    }
     setOnboardingInquiryId(null);
     setCompModalOpen(false);
     loadAllData();
@@ -307,16 +327,25 @@ export default function SuperuserDashboard() {
   }
 
   // --- Calculations for Platform Revenue ---
-  const activeComps = companies.filter((c) => c.status === 'active');
-  const planRates = { Basic: 4999, Pro: 9999, Enterprise: 19999 };
+  const BASE_QUOTAS = { ...DEFAULT_QUOTAS };
+  (plansData?.plans || []).forEach((pl) => {
+    BASE_QUOTAS[pl.name] = { users: pl.userLimit, projects: pl.projectLimit, price: pl.monthlyPrice };
+  });
+  const overageRates = plansData?.overageRates || DEFAULT_OVERAGE;
+  const planRates = Object.fromEntries(Object.entries(BASE_QUOTAS).map(([name, q]) => [name, q.price]));
+  const pendingCount = companies.filter((c) => c.approvalStatus === 'pending').length;
+  // Only approved, active companies count towards revenue.
+  const activeComps = companies.filter(
+    (c) => c.status === 'active' && (c.approvalStatus || 'approved') === 'approved'
+  );
   const totalBaseMRR = activeComps.reduce(
     (sum, c) => sum + (planRates[c.plan] || planRates.Basic),
     0
   );
   const totalOverageRevenue = activeComps.reduce((sum, c) => {
     if (!c.overageEnabled) return sum;
-    const uOverage = (c.extraUsers || 0) * 499;
-    const pOverage = (c.extraProjects || 0) * 1999;
+    const uOverage = (c.extraUsers || 0) * overageRates.extraUserMonthly;
+    const pOverage = (c.extraProjects || 0) * overageRates.extraProjectMonthly;
     return sum + uOverage + pOverage;
   }, 0);
   const grandTotalMRR = totalBaseMRR + totalOverageRevenue;
@@ -415,6 +444,8 @@ export default function SuperuserDashboard() {
       </div>
 
       {/* Module Tabs */}
+      <LiveSummary refreshKey={summaryRefreshKey} />
+
       <div className="module-tabs">
         <button
           type="button"
@@ -423,35 +454,57 @@ export default function SuperuserDashboard() {
         >
           <Building2 size={16} /> Companies ({companies.length})
         </button>
+        {pendingCount > 0 && (
+          <button
+            type="button"
+            className={`module-tab ${currentTab === 'approvals' ? 'active' : ''}`}
+            onClick={() => handleTabChange('approvals')}
+          >
+            <ClipboardCheck size={16} /> Approvals ({pendingCount})
+          </button>
+        )}
+        <button
+          type="button"
+          className={`module-tab ${currentTab === 'plans' ? 'active' : ''}`}
+          onClick={() => handleTabChange('plans')}
+        >
+          <Tag size={16} /> Plans &amp; Pricing
+        </button>
         <button
           type="button"
           className={`module-tab ${currentTab === 'revenue' ? 'active' : ''}`}
           onClick={() => handleTabChange('revenue')}
         >
-          <TrendingUp size={16} /> Platform Revenue & SaaS
+          <TrendingUp size={16} /> Revenue &amp; SaaS
         </button>
         <button
           type="button"
           className={`module-tab ${currentTab === 'inquiries' ? 'active' : ''}`}
           onClick={() => handleTabChange('inquiries')}
         >
-          <Mail size={16} /> Contact Inquiries ({inquiries.length})
+          <Mail size={16} /> Inquiries ({inquiries.length})
         </button>
         <button
           type="button"
           className={`module-tab ${currentTab === 'all-users' ? 'active' : ''}`}
           onClick={() => handleTabChange('all-users')}
         >
-          <Users size={16} /> All Global Users ({users.length})
+          <Users size={16} /> Users ({users.length})
         </button>
         <button
           type="button"
           className={`module-tab ${currentTab === 'all-projects' ? 'active' : ''}`}
           onClick={() => handleTabChange('all-projects')}
         >
-          <Folder size={16} /> All Global Projects ({projects.length})
+          <Folder size={16} /> Projects ({projects.length})
         </button>
       </div>
+
+      {/* Onboarding approvals */}
+      {currentTab === 'approvals' && <PendingApprovals companies={companies} onChanged={loadAllData} />}
+
+      {/* Subscription plans & pricing */}
+      {currentTab === 'plans' && <PlanEditor plansData={plansData} onChanged={loadAllData} />}
 
       {/* TAB 1: Companies */}
       {currentTab === 'companies' && (
@@ -623,8 +676,8 @@ export default function SuperuserDashboard() {
                   label: 'Monthly Fee',
                   render: (c) => {
                     const base = planRates[c.plan] || 4999;
-                    const uO = c.overageEnabled ? (c.extraUsers || 0) * 499 : 0;
-                    const pO = c.overageEnabled ? (c.extraProjects || 0) * 1999 : 0;
+                    const uO = c.overageEnabled ? (c.extraUsers || 0) * overageRates.extraUserMonthly : 0;
+                    const pO = c.overageEnabled ? (c.extraProjects || 0) * overageRates.extraProjectMonthly : 0;
                     return <strong style={{ color: 'var(--green)' }}>{formatCurrency(base + uO + pO)}</strong>;
                   }
                 }
@@ -1005,6 +1058,22 @@ export default function SuperuserDashboard() {
               </div>
             </div>
 
+          {!isEditingComp && (
+            <div className="form-group">
+              <label className="form-label">Initial Company Admin Password</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="password123"
+                value={compForm.adminPassword}
+                onChange={(e) => setCompForm({ ...compForm, adminPassword: e.target.value })}
+              />
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+                Share this login password with the Company Admin (min. 6 characters; defaults to password123).
+              </div>
+            </div>
+          )}
+
             <div className="form-group">
               <label className="form-label">Company Phone</label>
               <input
@@ -1027,9 +1096,9 @@ export default function SuperuserDashboard() {
                 value={compForm.plan}
                 onChange={(e) => setCompForm({ ...compForm, plan: e.target.value })}
               >
-                <option value="Basic">Basic (₹4,999/mo)</option>
-                <option value="Pro">Pro (₹9,999/mo)</option>
-                <option value="Enterprise">Enterprise (₹19,999/mo)</option>
+                <option value="Basic">{`Basic (₹${BASE_QUOTAS.Basic.price.toLocaleString('en-IN')}/mo)`}</option>
+                <option value="Pro">{`Pro (₹${BASE_QUOTAS.Pro.price.toLocaleString('en-IN')}/mo)`}</option>
+                <option value="Enterprise">{`Enterprise (₹${BASE_QUOTAS.Enterprise.price.toLocaleString('en-IN')}/mo)`}</option>
               </select>
             </div>
 
@@ -1110,7 +1179,7 @@ export default function SuperuserDashboard() {
                 ({BASE_QUOTAS[compForm.plan]?.projects || 15} base + {Number(compForm.extraProjects) || 0} extra)
               </div>
               <div style={{ fontWeight: 700, color: 'var(--green)', fontSize: 13 }}>
-                ₹{((BASE_QUOTAS[compForm.plan]?.price || 9999) + (Number(compForm.extraUsers) || 0) * 199 + (Number(compForm.extraProjects) || 0) * 799).toLocaleString('en-IN')}/mo
+                ₹{((BASE_QUOTAS[compForm.plan]?.price || 9999) + (Number(compForm.extraUsers) || 0) * overageRates.extraUserMonthly + (Number(compForm.extraProjects) || 0) * overageRates.extraProjectMonthly).toLocaleString('en-IN')}/mo
               </div>
             </div>
           </div>

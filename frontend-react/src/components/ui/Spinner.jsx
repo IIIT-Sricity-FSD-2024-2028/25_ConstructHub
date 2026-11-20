@@ -1,4 +1,3 @@
-import React from 'react';
 
 export default function Spinner({ size = 28, color = 'var(--primary, #f97316)', className = '' }) {
   return (

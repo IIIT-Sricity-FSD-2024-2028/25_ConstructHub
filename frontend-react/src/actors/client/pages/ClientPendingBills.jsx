@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate, Link } from 'react-router-dom';
 import {
   CheckCircle2,
-  X,
-  Receipt,
-  AlertCircle
+  X
 } from 'lucide-react';
 import { api } from '../../../services/api';
 import {
@@ -15,16 +13,22 @@ import {
 } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
+import ReportPreviewModal from '../../../components/common/ReportPreviewModal';
+import { useToast } from '../../../hooks/useToast';
 
 export default function ClientPendingBills() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
 
+  const toast = useToast();
   const [bills, setBills] = useState([]);
+  const [payableBills, setPayableBills] = useState([]);
+  const [payingId, setPayingId] = useState('');
   const [users, setUsers] = useState([]);
 
   // Modals
   const [detailBill, setDetailBill] = useState(null);
+  const [previewReportId, setPreviewReportId] = useState(null);
   const [rejectBillId, setRejectBillId] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError, setRejectError] = useState('');
@@ -43,12 +47,13 @@ export default function ClientPendingBills() {
       api.getUsers(user.companyId)
     ]);
 
-    const clientBills = (allBills || []).filter(
-      (b) =>
-        (b.clientId === user.id || b.clientEmail === user.email || b.clientName === user.name) &&
-        normalizeBillStatus(b.status) === 'Pending Decision'
+    const mine = (allBills || []).filter(
+      (b) => b.clientId === user.id || b.clientEmail === user.email || b.clientName === user.name
     );
-    setBills(clientBills);
+    setBills(mine.filter((b) => normalizeBillStatus(b.status) === 'Pending Decision'));
+    setPayableBills(
+      mine.filter((b) => normalizeBillStatus(b.status) === 'Accepted' && Number(b.outstanding ?? b.amount ?? 0) > 0 && b.paymentStatus !== 'Paid')
+    );
     setUsers(allUsers || []);
   }
 
@@ -59,16 +64,7 @@ export default function ClientPendingBills() {
         decisionDate: new Date().toISOString().split('T')[0]
       });
 
-      // Notify Finance Managers
-      const financeManagers = users.filter((u) => u.role === 'finance_manager');
-      for (const fm of financeManagers) {
-        await api.createNotification({
-          userId: fm.id,
-          type: 'bill',
-          title: 'Bill Accepted',
-          body: `Client has accepted bill ${bill.id} for project ${bill.projectName}.`
-        });
-      }
+
 
       setDetailBill(null);
       setApprovedBillNotice(bill);
@@ -122,6 +118,23 @@ export default function ClientPendingBills() {
     }
   }
 
+  async function handlePayAccepted(bill) {
+    setPayingId(bill.id);
+    const amountDue = Number(bill.outstanding ?? bill.amount ?? 0);
+    const res = await api.payBill(bill.id, { amount: amountDue });
+    setPayingId('');
+    if (res && res.error) {
+      toast.error(res.message || 'Payment failed.');
+      return;
+    }
+    toast.success(
+      res.projectStarted
+        ? 'Mobilization advance paid! Your project is now active (On Track) and site work is unlocked.'
+        : 'Payment recorded successfully.'
+    );
+    loadBills();
+  }
+
   return (
     <div className="page-container">
       <div className="page-header" style={{ marginBottom: '20px' }}>
@@ -129,8 +142,57 @@ export default function ClientPendingBills() {
         <p className="page-subtitle">Review milestone invoices and authorize or reject payment requests</p>
       </div>
 
+      {payableBills.length > 0 && (
+        <div style={{ marginBottom: '22px' }}>
+          <h2 style={{ fontFamily: 'var(--font-head)', fontSize: '16px', fontWeight: 600, marginBottom: '10px', color: 'var(--text)' }}>
+            Ready to Pay ({payableBills.length})
+          </h2>
+          {payableBills.map((b) => {
+            const amountDue = Number(b.outstanding ?? b.amount ?? 0);
+            const isAdv = b.billType === 'advance';
+            return (
+              <div
+                key={b.id}
+                className="card"
+                style={{
+                  marginBottom: '12px',
+                  background: isAdv ? '#fff7ed' : 'var(--white)',
+                  borderColor: isAdv ? '#fed7aa' : 'var(--border)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <strong style={{ fontSize: '15px' }}>{b.billNumber || b.id}</strong>
+                      <span className={`badge ${isAdv ? 'badge-orange' : 'badge-green'}`}>
+                        {isAdv ? 'Mobilization Advance' : 'Accepted · Unpaid'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                      {b.projectName} · {b.milestone || 'Stage Bill'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 800, fontSize: '18px', color: 'var(--primary)' }}>{formatCurrency(amountDue)}</div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Outstanding</div>
+                    </div>
+                    <Link
+                      to={`/client/bills/${b.id}/pay`}
+                      className="btn btn-primary btn-sm"
+                    >
+                      Pay Now
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div id="bills-list">
-        {bills.length === 0 ? (
+        {bills.length === 0 && payableBills.length === 0 ? (
           <div className="card" style={{ padding: '40px', textAlign: 'center' }}>
             <div className="empty-icon" style={{ margin: '0 auto 12px', width: '48px', height: '48px', borderRadius: '50%', background: 'var(--emerald-50, #ecfdf5)', color: 'var(--emerald-600, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <CheckCircle2 size={32} />
@@ -146,7 +208,7 @@ export default function ClientPendingBills() {
             <div key={b.id} className="card" style={{ marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <div>
-                  <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '4px' }}>{b.id}</h3>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '4px' }}>{b.billNumber || b.id}</h3>
                   <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                     {b.projectName} · Milestone: <strong>{b.milestone}</strong>
                   </div>
@@ -160,6 +222,36 @@ export default function ClientPendingBills() {
                   </div>
                 </div>
               </div>
+
+              {(b.stageAmount || (b.siteReportIds || []).length > 0) && (
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', fontSize: '13px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: (b.siteReportIds || []).length > 0 ? '8px' : 0 }}>
+                    <span className="badge badge-green">✓ PM Verified 100% Milestone Completion</span>
+                    {b.stageAmount ? (
+                      <span>
+                        Quoted stage <strong>{formatCurrency(b.stageAmount)}</strong>
+                        {b.advanceRecovery ? <> − Advance recovery <strong>{formatCurrency(b.advanceRecovery)}</strong></> : null}
+                        {' '}= Net bill <strong>{formatCurrency(b.amount)}</strong>
+                      </span>
+                    ) : null}
+                  </div>
+                  {(b.siteReportIds || []).length > 0 && (
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Attached Proof of Work (Site Reports & Photos):</span>
+                      {b.siteReportIds.map((rid) => (
+                        <button
+                          key={rid}
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setPreviewReportId(rid)}
+                        >
+                          Inspect Report {rid.length > 12 ? rid.slice(0, 8) : rid}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: '10px' }}>
                 <Button variant="success" style={{ flex: 1 }} onClick={() => handleApprove(b)}>
@@ -206,6 +298,31 @@ export default function ClientPendingBills() {
               <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
                 {detailBill.description}
               </p>
+            </div>
+          )}
+
+          {(detailBill.stageAmount || (detailBill.siteReportIds || []).length > 0) && (
+            <div style={{ padding: '12px', background: 'var(--bg)', borderRadius: '8px', marginBottom: '16px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: '6px' }}>
+                Stage Billing & Attached Proof of Work
+              </div>
+              {detailBill.stageAmount ? (
+                <p style={{ margin: '0 0 8px', fontSize: '13px' }}>
+                  Quoted stage amount <strong>{formatCurrency(detailBill.stageAmount)}</strong>
+                  {detailBill.advanceRecovery ? <> less mobilization advance recovery <strong>{formatCurrency(detailBill.advanceRecovery)}</strong></> : null}
+                  {' '}= Net payable <strong>{formatCurrency(detailBill.amount)}</strong>.
+                </p>
+              ) : null}
+              {(detailBill.siteReportIds || []).length > 0 && (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Site Engineer Reports (click to view photos, labor & materials):</span>
+                  {detailBill.siteReportIds.map((rid) => (
+                    <button key={rid} type="button" className="btn btn-secondary btn-sm" onClick={() => setPreviewReportId(rid)}>
+                      {rid.length > 12 ? rid.slice(0, 8) : rid}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -327,6 +444,7 @@ export default function ClientPendingBills() {
           </div>
         </Modal>
       )}
+      <ReportPreviewModal reportId={previewReportId} onClose={() => setPreviewReportId(null)} />
     </div>
   );
 }

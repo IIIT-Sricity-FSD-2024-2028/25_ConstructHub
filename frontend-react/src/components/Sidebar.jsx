@@ -42,7 +42,7 @@ const menuItems = [
 
 export default function Sidebar() {
   function navigate(path) {
-    window.location.href = path;
+    window.location.assign(path);
   }
 
   return (

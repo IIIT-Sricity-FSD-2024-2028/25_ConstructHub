@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useOutletContext, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useOutletContext } from 'react-router-dom';
 import {
   CheckCircle2,
-  X,
-  CreditCard,
-  FileText
+  X
 } from 'lucide-react';
 import { api } from '../../../services/api';
 import {
@@ -21,9 +19,7 @@ export default function ClientPaymentDecisions() {
   const [decisions, setDecisions] = useState([]);
   const [selectedBill, setSelectedBill] = useState(null);
 
-  useEffect(() => {
-    loadDecisions();
-  }, [user]);
+
 
   async function loadDecisions() {
     if (!user) return;
@@ -36,6 +32,10 @@ export default function ClientPaymentDecisions() {
     clientBills.sort((a, b) => new Date(b.decisionDate || 0) - new Date(a.decisionDate || 0));
     setDecisions(clientBills);
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadDecisions());
+  }, [user]);
 
   const acceptedBills = decisions.filter((b) => normalizeBillStatus(b.status) === 'Accepted');
   const declinedBills = decisions.filter((b) => normalizeBillStatus(b.status) === 'Declined');
@@ -99,9 +99,14 @@ export default function ClientPaymentDecisions() {
               }}
             >
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                  <strong style={{ fontSize: '15px' }}>{b.id}</strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                  <strong style={{ fontSize: '15px' }}>{b.billNumber || b.id}</strong>
                   <span className={`badge ${statusBadge(normalizeBillStatus(b.status))}`}>{normalizeBillStatus(b.status)}</span>
+                  {normalizeBillStatus(b.status) === 'Accepted' && (
+                    <span className={`badge ${b.paymentStatus === 'Paid' ? 'badge-green' : 'badge-orange'}`}>
+                      {b.paymentStatus === 'Paid' ? 'Paid' : Number(b.paidAmount || 0) > 0 ? 'Partially Paid' : 'Unpaid'}
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
                   {b.projectName} · {b.milestone} · Decision on: {formatDate(b.decisionDate || b.dueDate)}
@@ -116,9 +121,16 @@ export default function ClientPaymentDecisions() {
                 <div style={{ fontWeight: 800, fontSize: '17px', color: 'var(--primary)', marginBottom: '6px' }}>
                   {formatCurrency(b.amount)}
                 </div>
-                <Button variant="secondary" size="sm" onClick={() => setSelectedBill(b)}>
-                  View Details
-                </Button>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                  {normalizeBillStatus(b.status) === 'Accepted' && Number(b.outstanding ?? (Number(b.amount || 0) - Number(b.paidAmount || 0))) > 0 && b.paymentStatus !== 'Paid' && (
+                    <Link to={`/client/bills/${b.id}/pay`} className="btn btn-primary btn-sm">
+                      Pay Now
+                    </Link>
+                  )}
+                  <Link to={`/client/bills/${b.id}`} className="btn btn-secondary btn-sm">
+                    View Invoice
+                  </Link>
+                </div>
               </div>
             </div>
           ))

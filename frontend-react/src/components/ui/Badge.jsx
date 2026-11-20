@@ -1,4 +1,3 @@
-import React from 'react';
 import { statusBadgeClass, priorityBadgeClass, roleBadgeClass } from '../../services/utils';
 
 export default function Badge({

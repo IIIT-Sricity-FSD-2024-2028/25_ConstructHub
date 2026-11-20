@@ -1,7 +1,12 @@
+import { attachStore } from '../utils/json-store';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class NotificationsRepository {
+  constructor() {
+    attachStore('notifications', this.memoryData, () => this.memoryData, (v) => { this.memoryData = v; });
+  }
+
   private memoryData: any[] = [
     {
       id: 'N001',
@@ -136,10 +141,11 @@ export class NotificationsRepository {
   clearForUser(user?: { userId?: string; role?: string; companyId?: string } | string) {
     const targetUserId = typeof user === 'string' ? user : user?.userId;
     const startObj = this.memoryData.length;
+    // Client feedback is never removed by "Clear all": it is a record the project team must be able to come back to.
     if (targetUserId) {
-      this.memoryData = this.memoryData.filter((i) => i.userId !== targetUserId);
+      this.memoryData = this.memoryData.filter((i) => i.userId !== targetUserId || i.type === 'feedback');
     } else {
-      this.memoryData = [];
+      this.memoryData = this.memoryData.filter((i) => i.type === 'feedback');
     }
     return { success: true, cleared: startObj - this.memoryData.length };
   }

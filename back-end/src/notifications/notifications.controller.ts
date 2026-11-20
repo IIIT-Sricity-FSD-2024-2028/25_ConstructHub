@@ -7,16 +7,20 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, UserContext } from '../auth/current-user.decorator';
 import { TenantHelper } from '../auth/tenant-helper';
+import { ProjectsRepository } from '../projects/projects.repository';
 
 @ApiTags('notifications')
 @ApiHeader({ name: 'Authorization', required: true, description: 'Bearer JWT token' })
 @UseGuards(RolesGuard)
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly service: NotificationsService) {}
+  constructor(
+    private readonly service: NotificationsService,
+    private readonly projectsRepo: ProjectsRepository,
+  ) {}
 
   @Get()
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Retrieve notifications' })
   @ApiResponse({ status: 200, description: 'List of notifications.' })
   findAll(@CurrentUser() user?: UserContext) {
@@ -29,7 +33,7 @@ export class NotificationsController {
   }
 
   @Get(':id')
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Retrieve a specific notification by ID' })
   @ApiResponse({ status: 200, description: 'The notification details.' })
   @ApiResponse({ status: 403, description: 'Access denied.' })
@@ -38,6 +42,9 @@ export class NotificationsController {
     const notification = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
       if (notification.userId !== user.userId) {
+        if (TenantHelper.isClient(user)) {
+          throw new ForbiddenException('Access denied. You can only view your own notifications.');
+        }
         TenantHelper.validateCompanyAccess(user, notification.companyId);
       }
     }
@@ -45,19 +52,21 @@ export class NotificationsController {
   }
 
   @Post()
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Create a new notification (Company ID derived from authenticated token)' })
   @ApiResponse({ status: 201, description: 'The notification has been successfully created.', type: CreateNotificationDto })
   @ApiResponse({ status: 400, description: 'Invalid input.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   create(@Body() dto: CreateNotificationDto, @CurrentUser() user?: UserContext) {
-    const companyId = TenantHelper.getAuthoritativeCompanyId(user, dto.companyId);
+    const companyId = TenantHelper.isClient(user)
+      ? TenantHelper.resolveClientCompanyId(user, dto.companyId, this.projectsRepo.findAll())
+      : TenantHelper.getAuthoritativeCompanyId(user, dto.companyId);
     const payload = { ...dto, companyId };
     return this.service.create(payload);
   }
 
   @Patch(':id')
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Update an existing notification' })
   @ApiResponse({ status: 200, description: 'The notification has been successfully updated.', type: UpdateNotificationDto })
   @ApiResponse({ status: 403, description: 'Access denied.' })
@@ -66,19 +75,24 @@ export class NotificationsController {
     const existing = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
       if (existing.userId !== user.userId) {
+        if (TenantHelper.isClient(user)) {
+          throw new ForbiddenException('Access denied. You can only update your own notifications.');
+        }
         TenantHelper.validateCompanyAccess(user, existing.companyId);
       }
     }
     const companyId = TenantHelper.isSuperuser(user)
       ? (dto.companyId !== undefined ? dto.companyId : existing.companyId)
-      : (user ? user.companyId : existing.companyId);
+      : TenantHelper.isClient(user)
+        ? existing.companyId
+        : (user ? user.companyId : existing.companyId);
 
     const payload = { ...dto, companyId };
     return this.service.update(id, payload);
   }
 
   @Delete()
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Clear all notifications for the current user' })
   @ApiResponse({ status: 200, description: 'All notifications cleared successfully.' })
   clearAll(@CurrentUser() user?: UserContext) {
@@ -86,7 +100,7 @@ export class NotificationsController {
   }
 
   @Delete('clear/all')
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Clear all notifications for the current user' })
   @ApiResponse({ status: 200, description: 'All notifications cleared successfully.' })
   clearAllAlias(@CurrentUser() user?: UserContext) {
@@ -94,7 +108,7 @@ export class NotificationsController {
   }
 
   @Delete(':id')
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Delete a notification' })
   @ApiResponse({ status: 200, description: 'The notification has been successfully deleted.' })
   @ApiResponse({ status: 403, description: 'Access denied.' })

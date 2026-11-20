@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { User, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { api } from '../../services/api';
-import { isValidEmail, isValidPhone } from '../../services/utils';
+import { isValidPhone } from '../../services/utils';
 import Modal from './Modal';
 
-export default function UserSettings({ user, onUserUpdated, onUpdateUser }) {
+export default function UserSettings({ user, onUpdateUser }) {
   const [firstName, setFirstName] = useState(user?.name ? user.name.split(' ')[0] : '');
   const [lastName, setLastName] = useState(user?.name ? user.name.split(' ').slice(1).join(' ') : '');
   const [phone, setPhone] = useState(user?.phone ? user.phone.replace(/[^0-9]/g, '').slice(-10) : '');
@@ -44,10 +44,9 @@ export default function UserSettings({ user, onUserUpdated, onUpdateUser }) {
       phone: phone ? `+91 ${phone}` : user?.phone || ''
     };
 
-    const res = await api.updateUser(user.id, changes);
+    await api.updateUser(user.id, changes);
     const updatedUser = { ...user, ...changes };
     api.setCurrentUser(updatedUser);
-    if (onUserUpdated) onUserUpdated(updatedUser);
     if (onUpdateUser) onUpdateUser(updatedUser);
 
     setSuccessModal({
@@ -90,7 +89,6 @@ export default function UserSettings({ user, onUserUpdated, onUpdateUser }) {
 
     const updatedUser = { ...user, password: newPw };
     api.setCurrentUser(updatedUser);
-    if (onUserUpdated) onUserUpdated(updatedUser);
     if (onUpdateUser) onUpdateUser(updatedUser);
 
     setCurrentPw('');

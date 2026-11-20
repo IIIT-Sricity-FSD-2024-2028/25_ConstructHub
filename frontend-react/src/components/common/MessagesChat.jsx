@@ -3,19 +3,15 @@ import {
   Send,
   Search,
   CheckCheck,
-  Check,
   Smile,
-  Paperclip,
   Phone,
   Mail,
-  User,
   ArrowLeft,
   X,
   MessageSquare,
   Shield,
   Info,
-  Building2,
-  Calendar
+  Building2
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { avatarColor, roleLabel } from '../../services/utils';
@@ -42,7 +38,12 @@ function parseMessageTimestamp(m) {
   return 0;
 }
 
-export default function MessagesChat({ user }) {
+/**
+ * `contactIds` (optional) limits who can be chatted with, e.g. a project workspace passes only the people
+ * on that project. Without it the whole company directory is offered, as before.
+ */
+export default function MessagesChat({ user, contactIds }) {
+  const contactKey = contactIds ? contactIds.join(',') : '';
   const [contacts, setContacts] = useState([]);
   const [activeContact, setActiveContact] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -58,11 +59,6 @@ export default function MessagesChat({ user }) {
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  const fileInputRef = useRef(null);
-
-  useEffect(() => {
-    loadInitialData();
-  }, [user]);
 
   async function loadInitialData() {
     if (!user) return;
@@ -72,8 +68,9 @@ export default function MessagesChat({ user }) {
       api.getProjects(user.companyId)
     ]);
 
+    const scope = contactKey ? new Set(contactKey.split(',')) : null;
     const filteredUsers = (allUsers || []).filter(
-      (u) => u.id !== user.id && u.status === 'active' && u.role !== 'superuser'
+      (u) => u.id !== user.id && u.status === 'active' && u.role !== 'superuser' && (!scope || scope.has(u.id))
     );
 
     setContacts(filteredUsers);
@@ -99,6 +96,10 @@ export default function MessagesChat({ user }) {
       setActiveContact(sortedByLatest[0]);
     }
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadInitialData());
+  }, [user, contactKey]);
 
   async function refreshMessages() {
     if (!user) return;
@@ -157,36 +158,6 @@ export default function MessagesChat({ user }) {
     });
 
     await refreshMessages();
-  }
-
-  // Handle file attachment simulation
-  function handleFileUpload(e) {
-    const file = e.target.files?.[0];
-    if (!file || !activeContact || !user) return;
-
-    const isImage = file.type.startsWith('image/');
-    const icon = isImage ? '📷 Photo' : '📄 File';
-    const text = `${icon}: ${file.name}`;
-
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('en-CA');
-    const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-
-    api.sendMessage({
-      companyId: user.companyId || '',
-      senderId: user.id,
-      senderName: user.name,
-      from: user.id,
-      to: activeContact.id,
-      receiverId: activeContact.id,
-      receiverName: activeContact.name,
-      text,
-      timestamp: `${dateStr} ${timeStr}`,
-      date: dateStr,
-      time: timeStr
-    }).then(() => refreshMessages());
-
-    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   // Insert emoji
@@ -294,14 +265,6 @@ export default function MessagesChat({ user }) {
 
   return (
     <div className="wa-container">
-      {/* ── Hidden File Input for Attachments ── */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        style={{ display: 'none' }}
-        onChange={handleFileUpload}
-      />
-
       {/* ── Left Sidebar (WhatsApp Contacts & Chats) ── */}
       <div className={`wa-sidebar ${mobileChatOpen ? 'hide-mobile' : ''}`}>
         {/* Sidebar Header */}
@@ -612,14 +575,6 @@ export default function MessagesChat({ user }) {
               onClick={() => setShowEmojiBar(!showEmojiBar)}
             >
               <Smile size={20} />
-            </button>
-            <button
-              type="button"
-              className="wa-tool-btn"
-              title="Attach document or photo"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Paperclip size={20} />
             </button>
             <input
               type="text"

@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, X, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import BillPayments from '../../../components/billing/BillPayments';
+import { Link, useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { ArrowLeft, CheckCircle2, X } from 'lucide-react';
 import { api } from '../../../services/api';
 import { formatCurrency, formatDate, statusBadge, normalizeBillStatus } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
+import ReportPreviewModal from '../../../components/common/ReportPreviewModal';
 
 export default function ClientBillDetail() {
   const { id: paramId } = useParams();
@@ -14,6 +16,7 @@ export default function ClientBillDetail() {
   const { user } = useOutletContext();
 
   const [bill, setBill] = useState(null);
+  const [previewId, setPreviewId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -44,18 +47,6 @@ export default function ClientBillDetail() {
         decisionDate: new Date().toISOString().split('T')[0]
       });
 
-      // Notify Finance Managers
-      const allUsers = await api.getUsers(user.companyId);
-      const financeManagers = (allUsers || []).filter((u) => u.role === 'finance_manager');
-      for (const fm of financeManagers) {
-        await api.createNotification({
-          userId: fm.id,
-          type: 'bill',
-          title: 'Bill Accepted',
-          body: `Client has accepted bill ${bill.id} for project ${bill.projectName}.`
-        });
-      }
-
       await loadBill();
       setApprovedModalOpen(true);
     } catch (err) {
@@ -85,18 +76,6 @@ export default function ClientBillDetail() {
         decisionDate: new Date().toISOString().split('T')[0],
         rejectionReason: rejectReason.trim()
       });
-
-      // Notify Finance Managers
-      const allUsers = await api.getUsers(user.companyId);
-      const financeManagers = (allUsers || []).filter((u) => u.role === 'finance_manager');
-      for (const fm of financeManagers) {
-        await api.createNotification({
-          userId: fm.id,
-          type: 'bill',
-          title: 'Bill Declined',
-          body: `Client declined bill ${bill.id} for project ${bill.projectName}. Reason: ${rejectReason.trim()}`
-        });
-      }
 
       setRejectModalOpen(false);
       await loadBill();
@@ -155,11 +134,16 @@ export default function ClientBillDetail() {
 
         {canDecide && (
           <div style={{ display: 'flex', gap: '10px' }}>
-            <Button variant="success" onClick={handleApprove}>✓ Accept Payment</Button>
+            <Button variant="success" onClick={handleApprove}>✓ Accept Bill</Button>
             <Button variant="danger" onClick={openRejectModal}>
               <X size={16} style={{ marginRight: '4px' }} /> Decline
             </Button>
           </div>
+        )}
+        {user.role === 'client' && normalizeBillStatus(bill.status) === 'Accepted' && Number(bill.outstanding ?? (Number(bill.amount || 0) - Number(bill.paidAmount || 0))) > 0 && bill.paymentStatus !== 'Paid' && (
+          <Link to={`/client/bills/${bill.id}/pay`} className="btn btn-primary">
+            Pay Now
+          </Link>
         )}
       </div>
 
@@ -249,6 +233,32 @@ export default function ClientBillDetail() {
         </p>
       </div>
 
+      {(bill.stageAmount || (bill.siteReportIds || []).length > 0) && (
+        <div className="card" style={{ marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+            <h3 style={{ fontSize: '16px', margin: 0 }}>Attached Proof of Work (Site Reports & Photos)</h3>
+            <span className="badge badge-green">✓ PM Verified 100% Milestone Completion</span>
+          </div>
+          {bill.stageAmount ? (
+            <p style={{ fontSize: '13.5px', margin: '0 0 10px' }}>
+              Quoted stage amount <strong>{formatCurrency(bill.stageAmount)}</strong>
+              {bill.advanceRecovery ? <> less mobilization advance recovery <strong>{formatCurrency(bill.advanceRecovery)}</strong></> : null}
+              {' '}= this bill <strong>{formatCurrency(bill.amount)}</strong>.
+            </p>
+          ) : null}
+          {(bill.siteReportIds || []).length > 0 ? (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Site reports attached (click to preview photos, weather, labor & materials):</span>
+              {bill.siteReportIds.map((rid) => (
+                <button key={rid} type="button" className="btn btn-secondary btn-sm" onClick={() => setPreviewId(rid)}>{rid.length > 12 ? rid.slice(0, 8) : rid}</button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      <ReportPreviewModal reportId={previewId} onClose={() => setPreviewId(null)} />
+
       {canDecide && (
         <div style={{
           background: 'var(--primary-light, #ffedd5)',
@@ -264,7 +274,7 @@ export default function ClientBillDetail() {
             Please review this bill and make a payment decision.
           </p>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <Button variant="success" onClick={handleApprove}>✓ Accept Payment</Button>
+            <Button variant="success" onClick={handleApprove}>✓ Accept Bill</Button>
             <Button variant="danger" onClick={openRejectModal}>
               <X size={16} style={{ marginRight: '4px' }} /> Decline
             </Button>
@@ -273,6 +283,8 @@ export default function ClientBillDetail() {
       )}
 
       {/* Decline Modal */}
+      {bill && <BillPayments bill={bill} role="client" onChanged={loadBill} />}
+
       <Modal isOpen={rejectModalOpen} onClose={() => setRejectModalOpen(false)} title="Decline Bill" maxWidth="440px">
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '-8px', marginBottom: '16px' }}>
           Please provide a reason for declining

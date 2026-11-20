@@ -1,7 +1,12 @@
+import { attachStore } from '../utils/json-store';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class MessagesRepository {
+  constructor() {
+    attachStore('messages', this.memoryData, () => this.memoryData, (v) => { this.memoryData = v; });
+  }
+
   private memoryData: any[] = [
     {
       id: 'M001',

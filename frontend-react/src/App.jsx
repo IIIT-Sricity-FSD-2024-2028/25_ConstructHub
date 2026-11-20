@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Providers
@@ -9,8 +8,8 @@ import ProtectedRoute from './routes/ProtectedRoute';
 // Public / Auth
 import LandingHome from './auth/LandingHome';
 import Login from './auth/Login';
-import RegisterCompany from './auth/RegisterCompany';
 import Contact from './auth/Contact';
+import RegisterClient from './auth/RegisterClient';
 
 // Superuser
 import SuperuserLayout from './actors/superuser/SuperuserLayout';
@@ -22,6 +21,9 @@ import CompanyAdminLayout from './actors/company-admin/CompanyAdminLayout';
 import CompanyAdminDashboard from './actors/company-admin/pages/CompanyAdminDashboard';
 import CompanyAdminSubscription from './actors/company-admin/pages/CompanyAdminSubscription';
 import CompanyAdminSettings from './actors/company-admin/pages/CompanyAdminSettings';
+import CompanyMarketplace from './actors/company-admin/pages/CompanyMarketplace';
+import CompanyMarketplaceDetail from './actors/company-admin/pages/CompanyMarketplaceDetail';
+import CompanyBudgetTopups from './actors/company-admin/pages/CompanyBudgetTopups';
 
 // Finance Manager
 import FinanceManagerLayout from './actors/finance-manager/FinanceManagerLayout';
@@ -33,6 +35,17 @@ import FinanceManagerBillDecisions from './actors/finance-manager/pages/FinanceM
 import FinanceManagerBillDetail from './actors/finance-manager/pages/FinanceManagerBillDetail';
 import FinanceManagerMessages from './actors/finance-manager/pages/FinanceManagerMessages';
 import FinanceManagerSettings from './actors/finance-manager/pages/FinanceManagerSettings';
+import FinanceManagerPurchaseOrders from './actors/finance-manager/pages/FinanceManagerPurchaseOrders';
+
+// Procurement / Storekeeper
+import ProcurementLayout from './actors/procurement-storekeeper/ProcurementLayout';
+import ProcurementDashboard from './actors/procurement-storekeeper/pages/ProcurementDashboard';
+import ProcurementRequests from './actors/procurement-storekeeper/pages/ProcurementRequests';
+import ProcurementOrders from './actors/procurement-storekeeper/pages/ProcurementOrders';
+import ProcurementStock from './actors/procurement-storekeeper/pages/ProcurementStock';
+import ProcurementSuppliers from './actors/procurement-storekeeper/pages/ProcurementSuppliers';
+import ProcurementMessages from './actors/procurement-storekeeper/pages/ProcurementMessages';
+import ProcurementSettings from './actors/procurement-storekeeper/pages/ProcurementSettings';
 
 // Project Manager
 import ProjectManagerLayout from './actors/project-manager/ProjectManagerLayout';
@@ -40,6 +53,11 @@ import ProjectManagerDashboard from './actors/project-manager/pages/ProjectManag
 import ProjectManagerProjects from './actors/project-manager/pages/ProjectManagerProjects';
 import ProjectManagerProjectDetail from './actors/project-manager/pages/ProjectManagerProjectDetail';
 import ProjectManagerTasks from './actors/project-manager/pages/ProjectManagerTasks';
+import ProjectManagerMilestones from './actors/project-manager/pages/ProjectManagerMilestones';
+import ProjectManagerBidEstimates from './actors/project-manager/pages/ProjectManagerBidEstimates';
+import FinanceManagerBidEstimates from './actors/finance-manager/pages/FinanceManagerBidEstimates';
+import ProjectManagerMaterialRequests from './actors/project-manager/pages/ProjectManagerMaterialRequests';
+import ProjectManagerExpenses from './actors/project-manager/pages/ProjectManagerExpenses';
 import ProjectManagerTaskDetail from './actors/project-manager/pages/ProjectManagerTaskDetail';
 import ProjectManagerReports from './actors/project-manager/pages/ProjectManagerReports';
 import ProjectManagerReportDetail from './actors/project-manager/pages/ProjectManagerReportDetail';
@@ -50,6 +68,8 @@ import ProjectManagerSettings from './actors/project-manager/pages/ProjectManage
 import SiteEngineerLayout from './actors/site-engineer/SiteEngineerLayout';
 import SiteEngineerDashboard from './actors/site-engineer/pages/SiteEngineerDashboard';
 import SiteEngineerMyTasks from './actors/site-engineer/pages/SiteEngineerMyTasks';
+import SiteEngineerMaterialRequests from './actors/site-engineer/pages/SiteEngineerMaterialRequests';
+import SiteEngineerExpenses from './actors/site-engineer/pages/SiteEngineerExpenses';
 import SiteEngineerTaskDetail from './actors/site-engineer/pages/SiteEngineerTaskDetail';
 import SiteEngineerUpdateTask from './actors/site-engineer/pages/SiteEngineerUpdateTask';
 import SiteEngineerSubmitReport from './actors/site-engineer/pages/SiteEngineerSubmitReport';
@@ -64,10 +84,17 @@ import ClientReports from './actors/client/pages/ClientReports';
 import ClientReportDetail from './actors/client/pages/ClientReportDetail';
 import ClientPendingBills from './actors/client/pages/ClientPendingBills';
 import ClientBillDetail from './actors/client/pages/ClientBillDetail';
+import ClientPaymentPortal from './actors/client/pages/ClientPaymentPortal';
 import ClientPaymentDecisions from './actors/client/pages/ClientPaymentDecisions';
 import ClientFeedback from './actors/client/pages/ClientFeedback';
 import ClientMessages from './actors/client/pages/ClientMessages';
 import ClientSettings from './actors/client/pages/ClientSettings';
+import ClientRequirements from './actors/client/pages/ClientRequirements';
+import ClientRequirementDetail from './actors/client/pages/ClientRequirementDetail';
+import ClientQuotations from './actors/client/pages/ClientQuotations';
+import ClientProjects from './actors/client/pages/ClientProjects';
+import ClientProjectWorkspace from './actors/client/pages/ClientProjectWorkspace';
+import RequireProject, { ClientHome } from './actors/client/RequireProject';
 
 // Helper component to preserve query strings on legacy redirect
 function QueryPreservingRedirect({ to }) {
@@ -88,6 +115,7 @@ export default function App() {
             <Route path="/login.html" element={<Navigate to="/login" replace />} />
             <Route path="/register-company" element={<Navigate to="/contact?request=firm" replace />} />
             <Route path="/register-company.html" element={<Navigate to="/contact?request=firm" replace />} />
+            <Route path="/register-client" element={<RegisterClient />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/contact.html" element={<Navigate to="/contact" replace />} />
 
@@ -105,8 +133,25 @@ export default function App() {
               <Route path="/company-admin" element={<CompanyAdminLayout />}>
                 <Route index element={<CompanyAdminDashboard />} />
                 <Route path="dashboard" element={<CompanyAdminDashboard />} />
+                <Route path="marketplace" element={<CompanyMarketplace />} />
+                <Route path="marketplace/:id" element={<CompanyMarketplaceDetail />} />
+                <Route path="budget-topups" element={<CompanyBudgetTopups />} />
                 <Route path="subscription" element={<CompanyAdminSubscription />} />
                 <Route path="settings" element={<CompanyAdminSettings />} />
+              </Route>
+            </Route>
+
+            {/* Procurement / Storekeeper Routes */}
+            <Route element={<ProtectedRoute allowedRoles={['procurement_storekeeper']} />}>
+              <Route path="/procurement-storekeeper" element={<ProcurementLayout />}>
+                <Route index element={<ProcurementDashboard />} />
+                <Route path="dashboard" element={<ProcurementDashboard />} />
+                <Route path="requests" element={<ProcurementRequests />} />
+                <Route path="orders" element={<ProcurementOrders />} />
+                <Route path="stock" element={<ProcurementStock />} />
+                <Route path="suppliers" element={<ProcurementSuppliers />} />
+                <Route path="messages" element={<ProcurementMessages />} />
+                <Route path="settings" element={<ProcurementSettings />} />
               </Route>
             </Route>
 
@@ -116,7 +161,9 @@ export default function App() {
                 <Route index element={<FinanceManagerDashboard />} />
                 <Route path="dashboard" element={<FinanceManagerDashboard />} />
                 <Route path="budget" element={<FinanceManagerBudget />} />
+                <Route path="bid-estimates" element={<FinanceManagerBidEstimates />} />
                 <Route path="project-budget" element={<FinanceManagerBudget />} />
+                <Route path="purchase-orders" element={<FinanceManagerPurchaseOrders />} />
                 <Route path="expenses" element={<FinanceManagerExpenses />} />
                 <Route path="generate-bills" element={<FinanceManagerGenerateBills />} />
                 <Route path="bill-decisions" element={<FinanceManagerBillDecisions />} />
@@ -136,6 +183,10 @@ export default function App() {
                 <Route path="project-detail" element={<ProjectManagerProjectDetail />} />
                 <Route path="projects/:id" element={<ProjectManagerProjectDetail />} />
                 <Route path="tasks" element={<ProjectManagerTasks />} />
+                <Route path="milestones" element={<ProjectManagerMilestones />} />
+                <Route path="bid-estimates" element={<ProjectManagerBidEstimates />} />
+                <Route path="material-requests" element={<ProjectManagerMaterialRequests />} />
+                <Route path="expenses" element={<ProjectManagerExpenses />} />
                 <Route path="task-detail" element={<ProjectManagerTaskDetail />} />
                 <Route path="tasks/:id" element={<ProjectManagerTaskDetail />} />
                 <Route path="reports" element={<ProjectManagerReports />} />
@@ -152,6 +203,8 @@ export default function App() {
                 <Route index element={<SiteEngineerDashboard />} />
                 <Route path="dashboard" element={<SiteEngineerDashboard />} />
                 <Route path="my-tasks" element={<SiteEngineerMyTasks />} />
+                <Route path="material-requests" element={<SiteEngineerMaterialRequests />} />
+                <Route path="expenses" element={<SiteEngineerExpenses />} />
                 <Route path="tasks/:id" element={<SiteEngineerTaskDetail />} />
                 <Route path="task-detail" element={<SiteEngineerTaskDetail />} />
                 <Route path="task-detail-pm" element={<SiteEngineerTaskDetail />} />
@@ -165,18 +218,27 @@ export default function App() {
             {/* Client Routes */}
             <Route element={<ProtectedRoute allowedRoles={['client']} />}>
               <Route path="/client" element={<ClientLayout />}>
-                <Route index element={<ClientDashboard />} />
-                <Route path="dashboard" element={<ClientDashboard />} />
-                <Route path="project-progress" element={<ClientProjectProgress />} />
-                <Route path="reports" element={<ClientReports />} />
-                <Route path="report-detail" element={<ClientReportDetail />} />
-                <Route path="reports/:id" element={<ClientReportDetail />} />
-                <Route path="pending-bills" element={<ClientPendingBills />} />
-                <Route path="bill-detail" element={<ClientBillDetail />} />
-                <Route path="bills/:id" element={<ClientBillDetail />} />
-                <Route path="payment-decisions" element={<ClientPaymentDecisions />} />
-                <Route path="feedback" element={<ClientFeedback />} />
-                <Route path="messages" element={<ClientMessages />} />
+                <Route index element={<ClientHome />} />
+                <Route path="requirements" element={<ClientRequirements />} />
+                <Route path="requirements/:id" element={<ClientRequirementDetail />} />
+                <Route path="quotations" element={<ClientQuotations />} />
+                {/* Stage 2: only reachable once the client has awarded a quotation */}
+                <Route element={<RequireProject />}>
+                  <Route path="dashboard" element={<ClientDashboard />} />
+                  <Route path="projects" element={<ClientProjects />} />
+                  <Route path="projects/:projectId" element={<ClientProjectWorkspace />} />
+                  <Route path="project-progress" element={<ClientProjectProgress />} />
+                  <Route path="reports" element={<ClientReports />} />
+                  <Route path="report-detail" element={<ClientReportDetail />} />
+                  <Route path="reports/:id" element={<ClientReportDetail />} />
+                  <Route path="pending-bills" element={<ClientPendingBills />} />
+                  <Route path="bill-detail" element={<ClientBillDetail />} />
+                  <Route path="bills/:id" element={<ClientBillDetail />} />
+                  <Route path="bills/:id/pay" element={<ClientPaymentPortal />} />
+                  <Route path="payment-decisions" element={<ClientPaymentDecisions />} />
+                  <Route path="feedback" element={<ClientFeedback />} />
+                  <Route path="messages" element={<ClientMessages />} />
+                </Route>
                 <Route path="profile" element={<ClientSettings />} />
                 <Route path="settings" element={<ClientSettings />} />
               </Route>

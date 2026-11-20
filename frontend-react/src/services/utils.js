@@ -30,6 +30,7 @@ export function timeAgo(dateStr) {
 export function statusBadgeClass(status) {
   const map = {
     'On Track': 'badge-green',
+    'Awaiting Advance': 'badge-orange',
     'At Risk': 'badge-orange',
     'Delayed': 'badge-red',
     'Completed': 'badge-green',
@@ -40,7 +41,6 @@ export function statusBadgeClass(status) {
     'Pending Decision': 'badge-orange',
     'Approved': 'badge-green',
     'Rejected': 'badge-red',
-    'Pending': 'badge-gray',
     'Pending Approval': 'badge-orange',
     'Scheduled': 'badge-gray',
     'Under Review': 'badge-orange',
@@ -74,6 +74,7 @@ export function roleLabel(role) {
     project_manager: 'Project Manager',
     site_engineer: 'Site Engineer',
     finance_manager: 'Finance Manager',
+    procurement_storekeeper: 'Procurement / Storekeeper',
     client: 'Client'
   };
   return map[role] || role;
@@ -86,6 +87,7 @@ export function roleBadgeClass(role) {
     project_manager: 'badge-blue',
     site_engineer: 'badge-green',
     finance_manager: 'badge-orange',
+    procurement_storekeeper: 'badge-blue',
     client: 'badge-gray'
   };
   return map[role] || 'badge-gray';
@@ -137,3 +139,14 @@ export function isValidName(value) {
 export const statusBadge = statusBadgeClass;
 export const priorityBadge = priorityBadgeClass;
 
+
+export function formatINRCompact(val) {
+  const num = Number(val) || 0;
+  const sign = num < 0 ? '-' : '';
+  const abs = Math.abs(num);
+  const trim = (n) => Number(n.toFixed(2)).toString();
+  if (abs >= 1e7) return `${sign}₹${trim(abs / 1e7)} Cr`;
+  if (abs >= 1e5) return `${sign}₹${trim(abs / 1e5)} L`;
+  if (abs >= 1e3) return `${sign}₹${trim(abs / 1e3)} K`;
+  return `${sign}₹${Math.round(abs).toLocaleString('en-IN')}`;
+}

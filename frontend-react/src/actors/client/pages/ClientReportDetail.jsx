@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
-import { ArrowLeft, FileText, Camera, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Camera, AlertTriangle } from 'lucide-react';
 import { api } from '../../../services/api';
 import { formatDate, statusBadge, priorityBadge } from '../../../services/utils';
 
@@ -14,9 +14,7 @@ export default function ClientReportDetail() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadReport();
-  }, [id, user]);
+
 
   async function loadReport() {
     if (!id || !user) return;
@@ -26,6 +24,10 @@ export default function ClientReportDetail() {
     setReport(found || null);
     setLoading(false);
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadReport());
+  }, [id, user]);
 
   if (loading) {
     return (

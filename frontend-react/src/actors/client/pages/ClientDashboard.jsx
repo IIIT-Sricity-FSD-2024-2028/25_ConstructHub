@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { useOutletContext, Link, useNavigate } from 'react-router-dom';
+import LiveSummary from '../../../components/dashboard/LiveSummary';
+import { useState, useEffect } from 'react';
+import { useOutletContext, Link } from 'react-router-dom';
 import {
   TrendingUp,
   DollarSign,
   Clock,
   Receipt,
-  Building2,
   Send,
-  CheckCircle2,
-  AlertCircle
+  CheckCircle2
 } from 'lucide-react';
 import { api } from '../../../services/api';
 import {
@@ -17,28 +16,22 @@ import {
   statusBadge,
   normalizeBillStatus
 } from '../../../services/utils';
-import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 
 export default function ClientDashboard() {
   const { user } = useOutletContext();
-  const navigate = useNavigate();
-
   const [project, setProject] = useState(null);
   const [pendingBills, setPendingBills] = useState([]);
-  const [approvedBills, setApprovedBills] = useState([]);
 
   // Quick feedback form
   const [category, setCategory] = useState('Quality of Work');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
-  const [priority, setPriority] = useState('Medium');
+  const [priority] = useState('Medium');
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
   const [feedbackError, setFeedbackError] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, [user]);
+
 
   async function loadData() {
     if (!user) return;
@@ -58,11 +51,12 @@ export default function ClientDashboard() {
     const pending = clientBills.filter(
       (b) => normalizeBillStatus(b.status) === 'Pending Decision'
     );
-    const approved = clientBills.filter((b) => normalizeBillStatus(b.status) === 'Accepted');
-
     setPendingBills(pending);
-    setApprovedBills(approved);
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadData());
+  }, [user]);
 
   // Days remaining calculation
   let daysRemaining = 'On Schedule';
@@ -116,73 +110,7 @@ export default function ClientDashboard() {
         <p className="page-subtitle">Track your project milestones, review invoices, and communicate with the team</p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="stats-grid" style={{ marginBottom: '20px' }}>
-        <div className="stat-card">
-          <div className="stat-icon"><div className="icon-box icon-box-orange"><TrendingUp size={20} /></div></div>
-          <div className="stat-value">{project ? `${project.progress || 0}%` : '0%'}</div>
-          <div className="stat-label">Project Progress</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon"><div className="icon-box icon-box-blue"><DollarSign size={20} /></div></div>
-          <div className="stat-value" style={{ fontSize: '18px' }}>
-            {project ? formatCurrency(project.spent || 0) : '₹0'}
-          </div>
-          <div className="stat-label">Budget Utilized</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon"><div className="icon-box icon-box-purple"><Clock size={20} /></div></div>
-          <div className="stat-value">{daysRemaining}</div>
-          <div className="stat-label">Timeline Remaining</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon"><div className="icon-box icon-box-red"><Receipt size={20} /></div></div>
-          <div className="stat-value">{pendingBills.length}</div>
-          <div className="stat-label">Bills Awaiting Action</div>
-        </div>
-      </div>
-
-      {/* Active Project Overview */}
-      {project ? (
-        <div className="card" style={{ marginBottom: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 700 }}>{project.name}</h3>
-                <span className={`badge ${statusBadge(project.status)}`}>{project.status}</span>
-              </div>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                Location: {project.location} · Manager: {project.managerName || 'Project Manager'}
-              </p>
-            </div>
-            <Link to="/client/project-progress" className="btn btn-secondary btn-sm">
-              View Complete Progress
-            </Link>
-          </div>
-
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
-              <span>Overall Completion</span>
-              <strong>{project.progress || 0}%</strong>
-            </div>
-            <div className="progress-bar">
-              <div className="progress-bar-fill" style={{ width: `${project.progress || 0}%` }}></div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '20px', fontSize: '13px', color: 'var(--text-muted)' }}>
-            <div>Total Contract: <strong style={{ color: 'var(--primary)' }}>{formatCurrency(project.budget)}</strong></div>
-            <div>Deadline: <strong>{formatDate(project.endDate)}</strong></div>
-          </div>
-        </div>
-      ) : (
-        <div className="card" style={{ marginBottom: '20px' }}>
-          <p style={{ color: 'var(--text-muted)' }}>No active project linked to your account.</p>
-        </div>
-      )}
+      <LiveSummary />
 
       {/* Grid: Pending Bills & Quick Feedback */}
       <div className="grid-2">

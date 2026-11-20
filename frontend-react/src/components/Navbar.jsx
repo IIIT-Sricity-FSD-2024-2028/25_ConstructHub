@@ -9,7 +9,7 @@ export default function Navbar({ user }) {
     sessionStorage.removeItem("token");
     sessionStorage.removeItem("user");
 
-    window.location.href = "/login.html";
+    window.location.href = "/login";
   }
 
   return (

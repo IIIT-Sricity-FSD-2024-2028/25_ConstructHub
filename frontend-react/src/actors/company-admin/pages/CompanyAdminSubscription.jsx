@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { usePlans, formatINR } from '../../../hooks/usePlans';
 import { useOutletContext } from 'react-router-dom';
-import { ShieldCheck, CheckCircle2, TrendingUp, CreditCard, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { api } from '../../../services/api';
 import { formatCurrency } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 
-const planLimits = { Basic: 10, Pro: 50, Enterprise: 500 };
-const projLimits = { Basic: 3, Pro: 15, Enterprise: 100 };
-const planPrices = { Basic: 4999, Pro: 9999, Enterprise: 19999 };
 const planRank = { Basic: 1, Pro: 2, Enterprise: 3 };
 
 export default function CompanyAdminSubscription() {
   const { user } = useOutletContext();
+  // Live plan prices/limits set by the platform admin (shadow the module-level defaults above).
+  const { planPrices, planLimits, projLimits } = usePlans();
   const [subData, setSubData] = useState(null);
   const [userCount, setUserCount] = useState(0);
   const [projectCount, setProjectCount] = useState(0);
@@ -307,10 +307,10 @@ export default function CompanyAdminSubscription() {
           {plan === 'Basic' && <div className="plan-badge-top">Current Plan</div>}
           <div>
             <h4 style={{ fontFamily: 'var(--font-head)', fontSize: 18, fontWeight: 700, margin: 0 }}>Basic</h4>
-            <div className="plan-price">₹4,999<span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/mo</span></div>
+            <div className="plan-price">{formatINR(planPrices.Basic)}<span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/mo</span></div>
             <ul className="plan-features">
-              <li><CheckCircle2 size={16} color="var(--primary)" /> 10 Team Members</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> 3 Active Projects</li>
+              <li><CheckCircle2 size={16} color="var(--primary)" /> {planLimits.Basic} Team Members</li>
+              <li><CheckCircle2 size={16} color="var(--primary)" /> {projLimits.Basic} Active Projects</li>
               <li><CheckCircle2 size={16} color="var(--primary)" /> Site Logs & Photos</li>
               <li><CheckCircle2 size={16} color="var(--primary)" /> Invoicing & Approvals</li>
             </ul>
@@ -329,10 +329,10 @@ export default function CompanyAdminSubscription() {
           {plan === 'Pro' && <div className="plan-badge-top">Current Plan</div>}
           <div>
             <h4 style={{ fontFamily: 'var(--font-head)', fontSize: 18, fontWeight: 700, margin: 0 }}>Pro</h4>
-            <div className="plan-price">₹9,999<span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/mo</span></div>
+            <div className="plan-price">{formatINR(planPrices.Pro)}<span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/mo</span></div>
             <ul className="plan-features">
-              <li><CheckCircle2 size={16} color="var(--primary)" /> 50 Team Members</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> 15 Active Projects</li>
+              <li><CheckCircle2 size={16} color="var(--primary)" /> {planLimits.Pro} Team Members</li>
+              <li><CheckCircle2 size={16} color="var(--primary)" /> {projLimits.Pro} Active Projects</li>
               <li><CheckCircle2 size={16} color="var(--primary)" /> Budget Allocations & Categories</li>
               <li><CheckCircle2 size={16} color="var(--primary)" /> Overage Billing Protection</li>
               <li><CheckCircle2 size={16} color="var(--primary)" /> Priority Support</li>
@@ -352,10 +352,10 @@ export default function CompanyAdminSubscription() {
           {plan === 'Enterprise' && <div className="plan-badge-top">Current Plan</div>}
           <div>
             <h4 style={{ fontFamily: 'var(--font-head)', fontSize: 18, fontWeight: 700, margin: 0 }}>Enterprise</h4>
-            <div className="plan-price">₹19,999<span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/mo</span></div>
+            <div className="plan-price">{formatINR(planPrices.Enterprise)}<span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/mo</span></div>
             <ul className="plan-features">
-              <li><CheckCircle2 size={16} color="var(--primary)" /> 500 Team Members</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> 100 Active Projects</li>
+              <li><CheckCircle2 size={16} color="var(--primary)" /> {planLimits.Enterprise} Team Members</li>
+              <li><CheckCircle2 size={16} color="var(--primary)" /> {projLimits.Enterprise} Active Projects</li>
               <li><CheckCircle2 size={16} color="var(--primary)" /> Unlimited Storage & Photo Logs</li>
               <li><CheckCircle2 size={16} color="var(--primary)" /> Custom Approved Domain</li>
               <li><CheckCircle2 size={16} color="var(--primary)" /> Dedicated Success Manager</li>

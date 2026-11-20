@@ -7,16 +7,27 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, UserContext } from '../auth/current-user.decorator';
 import { TenantHelper } from '../auth/tenant-helper';
+import { ProjectsRepository } from '../projects/projects.repository';
 
 @ApiTags('messages')
 @ApiHeader({ name: 'Authorization', required: true, description: 'Bearer JWT token' })
 @UseGuards(RolesGuard)
 @Controller('messages')
 export class MessagesController {
-  constructor(private readonly service: MessagesService) {}
+  constructor(
+    private readonly service: MessagesService,
+    private readonly projectsRepo: ProjectsRepository,
+  ) {}
+
+  /** Clients can only touch messages they sent or received. */
+  private assertClientOwnsMessage(user: UserContext | undefined, message: any) {
+    if (!user) return;
+    const mine = [message.from, message.to, message.senderId, message.receiverId].includes(user.userId);
+    if (!mine) throw new ForbiddenException('Access denied. Client can only access their own direct messages.');
+  }
 
   @Get()
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Retrieve messages (Superuser: all, Tenant: company messages, Client: direct user messages)' })
   @ApiResponse({ status: 200, description: 'List of messages.' })
   findAll(@CurrentUser() user?: UserContext) {
@@ -32,7 +43,7 @@ export class MessagesController {
   }
 
   @Get(':id')
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Retrieve a specific message by ID' })
   @ApiResponse({ status: 200, description: 'The message details.' })
   @ApiResponse({ status: 403, description: 'Access denied.' })
@@ -52,20 +63,22 @@ export class MessagesController {
   }
 
   @Post()
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Create a new message (Company ID derived from authenticated token)' })
   @ApiResponse({ status: 201, description: 'The message has been successfully created.', type: CreateMessageDto })
   @ApiResponse({ status: 400, description: 'Invalid input.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   create(@Body() dto: CreateMessageDto, @CurrentUser() user?: UserContext) {
-    const companyId = TenantHelper.getAuthoritativeCompanyId(user, dto.companyId);
+    const companyId = TenantHelper.isClient(user)
+      ? TenantHelper.resolveClientCompanyId(user, dto.companyId, this.projectsRepo.findAll())
+      : TenantHelper.getAuthoritativeCompanyId(user, dto.companyId);
     const from = user ? user.userId : (dto.from || dto.senderId);
     const payload = { ...dto, companyId, from: from || dto.from };
     return this.service.create(payload);
   }
 
   @Patch(':id')
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Update an existing message' })
   @ApiResponse({ status: 200, description: 'The message has been successfully updated.', type: UpdateMessageDto })
   @ApiResponse({ status: 403, description: 'Access denied.' })
@@ -73,18 +86,24 @@ export class MessagesController {
   update(@Param('id') id: string, @Body() dto: UpdateMessageDto, @CurrentUser() user?: UserContext) {
     const existing = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
-      TenantHelper.validateCompanyAccess(user, existing.companyId);
+      if (TenantHelper.isClient(user)) {
+        this.assertClientOwnsMessage(user, existing);
+      } else {
+        TenantHelper.validateCompanyAccess(user, existing.companyId);
+      }
     }
     const companyId = TenantHelper.isSuperuser(user)
       ? (dto.companyId !== undefined ? dto.companyId : existing.companyId)
-      : (user ? user.companyId : existing.companyId);
+      : TenantHelper.isClient(user)
+        ? existing.companyId
+        : (user ? user.companyId : existing.companyId);
 
     const payload = { ...dto, companyId };
     return this.service.update(id, payload);
   }
 
   @Delete(':id')
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Delete a message' })
   @ApiResponse({ status: 200, description: 'The message has been successfully deleted.' })
   @ApiResponse({ status: 403, description: 'Access denied.' })
@@ -92,7 +111,11 @@ export class MessagesController {
   remove(@Param('id') id: string, @CurrentUser() user?: UserContext) {
     const existing = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
-      TenantHelper.validateCompanyAccess(user, existing.companyId);
+      if (TenantHelper.isClient(user)) {
+        this.assertClientOwnsMessage(user, existing);
+      } else {
+        TenantHelper.validateCompanyAccess(user, existing.companyId);
+      }
     }
     return this.service.remove(id);
   }

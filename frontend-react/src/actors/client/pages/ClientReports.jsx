@@ -1,13 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   FileText,
-  Camera,
-  Calendar,
-  CheckCircle2,
   Eye
 } from 'lucide-react';
-import { api } from '../../../services/api';
+import { api, API_ORIGIN } from '../../../services/api';
 import {
   formatDate,
   statusBadge
@@ -20,9 +17,7 @@ export default function ClientReports() {
   const [reports, setReports] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
 
-  useEffect(() => {
-    loadReports();
-  }, [user]);
+
 
   async function loadReports() {
     if (!user) return;
@@ -41,6 +36,10 @@ export default function ClientReports() {
       setReports(projReports);
     }
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadReports());
+  }, [user]);
 
   return (
     <div className="page-container">
@@ -141,7 +140,7 @@ export default function ClientReports() {
                 {selectedReport.photoUrls.map((url, idx) => (
                   <img
                     key={idx}
-                    src={url.startsWith('http') || url.startsWith('blob:') ? url : `http://localhost:3000${url}`}
+                    src={url.startsWith('http') || url.startsWith('blob:') ? url : `${API_ORIGIN}${url}`}
                     alt={`Photo ${idx + 1}`}
                     style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }}
                     onError={(e) => { e.target.style.display = 'none'; }}

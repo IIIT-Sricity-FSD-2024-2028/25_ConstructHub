@@ -1,3 +1,4 @@
+import { attachStore } from '../utils/json-store';
 import { Injectable } from '@nestjs/common';
 
 export interface InquiryRecord {
@@ -14,6 +15,10 @@ export interface InquiryRecord {
 
 @Injectable()
 export class InquiriesRepository {
+  constructor() {
+    attachStore('inquiries', this.memoryData, () => this.memoryData, (v) => { this.memoryData = v; });
+  }
+
   private memoryData: InquiryRecord[] = [
     {
       id: 'INQ001',

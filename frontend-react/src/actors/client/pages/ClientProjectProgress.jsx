@@ -1,14 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import {
-  TrendingUp,
-  DollarSign,
-  Calendar,
   Package,
-  Camera,
-  CheckCircle2
+  Camera
 } from 'lucide-react';
-import { api } from '../../../services/api';
+import { api, API_ORIGIN } from '../../../services/api';
+import { ProgressSummary, MilestoneList } from '../../../components/milestones/MilestoneUi';
 import {
   formatCurrency,
   formatDate,
@@ -20,10 +17,11 @@ export default function ClientProjectProgress() {
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [reports, setReports] = useState([]);
+  const [myProjects, setMyProjects] = useState([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [progress, setProgress] = useState(null);
 
-  useEffect(() => {
-    loadData();
-  }, [user]);
+
 
   async function loadData() {
     if (!user) return;
@@ -33,13 +31,17 @@ export default function ClientProjectProgress() {
       api.getReports(user.companyId)
     ]);
 
-    const myProj = (allProjects || []).find(
+    // A client can have several projects (one per awarded requirement).
+    const mine = (allProjects || []).filter(
       (p) => p.clientId === user.id || p.clientEmail === user.email || p.clientName === user.name
     );
-    const activeProject = myProj || (allProjects && allProjects[0]) || null;
+    setMyProjects(mine);
+    const activeProject = mine.find((p) => p.id === selectedId) || mine[0] || (allProjects && allProjects[0]) || null;
     setProject(activeProject);
 
     if (activeProject) {
+      const prog = await api.getProjectProgress(activeProject.id);
+      setProgress(prog && !prog.error ? prog : null);
       const projTasks = (allTasks || []).filter((t) => t.projectId === activeProject.id);
       setTasks(projTasks);
 
@@ -47,6 +49,10 @@ export default function ClientProjectProgress() {
       setReports(projReports);
     }
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadData());
+  }, [user, selectedId]);
 
   if (!project) {
     return (
@@ -79,9 +85,16 @@ export default function ClientProjectProgress() {
             <span className={`badge ${statusBadge(project.status)}`}>{project.status}</span>
           </div>
         </div>
-        <Link to="/client/feedback" className="btn btn-secondary">
-          Give Feedback
-        </Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {myProjects.length > 1 && (
+            <select className="form-select" value={project.id} onChange={(e) => setSelectedId(e.target.value)} aria-label="Project">
+              {myProjects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          )}
+          <Link to="/client/feedback" className="btn btn-secondary">
+            Give Feedback
+          </Link>
+        </div>
       </div>
 
       {/* Progress Metric Card */}
@@ -106,7 +119,7 @@ export default function ClientProjectProgress() {
         >
           <div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Total Contract Value</div>
-            <div style={{ fontSize: '16px', fontWeight: 700, marginTop: '2px' }}>{formatCurrency(project.budget)}</div>
+            <div style={{ fontSize: '16px', fontWeight: 700, marginTop: '2px' }}>{formatCurrency(project.contractValue ?? project.budget)}</div>
           </div>
           <div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Utilized Budget</div>
@@ -115,7 +128,7 @@ export default function ClientProjectProgress() {
           <div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Remaining Contract</div>
             <div style={{ fontSize: '16px', fontWeight: 700, marginTop: '2px' }}>
-              {formatCurrency(Math.max(0, (project.budget || 0) - (project.spent || 0)))}
+              {formatCurrency(Math.max(0, (project.contractValue ?? project.budget ?? 0) - (project.spent || 0)))}
             </div>
           </div>
           <div>
@@ -124,6 +137,17 @@ export default function ClientProjectProgress() {
           </div>
         </div>
       </div>
+
+      {/* Milestone plan: weighted physical progress vs. milestones approved */}
+      {progress && (
+        <div className="card" style={{ marginBottom: '20px' }}>
+          <div className="section-title" style={{ marginBottom: '14px' }}>Progress & Milestones</div>
+          <ProgressSummary summary={progress} />
+          <div style={{ marginTop: 18 }}>
+            <MilestoneList milestones={progress.milestones} />
+          </div>
+        </div>
+      )}
 
       {/* Milestones / Tasks Table */}
       <div className="card" style={{ marginBottom: '20px' }}>
@@ -189,7 +213,7 @@ export default function ClientProjectProgress() {
                 }}
               >
                 <img
-                  src={p.url.startsWith('http') || p.url.startsWith('blob:') ? p.url : `http://localhost:3000${p.url}`}
+                  src={p.url.startsWith('http') || p.url.startsWith('blob:') ? p.url : `${API_ORIGIN}${p.url}`}
                   alt={`Site photo ${idx + 1}`}
                   style={{ width: '100%', height: '150px', objectFit: 'cover', display: 'block' }}
                   onError={(e) => {

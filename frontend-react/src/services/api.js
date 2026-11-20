@@ -5,6 +5,8 @@ const API_BASE_URL = typeof window !== 'undefined' && window.location && window.
   ? window.location.origin
   : 'http://localhost:3000';
 
+export const API_ORIGIN = API_BASE_URL;
+
 export const SEED_DATA = {
   companies: [
     { id: "COMP001", name: "Apex Builders", code: "apex", domain: "apex.com", ownerEmail: "admin@apex.com", phone: "+91 98000 11111", plan: "Enterprise", billingCycle: "monthly", subscriptionStatus: "active", status: "active", createdAt: "2026-01-01", customUserLimit: 500, customProjectLimit: 100, overageEnabled: true },
@@ -16,12 +18,12 @@ export const SEED_DATA = {
     { id: "U002", name: "Rajesh Kumar", email: "pm@apex.com", password: "123456", role: "project_manager", companyId: "COMP001", phone: "+91 98765 43210", avatar: "RK", status: "active", createdAt: "2026-01-05" },
     { id: "U003", name: "Priya Sharma", email: "site@apex.com", password: "123456", role: "site_engineer", companyId: "COMP001", phone: "+91 98765 43211", avatar: "PS", status: "active", createdAt: "2026-01-06" },
     { id: "U004", name: "Amit Verma", email: "finance@apex.com", password: "123456", role: "finance_manager", companyId: "COMP001", phone: "+91 98765 43212", avatar: "AV", status: "active", createdAt: "2026-01-07" },
-    { id: "U005", name: "Vikram Patel", email: "client@apex.com", password: "123456", role: "client", companyId: "COMP001", phone: "+91 98765 43213", avatar: "VP", status: "active", createdAt: "2026-01-10" },
+    { id: "U005", name: "Vikram Patel", email: "client@apex.com", password: "123456", role: "client", companyId: "", phone: "+91 98765 43213", avatar: "VP", status: "active", createdAt: "2026-01-10" },
     { id: "U006", name: "L&T Admin", email: "admin@ltinfra.com", password: "123456", role: "company_admin", companyId: "COMP002", phone: "+91 98000 22222", avatar: "LA", status: "active", createdAt: "2026-01-15" },
     { id: "U007", name: "Sanjay Mehta", email: "pm@ltinfra.com", password: "123456", role: "project_manager", companyId: "COMP002", phone: "+91 98765 88811", avatar: "SM", status: "active", createdAt: "2026-01-16" },
     { id: "U008", name: "Rohan Gupta", email: "site@ltinfra.com", password: "123456", role: "site_engineer", companyId: "COMP002", phone: "+91 98765 88812", avatar: "RG", status: "active", createdAt: "2026-01-17" },
     { id: "U009", name: "Kavita Rao", email: "finance@ltinfra.com", password: "123456", role: "finance_manager", companyId: "COMP002", phone: "+91 98765 88813", avatar: "KR", status: "active", createdAt: "2026-01-18" },
-    { id: "U010", name: "Anand Mahindra", email: "client@ltinfra.com", password: "123456", role: "client", companyId: "COMP002", phone: "+91 98765 88814", avatar: "AM", status: "active", createdAt: "2026-01-20" }
+    { id: "U010", name: "Anand Mahindra", email: "client@ltinfra.com", password: "123456", role: "client", companyId: "", phone: "+91 98765 88814", avatar: "AM", status: "active", createdAt: "2026-01-20" }
   ],
   projects: [
     { id: "P001", name: "Apex Skyline Tower", companyId: "COMP001", location: "Mumbai, Maharashtra", clientId: "U005", clientName: "Vikram Patel", managerId: "U002", managerName: "Rajesh Kumar", siteEngineerId: "U003", financeManagerId: "U004", budget: 25000000, spent: 450000, progress: 75, status: "On Track", startDate: "2026-01-01", endDate: "2026-04-30", teamSize: 24, allocations: { Materials: 12000000, Labor: 8000000, Equipment: 3000000, Other: 2000000 }, description: "High-rise luxury residential project in South Mumbai." },
@@ -81,15 +83,17 @@ export const SEED_DATA = {
 };
 
 // ── Database Initialization ───────────────────────────────────────────────
+let bootSyncStarted = false;
 export async function syncServerBootId() {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || bootSyncStarted) return;
+  bootSyncStarted = true;
   try {
     const res = await fetch(`${API_BASE_URL}/health`);
     if (res.ok) {
       const data = await res.json();
       const storedBootId = localStorage.getItem('ch_server_boot_id');
       const storedDbVersion = localStorage.getItem('ch_db_version');
-      const CURRENT_VERSION = '2.0_v12_whatsapp_ui';
+      const CURRENT_VERSION = '2.0_v13_platform_clients';
       if (data.serverBootId && (data.serverBootId !== storedBootId || storedDbVersion !== CURRENT_VERSION)) {
         localStorage.setItem('ch_server_boot_id', data.serverBootId);
         localStorage.setItem('ch_db_version', CURRENT_VERSION);
@@ -98,12 +102,14 @@ export async function syncServerBootId() {
         }
       }
     }
-  } catch (e) {}
+  } catch {
+    // Keep local seed initialization available when the health check is unavailable.
+  }
 }
 
 export function initDB() {
   if (typeof localStorage === 'undefined') return;
-  const CURRENT_VERSION = '2.0_v12_whatsapp_ui';
+  const CURRENT_VERSION = '2.0_v13_platform_clients';
   const storedDbVersion = localStorage.getItem('ch_db_version');
   if (storedDbVersion !== CURRENT_VERSION) {
     localStorage.setItem('ch_db_version', CURRENT_VERSION);
@@ -132,7 +138,9 @@ export function initDB() {
       });
       localStorage.setItem('ch_projects', JSON.stringify(synced));
     }
-  } catch (e) {}
+  } catch {
+    // Preserve the existing local data when spend synchronization cannot parse storage.
+  }
 
   // Detect server restart or version mismatch asynchronously
   syncServerBootId();
@@ -149,7 +157,7 @@ export function getLocal(table) {
       return SEED_DATA[table];
     }
     return parsed || [];
-  } catch (e) {
+  } catch {
     return SEED_DATA[table] || [];
   }
 }
@@ -157,7 +165,9 @@ export function getLocal(table) {
 export function setLocal(table, data) {
   try {
     localStorage.setItem('ch_' + table, JSON.stringify(data));
-  } catch (e) {}
+  } catch {
+    // LocalStorage may be unavailable in restricted browser contexts.
+  }
 }
 
 // ── Unified Request with Network Fallback ─────────────────────────────────
@@ -168,6 +178,10 @@ async function apiRequest(endpoint, options = {}) {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };
+  // Let the browser set the multipart boundary when uploading files.
+  if (typeof FormData !== 'undefined' && options.body instanceof FormData) {
+    delete headers['Content-Type'];
+  }
 
   try {
     const res = await fetch(`${API_BASE_URL}/${endpoint.replace(/^\//, '')}`, {
@@ -200,21 +214,6 @@ export const api = {
       body: JSON.stringify({ email, password })
     });
 
-    // If failed, retry with alternate common default password (123456 <-> password123)
-    if ((!res || res.error) && password === '123456') {
-      const altRes = await apiRequest('auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password: 'password123' })
-      });
-      if (altRes && altRes.accessToken) res = altRes;
-    } else if ((!res || res.error) && password === 'password123') {
-      const altRes = await apiRequest('auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password: '123456' })
-      });
-      if (altRes && altRes.accessToken) res = altRes;
-    }
-
     if (res && res.accessToken) {
       sessionStorage.setItem('ch_token', res.accessToken);
       sessionStorage.setItem('ch_user', JSON.stringify(res.user));
@@ -225,17 +224,10 @@ export const api = {
       return { error: true, message: res.message || 'Invalid email or password.' };
     }
 
-    // Fallback: check seeded users in local store ONLY if offline (status === 0)
-    const users = getLocal('users');
-    const u = users.find(x => x.email.toLowerCase() === email.trim().toLowerCase());
-    if (u && u.password === password) {
-      if (u.status === 'inactive') {
-        return { error: true, message: 'Account is locked or inactive. Please contact admin.' };
-      }
-      const token = `mock_jwt_${u.id}_${u.role || 'client'}_${u.companyId || 'COMP001'}_${Date.now()}`;
-      sessionStorage.setItem('ch_token', token);
-      sessionStorage.setItem('ch_user', JSON.stringify(u));
-      return { success: true, user: u, token };
+    // Server unreachable: do NOT fall back to a local/mock login. The backend verifies every request,
+    // so an offline "session" could not call any protected API anyway.
+    if (res && res.error && res.status === 0) {
+      return { error: true, message: 'Cannot reach the server. Please make sure the backend is running and try again.' };
     }
 
     return { error: true, message: res?.message || 'Invalid email or password.' };
@@ -245,7 +237,7 @@ export const api = {
     try {
       const u = sessionStorage.getItem('ch_user');
       return u ? JSON.parse(u) : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   },
@@ -274,10 +266,287 @@ export const api = {
     return getLocal('companies');
   },
 
+  // --- Expense claims workflow, bill payments, dashboards (online only) ---
+  async getExpenseClaims(params = {}) {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
+    return apiRequest(`expenses${qs ? `?${qs}` : ''}`);
+  },
+  async getExpenseClaim(id) { return apiRequest(`expenses/${encodeURIComponent(id)}`); },
+  async submitExpense(data) { return apiRequest('expenses', { method: 'POST', body: JSON.stringify(data) }); },
+  async resubmitExpense(id, data) { return apiRequest(`expenses/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }); },
+  async withdrawExpense(id) { return apiRequest(`expenses/${encodeURIComponent(id)}/withdraw`, { method: 'POST' }); },
+  async uploadExpenseReceipts(id, files) {
+    const form = new FormData();
+    Array.from(files).forEach((f) => form.append('receipts', f));
+    return apiRequest(`expenses/${encodeURIComponent(id)}/receipts`, { method: 'POST', body: form });
+  },
+  /** Receipts are private: fetch with the login token, then save the blob. */
+  async downloadExpenseReceipt(expenseId, receipt) {
+    const token = sessionStorage.getItem('ch_token');
+    try {
+      const res = await fetch(`${API_BASE_URL}/expenses/${encodeURIComponent(expenseId)}/receipts/${encodeURIComponent(receipt.id)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        return { error: true, status: res.status, message: (data && data.message) || 'Could not download the receipt.' };
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = receipt.originalName || 'receipt';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      return { success: true };
+    } catch {
+      return { error: true, status: 0, message: 'Network error while downloading the receipt.' };
+    }
+  },
+  async verifyExpense(id, note) { return apiRequest(`expenses/${encodeURIComponent(id)}/verify`, { method: 'POST', body: JSON.stringify({ note }) }); },
+  async pmReturnExpense(id, note) { return apiRequest(`expenses/${encodeURIComponent(id)}/pm-return`, { method: 'POST', body: JSON.stringify({ note }) }); },
+  async pmRejectExpense(id, note) { return apiRequest(`expenses/${encodeURIComponent(id)}/pm-reject`, { method: 'POST', body: JSON.stringify({ note }) }); },
+  async approveExpense(id, note) { return apiRequest(`expenses/${encodeURIComponent(id)}/approve`, { method: 'POST', body: JSON.stringify({ note }) }); },
+  async fmReturnExpense(id, note) { return apiRequest(`expenses/${encodeURIComponent(id)}/return`, { method: 'POST', body: JSON.stringify({ note }) }); },
+  async fmRejectExpense(id, note) { return apiRequest(`expenses/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify({ note }) }); },
+  async reimburseExpense(id, reference) { return apiRequest(`expenses/${encodeURIComponent(id)}/reimburse`, { method: 'POST', body: JSON.stringify({ reference }) }); },
+
+  async getBillPayments(billId) { return apiRequest(`bills/${encodeURIComponent(billId)}/payments`); },
+  async payBill(billId, data) { return apiRequest(`bills/${encodeURIComponent(billId)}/payments`, { method: 'POST', body: JSON.stringify(data) }); },
+  async getPayments() { return apiRequest('payments'); },
+  async getDashboard() { return apiRequest('dashboard'); },
+
+  // --- Procurement & stock (online only) ---
+  async getSuppliers() { return apiRequest('suppliers'); },
+  async createSupplier(data) { return apiRequest('suppliers', { method: 'POST', body: JSON.stringify(data) }); },
+  async updateSupplier(id, data) { return apiRequest(`suppliers/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }); },
+  async deleteSupplier(id) { return apiRequest(`suppliers/${encodeURIComponent(id)}`, { method: 'DELETE' }); },
+
+  async getMaterialRequests(params = {}) {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
+    return apiRequest(`material-requests${qs ? `?${qs}` : ''}`);
+  },
+  async createMaterialRequest(data) { return apiRequest('material-requests', { method: 'POST', body: JSON.stringify(data) }); },
+  async cancelMaterialRequest(id) { return apiRequest(`material-requests/${encodeURIComponent(id)}/cancel`, { method: 'POST' }); },
+  async approveMaterialRequest(id, note) { return apiRequest(`material-requests/${encodeURIComponent(id)}/approve`, { method: 'POST', body: JSON.stringify({ note }) }); },
+  async rejectMaterialRequest(id, note) { return apiRequest(`material-requests/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify({ note }) }); },
+
+  async getPurchaseOrders(params = {}) {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
+    return apiRequest(`purchase-orders${qs ? `?${qs}` : ''}`);
+  },
+  async getPurchaseOrder(id) { return apiRequest(`purchase-orders/${encodeURIComponent(id)}`); },
+  async createPurchaseOrder(data) { return apiRequest('purchase-orders', { method: 'POST', body: JSON.stringify(data) }); },
+  async approvePurchaseOrder(id, note) { return apiRequest(`purchase-orders/${encodeURIComponent(id)}/approve`, { method: 'POST', body: JSON.stringify({ note }) }); },
+  async rejectPurchaseOrder(id, note) { return apiRequest(`purchase-orders/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify({ note }) }); },
+  async cancelPurchaseOrder(id, reason) { return apiRequest(`purchase-orders/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }); },
+
+  async getGoodsReceipts(poId) { return apiRequest(`goods-receipts${poId ? `?poId=${encodeURIComponent(poId)}` : ''}`); },
+  async createGoodsReceipt(data) { return apiRequest('goods-receipts', { method: 'POST', body: JSON.stringify(data) }); },
+  async uploadGrnInvoice(grnId, file) {
+    const form = new FormData();
+    form.append('invoice', file);
+    return apiRequest(`goods-receipts/${encodeURIComponent(grnId)}/invoice`, { method: 'POST', body: form });
+  },
+  async downloadGrnInvoice(grnId, name) {
+    const token = sessionStorage.getItem('ch_token');
+    try {
+      const res = await fetch(`${API_BASE_URL}/goods-receipts/${encodeURIComponent(grnId)}/invoice`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        return { error: true, status: res.status, message: (data && data.message) || 'Could not download the invoice.' };
+      }
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name || 'vendor-invoice';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      return { success: true };
+    } catch {
+      return { error: true, status: 0, message: 'Network error while downloading the invoice.' };
+    }
+  },
+  async getStockAvailable(projectId) { return apiRequest(`reports/stock-available?projectId=${encodeURIComponent(projectId)}`); },
+  async getProjectTeam(projectId) { return apiRequest(`tasks/team/${encodeURIComponent(projectId)}`); },
+  async getReport(id) { return apiRequest(`reports/${encodeURIComponent(id)}`); },
+  async getBillableSheet(projectId) { return apiRequest(`bills/billable/${encodeURIComponent(projectId)}`); },
+  async getFeedback() { return apiRequest('feedback'); },
+  async submitFeedback(data) { return apiRequest('feedback', { method: 'POST', body: JSON.stringify(data) }); },
+  async getBudgetTopups() { return apiRequest('budget-topups'); },
+  async requestBudgetTopup(data) { return apiRequest('budget-topups', { method: 'POST', body: JSON.stringify(data) }); },
+  async approveBudgetTopup(id, note) { return apiRequest(`budget-topups/${encodeURIComponent(id)}/approve`, { method: 'POST', body: JSON.stringify({ note }) }); },
+  async rejectBudgetTopup(id, note) { return apiRequest(`budget-topups/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify({ note }) }); },
+
+  async getStock(projectId) { return apiRequest(`stock${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`); },
+  async getStockLedger(projectId) { return apiRequest(`stock/ledger${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`); },
+  async getMaterialIssues(projectId) { return apiRequest(`stock/issues${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`); },
+  async createMaterialIssue(data) { return apiRequest('stock/issues', { method: 'POST', body: JSON.stringify(data) }); },
+
+  async getProcurementSettings() { return apiRequest('procurement/settings'); },
+  async updateProcurementSettings(poApprovalLimit) { return apiRequest('procurement/settings', { method: 'PATCH', body: JSON.stringify({ poApprovalLimit }) }); },
+
+  // --- Milestones & progress (online only) ---
+  async getMilestones(projectId) {
+    return apiRequest(`milestones${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`);
+  },
+  async getProjectProgress(projectId) {
+    return apiRequest(`milestones/progress/${encodeURIComponent(projectId)}`);
+  },
+  async createMilestone(data) {
+    return apiRequest('milestones', { method: 'POST', body: JSON.stringify(data) });
+  },
+  async updateMilestone(id, data) {
+    return apiRequest(`milestones/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
+  async deleteMilestone(id) {
+    return apiRequest(`milestones/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  async approveMilestone(id) {
+    return apiRequest(`milestones/${encodeURIComponent(id)}/approve`, { method: 'POST' });
+  },
+  async reopenMilestone(id) {
+    return apiRequest(`milestones/${encodeURIComponent(id)}/reopen`, { method: 'POST' });
+  },
+
+  // --- Client self-signup ---
+  async registerClient(data) {
+    return apiRequest('auth/register-client', { method: 'POST', body: JSON.stringify(data) });
+  },
+
+  // --- Marketplace: requirements, quotations, contracts (online only) ---
+  async getRequirements(params = {}) {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    ).toString();
+    return apiRequest(`requirements${qs ? `?${qs}` : ''}`);
+  },
+  async getRequirement(id) {
+    return apiRequest(`requirements/${encodeURIComponent(id)}`);
+  },
+  async createRequirement(data) {
+    return apiRequest('requirements', { method: 'POST', body: JSON.stringify(data) });
+  },
+  async updateRequirement(id, data) {
+    return apiRequest(`requirements/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
+  async closeRequirement(id) {
+    return apiRequest(`requirements/${encodeURIComponent(id)}/close`, { method: 'POST' });
+  },
+  async uploadRequirementDocuments(id, files) {
+    const form = new FormData();
+    Array.from(files).forEach((f) => form.append('documents', f));
+    return apiRequest(`requirements/${encodeURIComponent(id)}/documents`, { method: 'POST', body: form });
+  },
+  /** Documents are private: fetch with the login token, then save the blob. */
+  async downloadRequirementDocument(requirementId, doc) {
+    const token = sessionStorage.getItem('ch_token');
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/requirements/${encodeURIComponent(requirementId)}/documents/${encodeURIComponent(doc.id)}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        return { error: true, status: res.status, message: (data && data.message) || 'Could not download the document.' };
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.originalName || 'document';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      return { success: true };
+    } catch {
+      return { error: true, status: 0, message: 'Network error while downloading the document.' };
+    }
+  },
+  async getRequirementQuotations(id) {
+    return apiRequest(`requirements/${encodeURIComponent(id)}/quotations`);
+  },
+  async submitQuotation(requirementId, data) {
+    return apiRequest(`requirements/${encodeURIComponent(requirementId)}/quotations`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  async getQuotations() {
+    return apiRequest('quotations');
+  },
+  async updateQuotation(id, data) {
+    return apiRequest(`quotations/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
+  async withdrawQuotation(id) {
+    return apiRequest(`quotations/${encodeURIComponent(id)}/withdraw`, { method: 'POST' });
+  },
+  async rejectQuotation(id, reason) {
+    return apiRequest(`quotations/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
+  },
+  // 3-role estimation: Company Admin -> PM stages -> FM costs -> Company Admin markup
+  async assignEstimateTeam(requirementId, data) {
+    return apiRequest(`requirements/${encodeURIComponent(requirementId)}/assign-team`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  async getEstimates() {
+    return apiRequest('quotations/estimates');
+  },
+  async submitPmEstimate(id, data) {
+    return apiRequest(`quotations/${encodeURIComponent(id)}/pm-estimate`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
+  async submitFmEstimate(id, data) {
+    return apiRequest(`quotations/${encodeURIComponent(id)}/fm-estimate`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
+  async releaseQuotation(id, data) {
+    return apiRequest(`quotations/${encodeURIComponent(id)}/release`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  async acceptQuotation(id) {
+    return apiRequest(`quotations/${encodeURIComponent(id)}/accept`, { method: 'POST' });
+  },
+  async getContracts() {
+    return apiRequest('contracts');
+  },
+
+  // --- Platform admin: onboarding approval & subscription plans ---
+  async setCompanyApproval(id, decision, reason) {
+    return apiRequest(`companies/${id}/approval`, {
+      method: 'PATCH',
+      body: JSON.stringify({ decision, reason })
+    });
+  },
+
+  async getPlans() {
+    const res = await apiRequest('plans');
+    return res && !res.error ? res : null;
+  },
+
+  async updatePlan(name, changes) {
+    return apiRequest(`plans/${encodeURIComponent(name)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes)
+    });
+  },
+
+  async updateOverageRates(changes) {
+    return apiRequest('plans/overage-rates', {
+      method: 'PATCH',
+      body: JSON.stringify(changes)
+    });
+  },
+
   async getCompanyById(id) {
     const res = await apiRequest(`companies/${id}`);
     if (res && !res.error) return res;
     return getLocal('companies').find(c => c.id === id) || null;
+  },
+
+  async onboardCompany(payload) {
+    const res = await apiRequest('companies/onboard', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    if (res && !res.error) return res;
+    return res || { error: true, message: 'Failed to onboard company' };
   },
 
   async registerCompany(payload) {
@@ -425,11 +694,12 @@ export const api = {
       });
       setLocal('users', merged);
       let list = merged;
-      if (companyId) list = list.filter(u => u.companyId === companyId);
+      // Clients are platform-level (no companyId); the server already limits which ones this user may see.
+      if (companyId) list = list.filter(u => u.companyId === companyId || u.role === 'client');
       return list;
     }
     let list = getLocal('users');
-    if (companyId) list = list.filter(u => u.companyId === companyId);
+    if (companyId) list = list.filter(u => u.companyId === companyId || u.role === 'client');
     return list;
   },
 
@@ -470,8 +740,8 @@ export const api = {
   },
 
   async deleteUser(id) {
-    const res = await apiRequest(`users/${id}`, { method: 'DELETE' });
-    let list = getLocal('users').filter(u => u.id !== id);
+    await apiRequest(`users/${id}`, { method: 'DELETE' });
+    const list = getLocal('users').filter(u => u.id !== id);
     setLocal('users', list);
     return true;
   },
@@ -621,6 +891,9 @@ export const api = {
       body: JSON.stringify(data)
     });
 
+    // A real server rejection (validation, permissions) must be shown, not hidden by the offline fallback.
+    if (res && res.error && res.status > 0) return res;
+
     const list = getLocal('tasks');
     const newRecord = res && !res.error ? res : { id: 'T' + Date.now().toString().slice(-4), ...data };
     list.unshift(newRecord);
@@ -634,17 +907,20 @@ export const api = {
       body: JSON.stringify(changes)
     });
 
+    if (res && res.error && res.status > 0) return res;
+
     const list = getLocal('tasks');
     const idx = list.findIndex(t => t.id === id);
     if (idx > -1) {
-      list[idx] = { ...list[idx], ...changes };
+      list[idx] = { ...list[idx], ...(res && !res.error ? res : changes) };
       setLocal('tasks', list);
     }
     return res && !res.error ? res : list[idx];
   },
 
   async deleteTask(id) {
-    await apiRequest(`tasks/${id}`, { method: 'DELETE' });
+    const res = await apiRequest(`tasks/${id}`, { method: 'DELETE' });
+    if (res && res.error && res.status > 0) return res;
     const list = getLocal('tasks').filter(t => t.id !== id);
     setLocal('tasks', list);
     return true;
@@ -676,6 +952,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data)
     });
+    // A rejection from the server (e.g. milestone not approved) must reach the form, not be hidden by the offline fallback.
+    if (res && res.error && res.status !== 0) return res;
 
     const list = getLocal('bills');
     const newRecord = res && !res.error ? res : { id: 'B' + Date.now().toString().slice(-4), ...data };
@@ -722,7 +1000,9 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ spent: total })
       });
-    } catch (e) {}
+    } catch {
+      // Local state has already been updated; the server sync can be retried later.
+    }
     return total;
   },
 
@@ -812,7 +1092,9 @@ export const api = {
       if (res.ok) {
         return await res.json();
       }
-    } catch (e) {}
+    } catch {
+      // Return temporary object URLs when the upload endpoint is unavailable.
+    }
 
     // Fallback if offline
     return {
@@ -841,6 +1123,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data)
     });
+    // A real rejection from the server (validation, locked project) must reach the form, not be hidden by the offline fallback.
+    if (res && res.error && res.status !== 0) return res;
 
     const list = getLocal('reports');
     const newRecord = res && !res.error ? res : { id: 'R' + Date.now().toString().slice(-4), ...data };
