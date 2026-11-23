@@ -8,6 +8,7 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, UserContext } from '../auth/current-user.decorator';
 import { TenantHelper } from '../auth/tenant-helper';
 import { CompaniesService } from '../companies/companies.service';
+import { ProjectsRepository } from '../projects/projects.repository';
 
 @ApiTags('users')
 @ApiHeader({ name: 'Authorization', required: false, description: 'Bearer JWT token' })
@@ -17,21 +18,50 @@ export class UsersController {
   constructor(
     private readonly service: UsersService,
     private readonly companiesService: CompaniesService,
+    private readonly projectsRepo: ProjectsRepository,
   ) {}
 
+  /**
+   * Clients are platform-level users (no companyId). A company can see:
+   *  - clients it invited itself (invitedByCompanyId), and
+   *  - clients who have a project with that company.
+   */
+  private isClientVisibleToCompany(client: any, companyId: string): boolean {
+    if (!client || client.role !== 'client' || !companyId) return false;
+    if (client.invitedByCompanyId === companyId) return true;
+    return this.projectsRepo.findAll().some((p) => p.clientId === client.id && p.companyId === companyId);
+  }
+
+  /** A company may modify/delete only clients it created itself. */
+  private isClientOwnedByCompany(client: any, companyId: string): boolean {
+    return !!client && client.role === 'client' && !!companyId && client.invitedByCompanyId === companyId;
+  }
+
   @Get()
-  @Roles('superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Retrieve users (Scoped by tenant companyId)' })
   @ApiResponse({ status: 200, description: 'List of users.' })
   findAll(@CurrentUser() user?: UserContext) {
-    if (TenantHelper.isSuperuser(user) || !user || !user.companyId) {
+    if (TenantHelper.isSuperuser(user) || !user) {
       return this.service.findAll();
     }
-    return this.service.findByCompanyId(user.companyId);
+    if (TenantHelper.isClient(user)) {
+      // A client sees themselves and the staff of companies they have a project with.
+      const companyIds = TenantHelper.clientCompanyIds(user, this.projectsRepo.findAll());
+      return this.service
+        .findAll()
+        .filter((u) => u.id === user.userId || (u.role !== 'client' && companyIds.includes(u.companyId)));
+    }
+    if (!user.companyId) {
+      return this.service.findAll().filter((u) => u.id === user.userId);
+    }
+    const staff = this.service.findByCompanyId(user.companyId);
+    const clients = this.service.findAll().filter((u) => this.isClientVisibleToCompany(u, user.companyId));
+    return [...staff, ...clients];
   }
 
   @Get(':id')
-  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Retrieve a specific user by ID' })
   @ApiResponse({ status: 200, description: 'The user details.' })
   @ApiResponse({ status: 403, description: 'Access denied.' })
@@ -39,8 +69,16 @@ export class UsersController {
   findOne(@Param('id') id: string, @CurrentUser() user?: UserContext) {
     const targetUser = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
-      if (user.role === 'client' && id !== user.userId) {
-        TenantHelper.validateCompanyAccess(user, targetUser.companyId);
+      if (id === user.userId) return targetUser;
+      if (TenantHelper.isClient(user)) {
+        const companyIds = TenantHelper.clientCompanyIds(user, this.projectsRepo.findAll());
+        if (targetUser.role === 'client' || !companyIds.includes(targetUser.companyId)) {
+          throw new ForbiddenException('Access denied.');
+        }
+      } else if (targetUser.role === 'client') {
+        if (!this.isClientVisibleToCompany(targetUser, user.companyId)) {
+          throw new ForbiddenException('Access denied. This client is not associated with your company.');
+        }
       } else {
         TenantHelper.validateCompanyAccess(user, targetUser.companyId);
       }
@@ -61,10 +99,10 @@ export class UsersController {
     }
 
     if (user && user.role === 'company_admin') {
-      const allowedRoles = ['project_manager', 'site_engineer', 'finance_manager', 'client'];
+      const allowedRoles = ['project_manager', 'site_engineer', 'finance_manager', 'procurement_storekeeper', 'client'];
       if (!allowedRoles.includes(dto.role)) {
         throw new ForbiddenException(
-          'Company Admin can only create Project Manager, Site Engineer, Finance Manager, and Client accounts.',
+          'Company Admin can only create Project Manager, Site Engineer, Finance Manager, Procurement/Storekeeper, and Client accounts.',
         );
       }
     }
@@ -84,12 +122,17 @@ export class UsersController {
       }
     }
 
+    // Clients are platform-level: no company membership, only a record of who invited them.
+    if (dto.role === 'client') {
+      return this.service.create({ ...dto, companyId: '', invitedByCompanyId: companyId || '' });
+    }
+
     const payload = { ...dto, companyId };
     return this.service.create(payload);
   }
 
   @Patch(':id')
-  @Roles('superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager', 'client')
+  @Roles('superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager', 'client', 'procurement_storekeeper')
   @ApiOperation({ summary: 'Update an existing user' })
   @ApiResponse({ status: 200, description: 'The user has been successfully updated.', type: UpdateUserDto })
   @ApiResponse({ status: 400, description: 'Invalid input or domain mismatch.' })
@@ -99,7 +142,13 @@ export class UsersController {
     const targetUser = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
       if (id !== user.userId) {
-        TenantHelper.validateCompanyAccess(user, targetUser.companyId);
+        if (targetUser.role === 'client') {
+          if (!this.isClientOwnedByCompany(targetUser, user.companyId)) {
+            throw new ForbiddenException('Access denied. You can only edit clients created by your company.');
+          }
+        } else {
+          TenantHelper.validateCompanyAccess(user, targetUser.companyId);
+        }
       }
     }
 
@@ -123,9 +172,12 @@ export class UsersController {
       throw new BadRequestException('A company admin cannot lock or deactivate their own account.');
     }
 
-    const companyId = TenantHelper.isSuperuser(user)
-      ? (dto.companyId !== undefined ? dto.companyId : targetUser.companyId)
-      : (user ? user.companyId : targetUser.companyId);
+    // Clients stay platform-level whoever edits them; staff keep their own company.
+    const companyId = targetUser.role === 'client'
+      ? ''
+      : TenantHelper.isSuperuser(user)
+        ? (dto.companyId !== undefined ? dto.companyId : targetUser.companyId)
+        : (user ? user.companyId : targetUser.companyId);
 
     // Email Domain Validation on update (Clients are external parties)
     if (dto.email && companyId && targetUser.role !== 'client' && dto.role !== 'client') {
@@ -155,7 +207,13 @@ export class UsersController {
       if (user.role === 'company_admin' && id === user.userId) {
         throw new BadRequestException('A company admin cannot delete their own account.');
       }
-      TenantHelper.validateCompanyAccess(user, targetUser.companyId);
+      if (targetUser.role === 'client') {
+        if (!this.isClientOwnedByCompany(targetUser, user.companyId)) {
+          throw new ForbiddenException('Access denied. You can only delete clients created by your company.');
+        }
+      } else {
+        TenantHelper.validateCompanyAccess(user, targetUser.companyId);
+      }
     }
     return this.service.remove(id);
   }

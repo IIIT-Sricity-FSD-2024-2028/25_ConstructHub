@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { attachStore } from '../utils/json-store';
 
 export interface CompanyRecord {
   id?: string;
@@ -19,10 +20,26 @@ export interface CompanyRecord {
   customProjectLimit?: number;
   status?: string;
   createdAt?: string;
+  /** Platform onboarding review. Missing value on legacy records is treated as 'approved'. */
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
+  approvalReason?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
 }
 
 @Injectable()
 export class CompaniesRepository {
+  constructor() {
+    attachStore<CompanyRecord[]>(
+      'companies',
+      Array.from(this.records.values()),
+      () => Array.from(this.records.values()),
+      (list) => {
+        this.records = new Map(list.map((c) => [c.id as string, c]));
+      },
+    );
+  }
+
   private records: Map<string, CompanyRecord> = new Map([
     [
       'COMP001',
@@ -44,6 +61,7 @@ export class CompaniesRepository {
         customUserLimit: 500,
         customProjectLimit: 100,
         status: 'active',
+        approvalStatus: 'approved',
         createdAt: '2026-01-01',
       },
     ],
@@ -67,6 +85,7 @@ export class CompaniesRepository {
         customUserLimit: 50,
         customProjectLimit: 15,
         status: 'active',
+        approvalStatus: 'approved',
         createdAt: '2026-01-15',
       },
     ],
@@ -99,7 +118,11 @@ export class CompaniesRepository {
   }
 
   create(record: CompanyRecord): CompanyRecord {
-    const id = record.id || `COMP${String(this.records.size + 1).padStart(3, '0')}`;
+    const maxNum = Array.from(this.records.keys()).reduce((m, k) => {
+      const n = parseInt(k.replace(/\D/g, ''), 10);
+      return Number.isFinite(n) && n > m ? n : m;
+    }, 0);
+    const id = record.id || `COMP${String(maxNum + 1).padStart(3, '0')}`;
     const newRecord = {
       ...record,
       id,

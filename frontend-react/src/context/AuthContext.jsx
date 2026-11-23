@@ -1,14 +1,13 @@
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { api } from '../services/api';
-
-export const AuthContext = createContext(null);
+import { AuthContext } from './AuthContextValue';
 
 export function AuthProvider({ children }) {
   // Synchronously initialize from sessionStorage so there is no hydration delay
   const [user, setUserState] = useState(() => {
     try {
       return api.getCurrentUser();
-    } catch (e) {
+    } catch {
       return null;
     }
   });
@@ -16,24 +15,14 @@ export function AuthProvider({ children }) {
   const [token, setTokenState] = useState(() => {
     try {
       return api.getToken();
-    } catch (e) {
+    } catch {
       return null;
     }
   });
 
   const [isLoading, setIsLoading] = useState(false);
 
-  // Sync state if sessionStorage changes externally
-  useEffect(() => {
-    function syncAuth() {
-      const u = api.getCurrentUser();
-      const t = api.getToken();
-      setUserState(u);
-      setTokenState(t);
-    }
-    window.addEventListener('storage', syncAuth);
-    return () => window.removeEventListener('storage', syncAuth);
-  }, []);
+  // Auth lives in per-tab sessionStorage; do not react to unrelated cross-tab localStorage cache writes.
 
   const login = useCallback(async (email, password) => {
     setIsLoading(true);

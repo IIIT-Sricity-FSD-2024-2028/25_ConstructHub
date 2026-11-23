@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { HardHat, ShieldCheck, Eye, EyeOff, Mail, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import ConstructHubLogo from '../components/common/ConstructHubLogo';
 import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { isValidEmail } from '../services/utils';
@@ -32,6 +33,7 @@ export default function Login() {
         project_manager: '/project-manager/dashboard',
         site_engineer: '/site-engineer/dashboard',
         finance_manager: '/finance-manager/dashboard',
+        procurement_storekeeper: '/procurement-storekeeper/dashboard',
         client: '/client/dashboard'
       };
       if (roleMap[currentUser.role]) {
@@ -61,6 +63,7 @@ export default function Login() {
         project_manager: '/project-manager/dashboard',
         site_engineer: '/site-engineer/dashboard',
         finance_manager: '/finance-manager/dashboard',
+        procurement_storekeeper: '/procurement-storekeeper/dashboard',
         client: '/client/dashboard'
       };
       navigate(roleMap[role] || '/login', { replace: true });
@@ -177,6 +180,12 @@ export default function Login() {
             </form>
 
             <p style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--text-muted)' }}>
+              Want to build something?{' '}
+              <Link to="/register-client" style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                Create a client account
+              </Link>
+            </p>
+            <p style={{ textAlign: 'center', marginTop: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
               Looking to onboard your firm?{' '}
               <Link to="/contact?request=firm" style={{ color: 'var(--primary)', fontWeight: 600 }}>
                 Request Enterprise Workspace
@@ -190,13 +199,8 @@ export default function Login() {
       <div className="login-right">
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div style={{ marginBottom: '16px' }}>
-            <div className="icon-box icon-box-lg icon-box-orange" style={{ width: 64, height: 64 }}>
-              <HardHat size={36} color="var(--primary)" />
-            </div>
+            <ConstructHubLogo size={64} textSize={32} variant="light" stacked />
           </div>
-          <h2 style={{ fontFamily: 'var(--font-head)', fontSize: '34px', fontWeight: 800, marginBottom: '8px' }}>
-            ConstructHub
-          </h2>
           <div style={{ fontSize: '18px', fontWeight: 600, textAlign: 'center', lineHeight: 1.8, opacity: 0.9 }}>
             Build Smarter.<br />Manage Better.<br />Deliver Faster.
           </div>

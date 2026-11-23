@@ -1,7 +1,38 @@
+import * as bcrypt from 'bcryptjs';
+import { attachStore } from '../utils/json-store';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class UsersRepository {
+  constructor() {
+    this.hashLegacyPasswords(); // hash seed passwords BEFORE the seed is first written to disk
+    const seedCopy = this.memoryData.map((u) => ({ ...u }));
+    attachStore('users', this.memoryData, () => this.memoryData, (v) => { this.memoryData = v; });
+    this.hashLegacyPasswords();
+    this.topUpSeedUsers(seedCopy);
+  }
+
+  private static isHash(value: string): boolean {
+    return typeof value === 'string' && /^\$2[aby]\$/.test(value);
+  }
+
+  /** Seed accounts ship with plain-text passwords; hash them once on startup. */
+  private hashLegacyPasswords(): void {
+    for (const u of this.memoryData) {
+      if (u.password && !UsersRepository.isHash(u.password)) {
+        u.password = bcrypt.hashSync(u.password, 10);
+      }
+    }
+  }
+
+  private nextId(): string {
+    const max = this.memoryData.reduce((m, u) => {
+      const n = parseInt(String(u.id).replace(/\D/g, ''), 10);
+      return /^U\d+$/.test(String(u.id)) && Number.isFinite(n) && n > m ? n : m;
+    }, 0);
+    return `U${String(max + 1).padStart(3, '0')}`;
+  }
+
   private memoryData: any[] = [
     {
       id: 'U000',
@@ -70,7 +101,8 @@ export class UsersRepository {
       email: 'client@apex.com',
       password: '123456',
       role: 'client',
-      companyId: 'COMP001',
+      companyId: '',
+      invitedByCompanyId: 'COMP001',
       phone: '+91 98765 43213',
       avatar: 'VP',
       status: 'active',
@@ -131,7 +163,8 @@ export class UsersRepository {
       email: 'client@ltinfra.com',
       password: '123456',
       role: 'client',
-      companyId: 'COMP002',
+      companyId: '',
+      invitedByCompanyId: 'COMP002',
       phone: '+91 98765 88814',
       avatar: 'AM',
       status: 'active',
@@ -143,13 +176,55 @@ export class UsersRepository {
       email: 'client2@apex.com',
       password: 'password123',
       role: 'client',
-      companyId: 'COMP001',
+      companyId: '',
+      invitedByCompanyId: 'COMP001',
       phone: '+91 98765 43219',
       avatar: 'SS',
       status: 'active',
       createdAt: '2026-01-22',
     },
+    {
+      id: 'U012',
+      name: 'Sunil Nair',
+      email: 'proc@apex.com',
+      password: '123456',
+      role: 'procurement_storekeeper',
+      companyId: 'COMP001',
+      phone: '+91 98765 43220',
+      avatar: 'SN',
+      status: 'active',
+      createdAt: '2026-01-12',
+    },
+    {
+      id: 'U013',
+      name: 'Deepa Menon',
+      email: 'proc@ltinfra.com',
+      password: '123456',
+      role: 'procurement_storekeeper',
+      companyId: 'COMP002',
+      phone: '+91 98765 88820',
+      avatar: 'DM',
+      status: 'active',
+      createdAt: '2026-01-20',
+    },
   ];
+
+  /**
+   * Seed accounts added after a data/db folder was already saved (e.g. the Procurement/Storekeeper
+   * users of Day 5) are appended once, matched by e-mail, so nobody has to reset their data.
+   */
+  private static readonly SEED_TOP_UP_IDS = ['U012', 'U013'];
+  private topUpSeedUsers(defaults: any[]): void {
+    for (const id of UsersRepository.SEED_TOP_UP_IDS) {
+      const seed = defaults.find((u) => u.id === id);
+      if (seed && !this.memoryData.some((u) => u.email === seed.email)) {
+        // keep ids unique even if a saved file already used this id for someone else
+        const idTaken = this.memoryData.some((u) => u.id === seed.id);
+        this.memoryData.push({ ...seed, id: idTaken ? this.nextId() : seed.id, password: seed.password });
+      }
+    }
+    this.hashLegacyPasswords();
+  }
 
   findAll(): any[] {
     return this.memoryData;
@@ -170,8 +245,11 @@ export class UsersRepository {
   }
 
   create(user: any): any {
-    const id = `U${String(this.memoryData.length + 1).padStart(3, '0')}`;
+    const id = this.nextId();
     const newUser = { ...user, id };
+    if (newUser.password && !UsersRepository.isHash(newUser.password)) {
+      newUser.password = bcrypt.hashSync(newUser.password, 10);
+    }
     this.memoryData.push(newUser);
     return newUser;
   }
@@ -179,7 +257,11 @@ export class UsersRepository {
   update(id: string, partialUser: any): any {
     const index = this.memoryData.findIndex((user) => user.id === id);
     if (index === -1) return null;
-    this.memoryData[index] = { ...this.memoryData[index], ...partialUser };
+    const next = { ...this.memoryData[index], ...partialUser };
+    if (next.password && !UsersRepository.isHash(next.password)) {
+      next.password = bcrypt.hashSync(next.password, 10);
+    }
+    this.memoryData[index] = next;
     return this.memoryData[index];
   }
 

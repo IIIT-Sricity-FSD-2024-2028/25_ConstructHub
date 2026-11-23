@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Building2, ArrowRight } from 'lucide-react';
 import { api } from '../services/api';
@@ -99,10 +99,10 @@ export default function RegisterCompany() {
       return;
     }
 
-    setSuccessMsg('Company Workspace registered successfully! Redirecting to login...');
+    setSuccessMsg('Registration received! The platform administrator will review your company. You can sign in once it is approved.');
     setTimeout(() => {
       navigate('/login');
-    }, 1200);
+    }, 3500);
   }
 
   return (

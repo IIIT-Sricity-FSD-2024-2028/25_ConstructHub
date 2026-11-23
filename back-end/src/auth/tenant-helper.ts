@@ -37,4 +37,32 @@ export class TenantHelper {
       throw new ForbiddenException('Access denied. Resource belongs to another company workspace.');
     }
   }
+
+  /**
+   * Clients are platform-level users (no companyId). The companies they deal with are the
+   * companies that own projects assigned to them.
+   */
+  static clientCompanyIds(user: UserContext | undefined, projects: any[]): string[] {
+    if (!user) return [];
+    return Array.from(
+      new Set(
+        projects
+          .filter((p) => p.clientId === user.userId && p.companyId)
+          .map((p) => p.companyId as string),
+      ),
+    );
+  }
+
+  /**
+   * Company a client's record (message, notification) is filed under.
+   * The client must have a project with that company; a body value is only accepted if it matches.
+   */
+  static resolveClientCompanyId(user: UserContext | undefined, bodyCompanyId: string | undefined, projects: any[]): string {
+    const allowed = this.clientCompanyIds(user, projects);
+    if (allowed.length === 0) {
+      throw new ForbiddenException('You have no active project with a company yet.');
+    }
+    if (bodyCompanyId && allowed.includes(bodyCompanyId)) return bodyCompanyId;
+    return allowed[0];
+  }
 }

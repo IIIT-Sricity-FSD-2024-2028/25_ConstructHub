@@ -3,7 +3,9 @@ import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { CompaniesService } from '../companies/companies.service';
 import { LoginDto } from './login.dto';
+import { RegisterClientDto } from './register-client.dto';
 import * as bcrypt from 'bcryptjs';
+import { companyAccessBlockReason } from '../companies/company-access';
 
 @Injectable()
 export class AuthService {
@@ -24,47 +26,20 @@ export class AuthService {
       throw new ForbiddenException('Account is locked or inactive. Please contact admin.');
     }
 
-    // Password verification: bcrypt hash matching, or plaintext match for initial seed accounts
-    let isValidPassword = false;
-    if (user.password) {
-      if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
-        isValidPassword = bcrypt.compareSync(pass, user.password);
-      } else {
-        if (user.password === pass) {
-          isValidPassword = true;
-        } else if (
-          (user.password === '123456' && pass === 'password123') ||
-          (user.password === 'password123' && pass === '123456')
-        ) {
-          isValidPassword = true;
-        }
-        if (isValidPassword) {
-          try {
-            const hashedPassword = bcrypt.hashSync(pass, 10);
-            user.password = hashedPassword;
-            this.usersService.update(user.id, { password: hashedPassword });
-          } catch (e) {
-            // ignore memory update error
-          }
-        }
-      }
-    }
+    // Password verification: bcrypt only. Passwords are hashed when written (UsersRepository),
+    // so there is no plain-text or "interchangeable default password" path any more.
+    const isValidPassword =
+      !!user.password && /^\$2[aby]\$/.test(user.password) && bcrypt.compareSync(pass, user.password);
 
     if (!isValidPassword) {
       throw new UnauthorizedException('Invalid email or password.');
     }
 
-    // Company active status check (unless superuser)
+    // Company checks (not for platform superuser or platform-level clients):
+    // the company must be approved by the platform admin and active.
     if (user.companyId && user.role !== 'superuser') {
-      try {
-        const company = this.companiesService.findOne(user.companyId);
-        if (company && company.status === 'inactive') {
-          throw new ForbiddenException('Company workspace is inactive. Access denied.');
-        }
-      } catch (e) {
-        if (e instanceof ForbiddenException) throw e;
-        // Ignore if company record not found for superuser or legacy data
-      }
+      const reason = companyAccessBlockReason(this.companiesService.findOneOrNull(user.companyId));
+      if (reason) throw new ForbiddenException(reason);
     }
 
     return user;
@@ -88,5 +63,27 @@ export class AuthService {
       accessToken: token,
       user: safeUser,
     };
+  }
+
+  /**
+   * Public self-service signup for clients (people who want to post construction requirements).
+   * Clients are platform-level users: no company, role fixed to "client".
+   */
+  registerClient(dto: RegisterClientDto) {
+    const name = dto.name.trim();
+    const initials = name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+    const created = this.usersService.create({
+      name,
+      email: dto.email.trim().toLowerCase(),
+      password: dto.password,
+      role: 'client',
+      companyId: '',
+      phone: dto.phone || '',
+      avatar: initials,
+      status: 'active',
+      createdAt: new Date().toISOString().split('T')[0],
+    });
+    const { password, ...safe } = created as any;
+    return { message: 'Account created. You can now sign in.', user: safe };
   }
 }

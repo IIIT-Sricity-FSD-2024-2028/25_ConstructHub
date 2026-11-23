@@ -1,9 +1,8 @@
-import {
-  Controller, Get, Param, Headers,
-  ForbiddenException, NotFoundException,
-} from '@nestjs/common';
+import { Controller, Get, Param, NotFoundException, UseGuards } from '@nestjs/common';
+import { RolesGuard } from './auth/roles.guard';
+import { Roles } from './auth/roles.decorator';
 import { AppService } from './app.service';
-import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { readLogTail, listLogFiles } from './utils/log-writer';
 
 const SERVER_BOOT_ID = Date.now().toString();
@@ -26,36 +25,31 @@ export class AppController {
 
   // ── Log Viewer Endpoints (Superuser only) ────────────────────────────────
 
+  // Authorised by the signed login token (RolesGuard). The old check trusted a client-supplied "x-role" header,
+  // which anyone could set, so these endpoints were readable by the whole internet.
   @ApiTags('logs')
+  @UseGuards(RolesGuard)
+  @Roles('superuser')
   @Get('api/logs')
   @ApiOperation({ summary: 'List all log files (Superuser only)' })
-  @ApiHeader({ name: 'x-role', required: true, description: 'Must be superuser' })
   @ApiResponse({ status: 200, description: 'Array of log filenames.' })
   @ApiResponse({ status: 403, description: 'Forbidden — superuser only.' })
-  listLogs(@Headers('x-role') role: string) {
-    if (role !== 'superuser') {
-      throw new ForbiddenException('Log viewer is restricted to superuser only.');
-    }
+  listLogs() {
     return { files: listLogFiles() };
   }
 
   @ApiTags('logs')
+  @UseGuards(RolesGuard)
+  @Roles('superuser')
   @Get('api/logs/:type')
   @ApiOperation({
     summary: "Read last 100 lines of today's log file (Superuser only)",
     description: 'Type must be "access" or "error".',
   })
-  @ApiHeader({ name: 'x-role', required: true, description: 'Must be superuser' })
   @ApiResponse({ status: 200, description: 'Last 100 lines of the log file.' })
   @ApiResponse({ status: 403, description: 'Forbidden — superuser only.' })
   @ApiResponse({ status: 404, description: 'Invalid log type.' })
-  readLog(
-    @Param('type') type: string,
-    @Headers('x-role') role: string,
-  ) {
-    if (role !== 'superuser') {
-      throw new ForbiddenException('Log viewer is restricted to superuser only.');
-    }
+  readLog(@Param('type') type: string) {
     if (type !== 'access' && type !== 'error') {
       throw new NotFoundException(`Unknown log type "${type}". Use "access" or "error".`);
     }

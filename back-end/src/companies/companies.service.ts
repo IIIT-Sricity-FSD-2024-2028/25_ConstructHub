@@ -4,6 +4,7 @@ import { RegisterCompanyDto } from './register-company.dto';
 import { UsersRepository } from '../users/users.repository';
 import { ProjectsRepository } from '../projects/projects.repository';
 import { SUBSCRIPTION_PLANS, OVERAGE_RATES } from './subscription-plans';
+import { getApprovalStatus } from './company-access';
 
 @Injectable()
 export class CompaniesService {
@@ -27,6 +28,10 @@ export class CompaniesService {
 
   findAll(): CompanyRecord[] {
     return this.repo.findAll();
+  }
+
+  findOneOrNull(id: string): CompanyRecord | null {
+    return this.repo.findById(id) || null;
   }
 
   findOne(id: string): CompanyRecord {
@@ -60,9 +65,97 @@ export class CompaniesService {
       extraUsers: data.extraUsers || 0,
       extraProjects: data.extraProjects || 0,
       status: data.status || 'active',
+      approvalStatus: data.approvalStatus || 'approved',
       createdAt: data.createdAt || new Date().toISOString().split('T')[0],
     };
     return this.repo.create(record);
+  }
+
+
+  /** Superuser-only firm onboarding: creates an immediately approved company with full custom quotas + initial Company Admin. */
+  onboardCompany(dto: any) {
+    const { company, admin } = dto || {};
+    if (!company || !admin) {
+      throw new BadRequestException('Company and Admin details are required.');
+    }
+    const cCode = String(company.code || '').trim().toLowerCase();
+    const cDomain = String(company.domain || '').trim().toLowerCase();
+    const aEmail = String(admin.email || company.ownerEmail || '').trim().toLowerCase();
+    const password = String(admin.password || '').trim() || 'password123';
+
+    if (!cCode || !/^[a-z0-9_-]+$/.test(cCode)) {
+      throw new BadRequestException('Company code must contain only lowercase letters, numbers, hyphens, or underscores.');
+    }
+    if (!cDomain) throw new BadRequestException('Approved company domain is required.');
+    if (!aEmail) throw new BadRequestException('Company Admin email is required.');
+    if (password.length < 6) throw new BadRequestException('Initial admin password must be at least 6 characters.');
+
+    this.validateOwnerEmailDomain(aEmail, cDomain);
+
+    if (this.repo.findByCode(cCode)) {
+      throw new BadRequestException(`Company code "${cCode}" is already taken.`);
+    }
+    if (this.repo.findByDomain(cDomain)) {
+      throw new BadRequestException(`Domain "${cDomain}" is already registered to another company.`);
+    }
+    if (this.usersRepo.findByEmail(aEmail)) {
+      throw new BadRequestException(`Email "${aEmail}" is already registered.`);
+    }
+
+    const plan = company.plan && SUBSCRIPTION_PLANS[company.plan] ? company.plan : 'Basic';
+    const extraUsers = Math.max(0, Number(company.extraUsers) || 0);
+    const extraProjects = Math.max(0, Number(company.extraProjects) || 0);
+    const baseQuota = SUBSCRIPTION_PLANS[plan] || SUBSCRIPTION_PLANS.Basic;
+    const customUserLimit = company.customUserLimit !== undefined ? Number(company.customUserLimit) : baseQuota.userLimit + extraUsers;
+    const customProjectLimit = company.customProjectLimit !== undefined ? Number(company.customProjectLimit) : baseQuota.projectLimit + extraProjects;
+
+    const newCompany = this.repo.create({
+      name: String(company.name || '').trim(),
+      code: cCode,
+      domain: cDomain,
+      ownerEmail: aEmail,
+      phone: company.phone?.trim() || '+91 98000 00000',
+      plan,
+      billingCycle: company.billingCycle === 'annual' ? 'annual' : 'monthly',
+      subscriptionStatus: 'active',
+      overageEnabled: !!company.overageEnabled,
+      extraUsers,
+      extraProjects,
+      customUserLimit,
+      customProjectLimit,
+      status: 'active',
+      approvalStatus: 'approved',
+      createdAt: new Date().toISOString().split('T')[0],
+    });
+
+    try {
+      const adminName = String(admin.name || `${newCompany.name} Admin`).trim();
+      const newAdmin = this.usersRepo.create({
+        name: adminName,
+        email: aEmail,
+        password,
+        role: 'company_admin',
+        companyId: newCompany.id,
+        phone: admin.phone?.trim() || newCompany.phone,
+        avatar: adminName.substring(0, 2).toUpperCase(),
+        status: 'active',
+        createdAt: new Date().toISOString().split('T')[0],
+      });
+
+      return {
+        message: 'Company onboarded and activated.',
+        company: newCompany,
+        admin: {
+          id: newAdmin.id,
+          name: newAdmin.name,
+          email: newAdmin.email,
+          role: newAdmin.role,
+        },
+      };
+    } catch (error) {
+      if (newCompany.id) this.repo.remove(newCompany.id);
+      throw error;
+    }
   }
 
   registerCompany(dto: RegisterCompanyDto) {
@@ -101,22 +194,24 @@ export class CompaniesService {
       );
     }
 
-    // 5. Create Company Record with Subscription Defaults
+    // 5. Create Company Record. Public self-registration is always PENDING until the platform admin
+    //    approves it, and cannot set privileged fields (custom limits, overage, extras) - only a
+    //    plan that really exists. The platform admin can adjust limits after approval.
+    const requestedPlan = company.plan && SUBSCRIPTION_PLANS[company.plan] ? company.plan : 'Basic';
     const newCompany = this.repo.create({
       name: company.name.trim(),
       code: cCode,
       domain: cDomain,
       ownerEmail: aEmail,
       phone: company.phone?.trim() || '+91 98000 00000',
-      plan: company.plan || 'Basic',
-      billingCycle: company.billingCycle || 'monthly',
+      plan: requestedPlan,
+      billingCycle: company.billingCycle === 'annual' ? 'annual' : 'monthly',
       subscriptionStatus: 'active',
-      overageEnabled: company.overageEnabled ?? false,
-      extraUsers: company.extraUsers ?? 0,
-      extraProjects: company.extraProjects ?? 0,
-      customUserLimit: company.customUserLimit,
-      customProjectLimit: company.customProjectLimit,
+      overageEnabled: false,
+      extraUsers: 0,
+      extraProjects: 0,
       status: 'active',
+      approvalStatus: 'pending',
       createdAt: new Date().toISOString().split('T')[0],
     });
 
@@ -135,7 +230,7 @@ export class CompaniesService {
       });
 
       return {
-        message: 'Company registered successfully',
+        message: 'Registration received. Your company will be able to sign in once the platform administrator approves it.',
         company: {
           id: newCompany.id,
           name: newCompany.name,
@@ -146,6 +241,7 @@ export class CompaniesService {
           subscriptionStatus: newCompany.subscriptionStatus,
           overageEnabled: newCompany.overageEnabled,
           status: newCompany.status,
+          approvalStatus: newCompany.approvalStatus,
         },
         admin: {
           id: newAdmin.id,
@@ -163,7 +259,7 @@ export class CompaniesService {
   getPlatformRevenue() {
     const companies = this.repo.findAll();
     const activeCompaniesList = companies.filter(
-      (c) => c.status === 'active' && (c.subscriptionStatus === 'active' || !c.subscriptionStatus),
+      (c) => getApprovalStatus(c) === 'approved' && c.status === 'active' && (c.subscriptionStatus === 'active' || !c.subscriptionStatus),
     );
 
     let baseMrr = 0;
@@ -199,7 +295,7 @@ export class CompaniesService {
         extraUsersCount * OVERAGE_RATES.extraUserMonthly +
         extraProjectsCount * OVERAGE_RATES.extraProjectMonthly;
 
-      const isActive = c.status === 'active' && (c.subscriptionStatus === 'active' || !c.subscriptionStatus);
+      const isActive = getApprovalStatus(c) === 'approved' && c.status === 'active' && (c.subscriptionStatus === 'active' || !c.subscriptionStatus);
 
       if (isActive) {
         baseMrr += monthlyEquivalent;
@@ -227,6 +323,7 @@ export class CompaniesService {
         totalMonthlyRevenue: monthlyEquivalent + companyOverageRev,
         subscriptionStatus: c.subscriptionStatus || 'active',
         companyStatus: c.status || 'active',
+        approvalStatus: getApprovalStatus(c),
         nextBillingDate: c.nextBillingDate || '2026-04-01',
       };
     });
@@ -379,6 +476,28 @@ export class CompaniesService {
     if (!updated) throw new NotFoundException('Company record not found.');
     return updated;
   }
+
+  /** Platform admin decision on a newly registered company. */
+  setApproval(id: string, decision: string, reason: string | undefined, reviewerId: string): CompanyRecord {
+    if (decision !== 'approved' && decision !== 'rejected') {
+      throw new BadRequestException('decision must be "approved" or "rejected".');
+    }
+    const existing = this.findOne(id);
+    if (decision === 'rejected' && !(reason && reason.trim())) {
+      throw new BadRequestException('Please provide a reason when rejecting a company.');
+    }
+    const updated = this.repo.update(existing.id as string, {
+      approvalStatus: decision,
+      approvalReason: decision === 'rejected' ? reason!.trim() : '',
+      reviewedAt: new Date().toISOString(),
+      reviewedBy: reviewerId,
+    });
+    if (!updated) throw new NotFoundException('Company record not found.');
+    return updated;
+  }
+
+  /** Fields a company admin may change on their own company. Everything else is superuser-only. */
+  static readonly SELF_SERVICE_FIELDS = ['name', 'phone', 'plan', 'billingCycle'];
 
   remove(id: string): boolean {
     this.findOne(id);

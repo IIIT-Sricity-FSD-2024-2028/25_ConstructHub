@@ -1,0 +1,8 @@
+node_modules
+dist
+.env
+# data saved by the running app (delete to reset to the seed data)
+data/db
+private-uploads
+logs
+*.corrupt-*

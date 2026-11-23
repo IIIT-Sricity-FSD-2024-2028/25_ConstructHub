@@ -2,6 +2,9 @@ import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from
 import { JwtService } from '@nestjs/jwt';
 
 export const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-constructhub-2026';
+if (!process.env.JWT_SECRET) {
+  console.warn('[auth] JWT_SECRET is not set - using the built-in development secret. Set JWT_SECRET before any real deployment.');
+}
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -21,18 +24,6 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      if (token.startsWith('mock_jwt_')) {
-        const parts = token.split('_');
-        const userId = parts[2] || '';
-        const role = parts[3] || 'company_admin';
-        const companyId = parts[4] || 'COMP001';
-        request.user = {
-          userId,
-          role,
-          companyId,
-        };
-        return true;
-      }
 
       const decoded = this.jwtService.verify(token, { secret: JWT_SECRET });
       request.user = {

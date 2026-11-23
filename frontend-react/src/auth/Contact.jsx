@@ -1,18 +1,16 @@
-import React, { useState } from 'react';
+import { usePlans, formatINR } from '../hooks/usePlans';
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  HardHat,
   Phone,
   Mail,
   Building2,
   CheckCircle2,
-  ArrowRight,
-  ShieldCheck,
-  Send,
-  Users
+  Send
 } from 'lucide-react';
 import { api } from '../services/api';
 import { isValidEmail } from '../services/utils';
+import ConstructHubLogo from '../components/common/ConstructHubLogo';
 
 export default function Contact() {
   const [searchParams] = useSearchParams();
@@ -34,10 +32,11 @@ export default function Contact() {
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
 
+  const { planPrices, planLimits, projLimits } = usePlans();
   const planDetails = {
-    'Basic Plan': { users: 10, projects: 3, baseFee: 4999 },
-    'Pro Plan': { users: 50, projects: 15, baseFee: 9999 },
-    'Enterprise Plan': { users: 500, projects: 100, baseFee: 19999 }
+    'Basic Plan': { users: planLimits.Basic, projects: projLimits.Basic, baseFee: planPrices.Basic },
+    'Pro Plan': { users: planLimits.Pro, projects: projLimits.Pro, baseFee: planPrices.Pro },
+    'Enterprise Plan': { users: planLimits.Enterprise, projects: projLimits.Enterprise, baseFee: planPrices.Enterprise }
   };
   const activePlanInfo = planDetails[plan] || planDetails['Pro Plan'];
 
@@ -109,11 +108,10 @@ export default function Contact() {
   }
 
   return (
-    <div style={{ background: '#fdf5ef', minHeight: '100vh' }}>
+    <div style={{ background: 'var(--bg-page)', minHeight: '100vh' }}>
       <nav className="landing-nav">
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'inherit' }}>
-          <HardHat size={20} color="var(--primary)" />
-          <span style={{ fontFamily: 'var(--font-head)', fontWeight: 700 }}>ConstructHub</span>
+        <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', color: 'inherit' }}>
+          <ConstructHubLogo size={32} textSize={17} />
         </Link>
         <div className="landing-nav-links">
           <Link to="/">Home</Link>
@@ -284,9 +282,9 @@ export default function Contact() {
                         onChange={(e) => setPlan(e.target.value)}
                         style={{ width: '100%' }}
                       >
-                        <option value="Basic Plan">Basic Plan (Base: 10 Users · 3 Projects · ₹4,999/mo)</option>
-                        <option value="Pro Plan">Pro Plan (Base: 50 Users · 15 Projects · ₹9,999/mo)</option>
-                        <option value="Enterprise Plan">Enterprise Plan (Base: 500 Users · 100 Projects · ₹19,999/mo)</option>
+                        <option value="Basic Plan">{`Basic Plan (Base: ${planLimits.Basic} Users · ${projLimits.Basic} Projects · ${formatINR(planPrices.Basic)}/mo)`}</option>
+                        <option value="Pro Plan">{`Pro Plan (Base: ${planLimits.Pro} Users · ${projLimits.Pro} Projects · ${formatINR(planPrices.Pro)}/mo)`}</option>
+                        <option value="Enterprise Plan">{`Enterprise Plan (Base: ${planLimits.Enterprise} Users · ${projLimits.Enterprise} Projects · ${formatINR(planPrices.Enterprise)}/mo)`}</option>
                       </select>
                     </div>
 
@@ -335,17 +333,17 @@ export default function Contact() {
                       </div>
                     </div>
 
-                    <div style={{ background: '#eef2ff', padding: '12px 14px', borderRadius: 8, border: '1px solid #c7d2fe', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ background: 'var(--primary-light)', padding: '12px 14px', borderRadius: 12, border: '1px solid #fed7aa', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                       <div>
-                        <div style={{ fontSize: 11, color: '#4338ca', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <div style={{ fontSize: 11, color: 'var(--primary-dark)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                           Total Requested Quota
                         </div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e1b4b', marginTop: 2 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginTop: 2 }}>
                           {activePlanInfo.users + (Number(extraUsers) || 0)} Users ({activePlanInfo.users} base + {Number(extraUsers) || 0} extra) · {activePlanInfo.projects + (Number(extraProjects) || 0)} Projects ({activePlanInfo.projects} base + {Number(extraProjects) || 0} extra)
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 11, color: '#4338ca', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <div style={{ fontSize: 11, color: 'var(--primary-dark)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                           Estimated Monthly
                         </div>
                         <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 15 }}>

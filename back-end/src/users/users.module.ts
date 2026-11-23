@@ -4,9 +4,10 @@ import { UsersController } from './users.controller';
 import { UsersRepository } from './users.repository';
 
 import { CompaniesModule } from '../companies/companies.module';
+import { ProjectsModule } from '../projects/projects.module';
 
 @Module({
-  imports: [forwardRef(() => CompaniesModule)],
+  imports: [forwardRef(() => CompaniesModule), forwardRef(() => ProjectsModule)],
   controllers: [UsersController],
   providers: [UsersService, UsersRepository],
   exports: [UsersService, UsersRepository],

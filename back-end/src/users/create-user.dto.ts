@@ -17,8 +17,8 @@ export class CreateUserDto {
   @IsNotEmpty()
   password: string;
 
-  @ApiProperty({ description: 'Role of the user', enum: ['superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager', 'client'] })
-  @IsIn(['superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager', 'client'])
+  @ApiProperty({ description: 'Role of the user', enum: ['superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager', 'procurement_storekeeper', 'client'] })
+  @IsIn(['superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager', 'procurement_storekeeper', 'client'])
   @IsNotEmpty()
   role: string;
 

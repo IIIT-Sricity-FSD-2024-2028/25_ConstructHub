@@ -1,18 +1,27 @@
-import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NestMiddleware, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { JWT_SECRET } from '../auth/jwt-auth.guard';
+import { UsersRepository } from '../users/users.repository';
+import { CompaniesRepository } from '../companies/companies.repository';
+import { companyAccessBlockReason } from '../companies/company-access';
 
 /**
  * Auth Middleware (Router-level)
  *
  * Applied ONLY on protected API routes.
- * Verifies JWT token from Authorization header and attaches authenticated user context to req.user.
- * Format: Authorization: Bearer <token>
+ * 1. Verifies the signed JWT from the Authorization header (format: "Bearer <token>").
+ * 2. Re-checks the account on EVERY request, so a deleted/locked user or a company that
+ *    was rejected or deactivated loses access immediately instead of when the token expires.
+ * 3. Takes role and companyId from the database record (not from the token) so they cannot be stale.
  */
 @Injectable()
 export class AuthMiddleware implements NestMiddleware {
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly usersRepo: UsersRepository,
+    private readonly companiesRepo: CompaniesRepository,
+  ) {}
 
   use(req: Request, res: Response, next: NextFunction): void {
     const authHeader = req.headers['authorization'] as string | undefined;
@@ -30,30 +39,31 @@ export class AuthMiddleware implements NestMiddleware {
       );
     }
 
+    let decoded: any;
     try {
-      if (token.startsWith('mock_jwt_')) {
-        const parts = token.split('_');
-        const userId = parts[2] || '';
-        const role = parts[3] || 'company_admin';
-        const companyId = parts[4] || 'COMP001';
-        (req as any).user = {
-          userId,
-          role,
-          companyId,
-        };
-        next();
-        return;
-      }
-
-      const decoded = this.jwtService.verify(token, { secret: JWT_SECRET });
-      (req as any).user = {
-        userId: decoded.sub,
-        role: decoded.role,
-        companyId: decoded.companyId || '',
-      };
-      next();
+      decoded = this.jwtService.verify(token, { secret: JWT_SECRET });
     } catch (err) {
       throw new UnauthorizedException('Invalid or expired authentication token.');
     }
+
+    const account = this.usersRepo.findById(decoded.sub);
+    if (!account) {
+      throw new UnauthorizedException('Account no longer exists.');
+    }
+    if (account.status === 'inactive') {
+      throw new ForbiddenException('Account is locked or inactive. Please contact admin.');
+    }
+
+    if (account.role !== 'superuser' && account.companyId) {
+      const reason = companyAccessBlockReason(this.companiesRepo.findById(account.companyId));
+      if (reason) throw new ForbiddenException(reason);
+    }
+
+    (req as any).user = {
+      userId: account.id,
+      role: account.role,
+      companyId: account.companyId || '',
+    };
+    next();
   }
 }

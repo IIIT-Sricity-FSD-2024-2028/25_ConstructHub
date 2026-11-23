@@ -1,355 +1,302 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
-import {
-  HardHat,
-  ArrowRight,
-  ShieldCheck,
-  Building2,
-  FolderKanban,
-  CheckCircle2,
-  Receipt,
-  Users,
-  Wallet,
-  Clock,
-  TrendingUp,
-  Phone,
-  Mail
-} from 'lucide-react';
+import { usePlans, formatINR } from '../hooks/usePlans';
+import { ArrowRight, Check } from 'lucide-react';
+import ConstructHubLogo from '../components/common/ConstructHubLogo';
+import heroCraneImg from '../assets/hero-crane.jpg';
+import towerFacadeImg from '../assets/tower-facade.jpg';
+import commercialComplexImg from '../assets/commercial-complex.jpg';
+
+const MODULES = [
+  { num: '01', title: '3-Role Bid Estimation', desc: 'Project Managers define milestone stages, Finance Managers price internal site costs, and Company Admins sync markup or target client quotes.' },
+  { num: '02', title: 'Mobilization Advance Gate', desc: 'Awarding a quotation auto-generates the work order, locks milestones, and holds field work until the advance bill is settled.' },
+  { num: '03', title: '3-Way PO & Site Stock', desc: 'Bulk material requests flow through PM approval, Storekeeper purchase orders, goods receipts (GRNs), and task-level stock issues.' },
+  { num: '04', title: 'Daily Site Proof & Sign-Off', desc: 'Site Engineers log weather, labor counts, consumed stock, and site photos before Project Managers verify any completed stage.' },
+  { num: '05', title: 'Stage RA Billing & Top-Ups', desc: 'Auto-calculated milestone invoices with proportional mobilization advance recovery, attached site reports, and profit-reserve budget top-ups.' },
+];
 
 export default function LandingHome() {
+  const { planPrices, planLimits, projLimits } = usePlans();
+
   return (
-    <div>
-      {/* Landing Navbar */}
-      <nav className="landing-nav">
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', color: 'inherit' }}>
-          <div style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center' }}>
-            <HardHat size={28} />
-          </div>
-          <span style={{ fontFamily: 'var(--font-head)', fontWeight: 800, fontSize: '24px' }}>
-            ConstructHub
-          </span>
-        </Link>
+    <div style={{ background: '#ffffff', minHeight: '100vh' }}>
+      <div className="lp-shell">
 
-        <div className="landing-nav-links">
-          <a href="#features">Features</a>
-          <a href="#roles">Roles</a>
-          <a href="#pricing">Pricing</a>
-          <Link to="/contact">Contact Us</Link>
-        </div>
+        {/* Rounded Daylight Hero Banner */}
+        <section className="lp-hero-frame">
+          <img src={heroCraneImg} alt="Construction tower crane against sunlit sky" className="lp-hero-img" />
+          <div className="lp-hero-scrim" />
+          <div className="lp-hero-top-scrim" />
 
-        <div className="landing-nav-actions">
-          <Link to="/login" className="btn btn-secondary btn-sm">
-            Sign In
-          </Link>
-          <Link to="/contact?request=firm" className="btn btn-primary btn-sm">
-            Contact Us <ArrowRight size={14} />
-          </Link>
-        </div>
-      </nav>
-
-      {/* Hero Section */}
-      <section className="hero">
-        <div className="hero-left">
-          <div className="hero-tag">
-            <span className="dot"></span>
-            Enterprise Construction Management Platform
-          </div>
-          <h1>
-            Build Smarter.<br />
-            Manage Better.<br />
-            <span>Deliver Faster.</span>
-          </h1>
-          <p>
-            The all-in-one construction project and financial operations platform designed
-            to streamline workflows across executives, project managers, engineers, and clients.
-          </p>
-          <div className="hero-cta">
-            <Link to="/login" className="btn btn-primary">
-              Open Workspace <ArrowRight size={16} />
+          {/* Floating Navbar inside Hero */}
+          <header className="lp-hero-nav">
+            <Link to="/" className="lp-brand-link" aria-label="ConstructHub Home">
+              <ConstructHubLogo size={34} textSize={18} />
             </Link>
-            <Link to="/contact?request=firm" className="btn btn-secondary">
-              Request Workspace
-            </Link>
-          </div>
-          <div className="hero-stats">
-            <div className="hero-stat">
-              <div className="num">500+</div>
-              <div className="lbl">Active Projects</div>
-            </div>
-            <div className="hero-stat">
-              <div className="num" style={{ color: 'var(--blue)' }}>98%</div>
-              <div className="lbl">On-Time Milestones</div>
-            </div>
-            <div className="hero-stat">
-              <div className="num" style={{ color: 'var(--green)' }}>50K+</div>
-              <div className="lbl">Daily Site Logs</div>
-            </div>
-          </div>
-        </div>
 
-        <div className="hero-right">
-          <div
-            style={{
-              background: 'white',
-              borderRadius: '20px',
-              boxShadow: '0 20px 60px rgba(249,115,22,0.12), 0 4px 20px rgba(0,0,0,0.08)',
-              width: '460px',
-              padding: '24px',
-              border: '1px solid var(--border)'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="badge badge-green">LIVE PROJECT</span>
-                <strong style={{ fontSize: '13px' }}>Apex Skyline Tower</strong>
-              </div>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Mumbai, MH</span>
-            </div>
+            <nav className="lp-glass-pill" aria-label="Primary navigation">
+              <a href="#about">About</a>
+              <a href="#projects">Projects</a>
+              <a href="#modules">Modules</a>
+              <a href="#pricing">Plans</a>
+              <Link to="/contact">Contact</Link>
+            </nav>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-              <div style={{ background: 'var(--bg)', padding: '12px', borderRadius: '10px' }}>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Budget</div>
-                <div style={{ fontFamily: 'var(--font-head)', fontSize: '18px', fontWeight: 800, color: 'var(--primary)' }}>₹2.50Cr</div>
-              </div>
-              <div style={{ background: 'var(--bg)', padding: '12px', borderRadius: '10px' }}>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Progress</div>
-                <div style={{ fontFamily: 'var(--font-head)', fontSize: '18px', fontWeight: 800, color: 'var(--green)' }}>75%</div>
+            <div className="lp-nav-actions">
+              <Link to="/register-client" className="btn btn-secondary btn-sm lp-nav-ghost">
+                Client Sign Up
+              </Link>
+              <Link to="/login" className="btn btn-primary btn-sm">
+                Sign In
+              </Link>
+            </div>
+          </header>
+
+          {/* Hero Main Copy + Floating Glass Preview Card */}
+          <div className="lp-hero-content">
+            <div className="lp-hero-copy">
+              <p className="lp-eyebrow">
+                <span className="lp-eyebrow-dot" />
+                Tendering, Site Operations &amp; Stage Billing
+              </p>
+              <h1 className="lp-hero-title">
+                Your trusted platform for modern construction.
+              </h1>
+              <p className="lp-hero-sub">
+                We unite project owners, estimators, project managers, storekeepers, site engineers, and finance teams in one transparent workspace—from tender to verified stage billing.
+              </p>
+              <div className="lp-hero-cta-row">
+                <Link to="/login" className="lp-pill-cta">
+                  <span>Open Workspace</span>
+                  <span className="lp-pill-arrow"><ArrowRight size={15} /></span>
+                </Link>
+                <Link to="/contact?request=firm" className="lp-pill-secondary">
+                  Request Firm Onboarding
+                </Link>
               </div>
             </div>
 
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
-                <span>Milestone: Block A Concrete Pouring</span>
-                <strong>Completed</strong>
+            {/* Bottom-Right Floating Glass Preview Card */}
+            <div className="lp-hero-card-wrap">
+              <div className="lp-hero-preview-card">
+                <div className="lp-hero-preview-media">
+                  <img src={towerFacadeImg} alt="Apex Skyline Tower" />
+                  <span className="lp-hero-preview-badge">40% Verified</span>
+                </div>
+                <div className="lp-hero-preview-body">
+                  <div className="lp-hero-preview-head">
+                    <span className="lp-hero-preview-title">Apex Skyline Tower</span>
+                    <span className="lp-hero-preview-val">₹3.125 Cr</span>
+                  </div>
+                  <p className="lp-hero-preview-meta">
+                    Foundation approved · Site Report R001 attached.
+                  </p>
+                  <div className="lp-hero-preview-bar">
+                    <div className="lp-hero-preview-bar-fill" style={{ width: '40%' }} />
+                  </div>
+                </div>
               </div>
-              <div className="progress-track">
-                <div className="progress-fill" style={{ width: '75%', background: 'var(--primary)' }}></div>
+            </div>
+          </div>
+        </section>
+
+        {/* Asymmetric Editorial Intro */}
+        <section id="about" className="lp-about">
+          <div className="lp-about-label-col">
+            <span className="lp-section-kicker">
+              <span className="lp-eyebrow-dot" />
+              About ConstructHub
+            </span>
+          </div>
+          <div className="lp-about-body-col">
+            <h2 className="lp-about-statement">
+              Delivering project owners and construction firms more project clarity, tighter financial control, and less chaos. Every tender stage, purchase order, site log, and milestone invoice stays connected across all 7 roles.
+            </h2>
+            <div className="lp-about-stats">
+              <div>
+                <div className="lp-about-stat-val">7 Roles</div>
+                <div className="lp-about-stat-lbl">Dedicated operational portals</div>
+              </div>
+              <div>
+                <div className="lp-about-stat-val">4-Phase</div>
+                <div className="lp-about-stat-lbl">Tender-to-RA-bill lifecycle</div>
+              </div>
+              <div>
+                <div className="lp-about-stat-val">100%</div>
+                <div className="lp-about-stat-lbl">Site-proof verified billing</div>
               </div>
             </div>
+          </div>
+        </section>
 
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-              <span>Assigned Engineer: Priya Sharma</span>
-              <span>Due: Apr 2026</span>
-            </div>
+        {/* Alternating Active Projects Showcase */}
+        <section id="projects" className="lp-section">
+          <div className="lp-section-head">
+            <p className="lp-section-eyebrow">Live Platform Portfolio</p>
+            <h2 className="lp-section-title">Active projects on ConstructHub</h2>
           </div>
-        </div>
-      </section>
 
-      {/* Features Section */}
-      <section className="features" id="features">
-        <h2>Built for Modern Construction Companies</h2>
-        <p className="sub">Everything your firm needs to coordinate construction projects seamlessly.</p>
-        <div className="features-grid">
-          <div className="feature-card">
-            <div className="icon-box icon-box-orange" style={{ marginBottom: '12px' }}>
-              <FolderKanban size={20} />
+          <div className="lp-project-row">
+            <div className="lp-project-info">
+              <div>
+                <div className="lp-project-title-row">
+                  <h3>Apex Skyline Tower</h3>
+                  <span className="badge badge-orange">On Track</span>
+                </div>
+                <p className="lp-project-desc">High-rise luxury residential tower · Contract WO-CON001</p>
+                <p className="lp-project-loc">Mumbai, Maharashtra</p>
+              </div>
+              <div className="lp-project-metrics">
+                <div><div className="lp-metric-lbl">Contract Value</div><div className="lp-metric-val">₹3.125 Cr</div></div>
+                <div><div className="lp-metric-lbl">Client</div><div className="lp-metric-val">Vikram Patel</div></div>
+                <div><div className="lp-metric-lbl">Mobilization</div><div className="lp-metric-val" style={{ color: 'var(--green)' }}>10% Paid</div></div>
+                <div><div className="lp-metric-lbl">Duration</div><div className="lp-metric-val">180 Days</div></div>
+              </div>
             </div>
-            <h3>Project & Milestone Tracking</h3>
-            <p>Coordinate timelines, assign tasks to site engineers, and track real-time progress percentages with visual gauges.</p>
-          </div>
-          <div className="feature-card">
-            <div className="icon-box icon-box-green" style={{ marginBottom: '12px' }}>
-              <Receipt size={20} />
+            <div className="lp-project-photo">
+              <img src={towerFacadeImg} alt="Apex Skyline Tower" />
             </div>
-            <h3>Automated Invoicing & Approvals</h3>
-            <p>Finance managers generate milestone bills and send invoices directly to clients for approval or rejection with audit logs.</p>
           </div>
-          <div className="feature-card">
-            <div className="icon-box icon-box-blue" style={{ marginBottom: '12px' }}>
-              <ShieldCheck size={20} />
-            </div>
-            <h3>Daily Site Logging & Photos</h3>
-            <p>Site engineers upload daily progress reports, material usage logs, and high-resolution site inspection photos from the field.</p>
-          </div>
-          <div className="feature-card">
-            <div className="icon-box icon-box-purple" style={{ marginBottom: '12px' }}>
-              <Wallet size={20} />
-            </div>
-            <h3>Budget Allocation & Control</h3>
-            <p>Categorize budgets across Labor, Materials, Equipment, and Other with automatic overage detection and expense alerts.</p>
-          </div>
-          <div className="feature-card">
-            <div className="icon-box icon-box-orange" style={{ marginBottom: '12px' }}>
-              <Users size={20} />
-            </div>
-            <h3>Multi-Tenant Firm Workspaces</h3>
-            <p>Each construction company gets a dedicated branded tenant with custom approved domain enforcement and role quotas.</p>
-          </div>
-          <div className="feature-card">
-            <div className="icon-box icon-box-green" style={{ marginBottom: '12px' }}>
-              <TrendingUp size={20} />
-            </div>
-            <h3>Real-Time Communications</h3>
-            <p>Integrated team messaging and push notifications keep field engineers, office staff, and clients constantly aligned.</p>
-          </div>
-        </div>
-      </section>
 
-      {/* Roles Section */}
-      <section className="roles-section" id="roles">
-        <h2>Dedicated Experiences for Every Stakeholder</h2>
-        <p className="sub">Six specialized actor environments tailored to specific operational responsibilities.</p>
-        <div className="roles-grid">
-          <div className="role-card">
-            <div className="icon-box icon-box-orange" style={{ margin: '0 auto 12px' }}>
-              <ShieldCheck size={22} />
+          <div className="lp-project-row rev">
+            <div className="lp-project-photo">
+              <img src={commercialComplexImg} alt="Apex Commercial Complex" style={{ objectPosition: 'center center' }} />
             </div>
-            <h3>Platform Super Admin</h3>
-            <div className="role-feature">Multi-company governance</div>
-            <div className="role-feature">Platform SaaS revenue tracking</div>
-            <div className="role-feature">Contact inquiry management</div>
-          </div>
-          <div className="role-card">
-            <div className="icon-box icon-box-orange" style={{ margin: '0 auto 12px' }}>
-              <Building2 size={22} />
+            <div className="lp-project-info">
+              <div>
+                <div className="lp-project-title-row">
+                  <h3>Apex Commercial Complex</h3>
+                  <span className="badge badge-orange">MEP Stage</span>
+                </div>
+                <p className="lp-project-desc">Modern IT &amp; retail commercial complex · Contract WO-CON002</p>
+                <p className="lp-project-loc">Pune, Maharashtra</p>
+              </div>
+              <div className="lp-project-metrics">
+                <div><div className="lp-metric-lbl">Contract Value</div><div className="lp-metric-val">₹5.04 Cr</div></div>
+                <div><div className="lp-metric-lbl">Client</div><div className="lp-metric-val">Suresh Shah</div></div>
+                <div><div className="lp-metric-lbl">Company Margin</div><div className="lp-metric-val">20% Derived</div></div>
+                <div><div className="lp-metric-lbl">Duration</div><div className="lp-metric-val">150 Days</div></div>
+              </div>
             </div>
-            <h3>Company Admin</h3>
-            <div className="role-feature">Team member onboarding</div>
-            <div className="role-feature">SaaS subscription & overage billing</div>
-            <div className="role-feature">Firm-wide project oversight</div>
           </div>
-          <div className="role-card">
-            <div className="icon-box icon-box-blue" style={{ margin: '0 auto 12px' }}>
-              <FolderKanban size={22} />
-            </div>
-            <h3>Project Manager</h3>
-            <div className="role-feature">Project creation & allocation</div>
-            <div className="role-feature">Task assignment to engineers</div>
-            <div className="role-feature">Review site logs & reports</div>
-          </div>
-          <div className="role-card">
-            <div className="icon-box icon-box-green" style={{ margin: '0 auto 12px' }}>
-              <HardHat size={22} />
-            </div>
-            <h3>Site Engineer</h3>
-            <div className="role-feature">Daily task status updating</div>
-            <div className="role-feature">Site report submission</div>
-            <div className="role-feature">Material logs & photo upload</div>
-          </div>
-          <div className="role-card">
-            <div className="icon-box icon-box-purple" style={{ margin: '0 auto 12px' }}>
-              <Receipt size={22} />
-            </div>
-            <h3>Finance Manager</h3>
-            <div className="role-feature">Project budget categorization</div>
-            <div className="role-feature">Milestone invoice generation</div>
-            <div className="role-feature">Expense tracking & payment decisions</div>
-          </div>
-          <div className="role-card">
-            <div className="icon-box icon-box-orange" style={{ margin: '0 auto 12px' }}>
-              <Users size={22} />
-            </div>
-            <h3>Client</h3>
-            <div className="role-feature">Project progress transparency</div>
-            <div className="role-feature">One-click invoice payment approval</div>
-            <div className="role-feature">Direct team feedback & messaging</div>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Pricing Section */}
-      <section className="pricing-section" id="pricing">
-        <h2>Predictable Subscription Plans</h2>
-        <div className="pricing-grid">
-          <div className="pricing-card">
-            <div className="pricing-name">Basic Plan</div>
-            <div className="pricing-price">₹4,999<span className="pricing-period"> / mo</span></div>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>For boutique construction contractors</p>
-            <div className="pricing-features">
-              <div className="pricing-feature">Up to 10 Team Members</div>
-              <div className="pricing-feature">Up to 3 Active Projects</div>
-              <div className="pricing-feature">Site Logging & Photo Upload</div>
-              <div className="pricing-feature">Standard Invoicing</div>
+        {/* Deep Navy Rounded Modules Section */}
+        <section id="modules" className="lp-modules-band">
+          <div className="lp-modules-grid">
+            <div className="lp-modules-intro">
+              <div>
+                <p style={{ fontSize: 12.5, fontWeight: 600, color: '#fb923c', marginBottom: 10 }}>Platform Architecture</p>
+                <h2 style={{ fontFamily: 'var(--font-head)', fontSize: 'clamp(28px, 2.8vw, 36px)', fontWeight: 500, lineHeight: 1.15, letterSpacing: '-0.025em' }}>
+                  Explore our modules
+                </h2>
+              </div>
+              <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 20, lineHeight: 1.65 }}>
+                Dedicated portals for Superuser, Company Admin, Project Manager, Finance Manager, Storekeeper, Site Engineer, and Client.
+              </p>
             </div>
-            <Link to="/contact?plan=Basic" className="btn btn-secondary btn-full">
-              Get Started
+
+            {MODULES.map((m) => (
+              <div key={m.num} className="lp-module-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--primary)' }} />
+                  <span style={{ fontFamily: 'var(--font-head)', fontSize: 22, fontWeight: 500, color: '#cbd5e1' }}>{m.num}</span>
+                </div>
+                <div style={{ marginTop: 22 }}>
+                  <h3 style={{ fontFamily: 'var(--font-head)', fontSize: 16, fontWeight: 600, marginBottom: 6, color: '#0f172a' }}>{m.title}</h3>
+                  <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.55 }}>{m.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Clean SaaS Plans Section */}
+        <section id="pricing" className="lp-section" style={{ paddingBottom: 24 }}>
+          <div className="lp-section-head" style={{ marginBottom: 36 }}>
+            <p className="lp-section-eyebrow">Firm Subscriptions</p>
+            <h2 className="lp-section-title">Predictable workspace plans</h2>
+          </div>
+
+          <div className="plan-grid">
+            <div className="plan-card">
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Boutique Contractors</div>
+                <div style={{ fontFamily: 'var(--font-head)', fontSize: 20, fontWeight: 600, marginTop: 4 }}>Basic Plan</div>
+                <div className="plan-price">{formatINR(planPrices.Basic)}<span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}> / mo</span></div>
+                <ul className="plan-features">
+                  <li><Check size={15} color="var(--green)" /> Up to {planLimits.Basic} Team Members</li>
+                  <li><Check size={15} color="var(--green)" /> Up to {projLimits.Basic} Active Projects</li>
+                  <li><Check size={15} color="var(--green)" /> 3-Role Bid Estimation &amp; RA Billing</li>
+                </ul>
+              </div>
+              <Link to="/contact?plan=Basic" className="btn btn-secondary btn-full">Get Started</Link>
+            </div>
+
+            <div className="plan-card active-plan">
+              <span className="plan-badge-top">Popular</span>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600 }}>Regional Developers</div>
+                <div style={{ fontFamily: 'var(--font-head)', fontSize: 20, fontWeight: 600, marginTop: 4 }}>Pro Plan</div>
+                <div className="plan-price">{formatINR(planPrices.Pro)}<span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}> / mo</span></div>
+                <ul className="plan-features">
+                  <li><Check size={15} color="var(--green)" /> Up to {planLimits.Pro} Team Members</li>
+                  <li><Check size={15} color="var(--green)" /> Up to {projLimits.Pro} Active Projects</li>
+                  <li><Check size={15} color="var(--green)" /> 3-Way PO, GRN &amp; Site Stock Ledger</li>
+                  <li><Check size={15} color="var(--green)" /> Budget Top-Up &amp; Overage Protection</li>
+                </ul>
+              </div>
+              <Link to="/contact?plan=Pro" className="btn btn-primary btn-full">Choose Pro</Link>
+            </div>
+
+            <div className="plan-card">
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Infrastructure EPC</div>
+                <div style={{ fontFamily: 'var(--font-head)', fontSize: 20, fontWeight: 600, marginTop: 4 }}>Enterprise Plan</div>
+                <div className="plan-price">{formatINR(planPrices.Enterprise)}<span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}> / mo</span></div>
+                <ul className="plan-features">
+                  <li><Check size={15} color="var(--green)" /> Up to {planLimits.Enterprise} Team Members</li>
+                  <li><Check size={15} color="var(--green)" /> Up to {projLimits.Enterprise} Active Projects</li>
+                  <li><Check size={15} color="var(--green)" /> Custom Domain &amp; Full Audit Controls</li>
+                </ul>
+              </div>
+              <Link to="/contact?plan=Enterprise" className="btn btn-secondary btn-full">Contact Sales</Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Photographic Rounded CTA Banner */}
+        <section className="lp-cta-banner">
+          <img src={towerFacadeImg} alt="Modern building facade" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(8,21,38,0.52) 0%, rgba(8,21,38,0.8) 100%)' }} />
+          <div style={{ position: 'relative', zIndex: 10, maxWidth: 560 }}>
+            <p style={{ fontSize: 12.5, color: '#fed7aa', fontWeight: 600, marginBottom: 10 }}>Ready to start?</p>
+            <h2 style={{ fontFamily: 'var(--font-head)', fontSize: 'clamp(28px, 3.2vw, 38px)', fontWeight: 500, color: '#ffffff', lineHeight: 1.15, marginBottom: 24 }}>
+              Ready to build with clarity? Open your workspace today.
+            </h2>
+            <Link to="/login" className="lp-pill-cta">
+              <span>Sign In to Workspace</span>
+              <span className="lp-pill-arrow"><ArrowRight size={15} /></span>
             </Link>
           </div>
+        </section>
 
-          <div className="pricing-card featured">
-            <div className="pricing-name">Pro Plan</div>
-            <div className="pricing-price">₹9,999<span className="pricing-period"> / mo</span></div>
-            <p style={{ fontSize: '13px', opacity: 0.85 }}>For growing regional construction firms</p>
-            <div className="pricing-features">
-              <div className="pricing-feature">Up to 50 Team Members</div>
-              <div className="pricing-feature">Up to 15 Active Projects</div>
-              <div className="pricing-feature">Budget Tracking & Categories</div>
-              <div className="pricing-feature">Usage Overage Protection</div>
-              <div className="pricing-feature">Priority Support</div>
-            </div>
-            <Link to="/contact?plan=Pro" className="btn btn-secondary btn-full" style={{ background: 'white', color: 'var(--primary)' }}>
-              Choose Pro
-            </Link>
-          </div>
-
-          <div className="pricing-card">
-            <div className="pricing-name">Enterprise Plan</div>
-            <div className="pricing-price">₹19,999<span className="pricing-period"> / mo</span></div>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>For large infrastructure developers</p>
-            <div className="pricing-features">
-              <div className="pricing-feature">Up to 500 Team Members</div>
-              <div className="pricing-feature">Up to 100 Active Projects</div>
-              <div className="pricing-feature">Full Financial Operations</div>
-              <div className="pricing-feature">Custom Domain Integration</div>
-              <div className="pricing-feature">Dedicated Success Manager</div>
-            </div>
-            <Link to="/contact?plan=Enterprise" className="btn btn-secondary btn-full">
-              Contact Sales
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="cta-section">
-        <h2>Ready to Streamline Your Construction Operations?</h2>
-        <p>Join top construction and infrastructure developers managing projects with ConstructHub.</p>
-        <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
-          <Link to="/contact?request=firm" className="btn btn-primary" style={{ padding: '12px 28px' }}>
-            Request Firm Workspace
-          </Link>
-          <Link to="/contact" className="btn btn-secondary" style={{ padding: '12px 28px', background: 'transparent', color: 'white', borderColor: 'rgba(255,255,255,0.3)' }}>
-            Speak with Sales
-          </Link>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="footer">
-        <div className="footer-grid">
+        {/* Minimalist White Footer */}
+        <footer className="lp-footer">
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              <HardHat size={22} color="var(--primary)" />
-              <strong style={{ fontFamily: 'var(--font-head)', fontSize: '18px', color: 'white' }}>ConstructHub</strong>
+            <div style={{ marginBottom: 8 }}>
+              <ConstructHubLogo size={28} textSize={15} />
             </div>
-            <p style={{ fontSize: '13px', lineHeight: 1.6, maxWidth: '280px', color: 'rgba(255,255,255,0.6)' }}>
-              The comprehensive construction and project lifecycle platform engineered for modern developers.
-            </p>
+            <p>Specialized in transparent, milestone-locked construction project and financial operations.</p>
           </div>
-          <div>
-            <h4>Product</h4>
-            <a href="#features">Features</a>
-            <a href="#roles">Role Environments</a>
-            <a href="#pricing">Pricing Plans</a>
-          </div>
-          <div>
-            <h4>Portals</h4>
+          <div className="lp-footer-links">
             <Link to="/login">Sign In</Link>
-            <Link to="/contact?request=firm">Request Firm Onboarding</Link>
-            <Link to="/contact">Contact Sales</Link>
+            <Link to="/register-client">Client Sign Up</Link>
+            <Link to="/contact?request=firm">Onboard Firm</Link>
+            <span>© 2026 ConstructHub</span>
           </div>
-          <div>
-            <h4>Contact</h4>
-            <span style={{ display: 'block', fontSize: '13px', margin: '5px 0', color: 'rgba(255,255,255,0.6)' }}>+91 98765 43210</span>
-            <span style={{ display: 'block', fontSize: '13px', margin: '5px 0', color: 'rgba(255,255,255,0.6)' }}>sales@constructhub.com</span>
-            <span style={{ display: 'block', fontSize: '13px', margin: '5px 0', color: 'rgba(255,255,255,0.6)' }}>Mumbai, India</span>
-          </div>
-        </div>
-        <div className="footer-bottom">
-          <span>© 2026 ConstructHub. All rights reserved.</span>
-          <span>Construction Project & Financial Operations Management Platform</span>
-        </div>
-      </footer>
+        </footer>
+
+      </div>
     </div>
   );
 }

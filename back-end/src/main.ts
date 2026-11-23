@@ -11,9 +11,19 @@ import { HttpExceptionFilter } from './filters/http-exception.filter';
 
 // Upload directory
 import { UPLOADS_DIR } from './middleware/upload.config';
+import { flushAll, installPersistenceHooks } from './utils/json-store';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // ── Persistence ─────────────────────────────────────────────────────────────
+  // Repositories keep data in memory and save to data/db/*.json after each write request,
+  // every few seconds, and on shutdown.
+  installPersistenceHooks();
+  app.use((req: any, res: any, next: any) => {
+    if (req.method !== 'GET' && req.method !== 'OPTIONS') res.on('finish', flushAll);
+    next();
+  });
 
   // ── CORS ────────────────────────────────────────────────────────────────────
   app.enableCors({
@@ -47,7 +57,7 @@ async function bootstrap() {
     .setDescription(
       'ConstructHub Construction Management Platform API.\n\n' +
       '**How to use:** Click "Try it out" on any endpoint, fill in the `x-role` header field ' +
-      'with one of: `superuser`, `project_manager`, `site_engineer`, `finance_manager`, `client`, ' +
+      'with one of: `superuser`, `project_manager`, `site_engineer`, `finance_manager`, `procurement_storekeeper`, `client`, ' +
       'then click Execute.\n\n' +
       '**Middleware active:**\n' +
       '- 🔒 Security headers + Rate Limiting (120 req/min per IP)\n' +

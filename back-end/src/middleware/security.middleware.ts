@@ -8,13 +8,14 @@ const VALID_ROLES = new Set([
   'project_manager',
   'site_engineer',
   'finance_manager',
+  'procurement_storekeeper',
   'client',
 ]);
 
 // Simple in-memory rate limiter (per IP, per minute)
-// For production you'd use `express-rate-limit` with Redis; this is self-contained.
+// Configured with high threshold for local development and viva evaluation
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 120;          // max requests per window
+const RATE_LIMIT = 5000;         // max requests per window for dev/testing
 const RATE_WINDOW_MS = 60_000;   // 1 minute window
 
 /**
@@ -47,10 +48,18 @@ export class SecurityMiddleware implements NestMiddleware {
     res.removeHeader('X-Powered-By');
 
     // ── 2. Rate Limiting ──────────────────────────────────────────────────
-    const ip =
+    const rawIp =
       (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
       req.socket?.remoteAddress ||
       'unknown';
+
+    const isLocal =
+      rawIp === '127.0.0.1' ||
+      rawIp === '::1' ||
+      rawIp === '::ffff:127.0.0.1' ||
+      rawIp === 'localhost';
+
+    const ip = rawIp;
 
     const now = Date.now();
     let entry = rateLimitMap.get(ip);
@@ -60,15 +69,17 @@ export class SecurityMiddleware implements NestMiddleware {
     }
     entry.count++;
 
-    res.setHeader('X-RateLimit-Limit', RATE_LIMIT);
-    res.setHeader('X-RateLimit-Remaining', Math.max(0, RATE_LIMIT - entry.count));
+    const currentLimit = isLocal ? 10000 : RATE_LIMIT;
+
+    res.setHeader('X-RateLimit-Limit', currentLimit);
+    res.setHeader('X-RateLimit-Remaining', Math.max(0, currentLimit - entry.count));
     res.setHeader('X-RateLimit-Reset', new Date(entry.resetAt).toISOString());
 
-    if (entry.count > RATE_LIMIT) {
+    if (entry.count > currentLimit) {
       res.status(429).json({
         statusCode: 429,
         error: 'Too Many Requests',
-        message: `Rate limit exceeded. Maximum ${RATE_LIMIT} requests per minute.`,
+        message: `Rate limit exceeded. Maximum ${currentLimit} requests per minute.`,
         retryAfter: Math.ceil((entry.resetAt - now) / 1000),
       });
       return;
