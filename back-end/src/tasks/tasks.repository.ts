@@ -52,12 +52,12 @@ export class TasksRepository {
       assignedTo: 'U003',
       assignedName: 'Priya Sharma',
       priority: 'High',
-      status: 'In Progress',
-      progress: 60,
+      status: 'Completed',
+      progress: 100,
       startDate: '2026-03-05',
       deadline: '2026-03-12',
       description: 'Complete electrical wiring for Floor 2.',
-      remarks: '60% done.',
+      remarks: 'Completed and verified.',
     },
     {
       id: 'T004',
@@ -86,12 +86,12 @@ export class TasksRepository {
       assignedTo: 'U008',
       assignedName: 'Rohan Gupta',
       priority: 'High',
-      status: 'In Progress',
-      progress: 50,
+      status: 'Completed',
+      progress: 100,
       startDate: '2026-03-01',
       deadline: '2026-03-15',
       description: 'Cast pier caps for metro pillars 10-15.',
-      remarks: 'Zone 1 half done.',
+      remarks: 'Completed and verified.',
     },
     {
       id: 'T006',
@@ -168,6 +168,19 @@ export class TasksRepository {
 
   findByCompanyId(companyId: string) {
     return this.findAll().filter((item) => item.companyId === companyId);
+  }
+
+  /**
+   * A site engineer is "on" a project only while they have at least one unfinished task there.
+   * Expenses, material requests, site reports, progress updates and stock issues all require it.
+   */
+  hasOpenTask(userId: string, projectId: string): boolean {
+    return this.memoryData.some((t) => t.projectId === projectId && t.assignedTo === userId && t.status !== 'Completed');
+  }
+
+  /** Projects where this user has at least one unfinished task. */
+  openTaskProjectIds(userId: string): Set<string> {
+    return new Set(this.memoryData.filter((t) => t.assignedTo === userId && t.status !== 'Completed').map((t) => t.projectId));
   }
 
   create(record: any) {

@@ -218,7 +218,7 @@ export default function SiteEngineerUpdateTask() {
                 max="100"
                 placeholder="0 - 100"
                 value={progress}
-                onChange={(e) => setProgress(e.target.value)}
+                onChange={(e) => { const v = e.target.value; setProgress(v); const n = Number(v); if (n === 100) setStatus('Completed'); else if (status === 'Completed' && n < 100) setStatus('In Progress'); }}
               />
               {errors.progress && <span className="field-error">{errors.progress}</span>}
             </div>
@@ -228,7 +228,7 @@ export default function SiteEngineerUpdateTask() {
               <select
                 className={`form-select ${errors.status ? 'input-error' : ''}`}
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={(e) => { const v = e.target.value; setStatus(v); if (v === 'Completed') setProgress('100'); else if (Number(progress) === 100) setProgress('90'); }}
               >
                 <option value="">Select status</option>
                 <option value="Pending">Pending</option>

@@ -53,11 +53,11 @@ export class CreateProjectDto {
   @IsNotEmpty()
   budget: number;
 
-  @ApiProperty({ description: 'Amount spent so far', example: 18750000 })
+  @ApiPropertyOptional({ description: 'Ignored: spend is calculated by the server from approved expenses', example: 0 })
   @IsNumber()
   @Min(0)
-  @IsNotEmpty()
-  spent: number;
+  @IsOptional()
+  spent?: number;
 
   @ApiProperty({ description: 'Progress percentage', example: 75 })
   @IsNumber()

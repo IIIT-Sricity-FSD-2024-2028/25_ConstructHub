@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
+import { TasksRepository } from '../tasks/tasks.repository';
+import { MilestonesRepository } from '../milestones/milestones.repository';
+import { BillsRepository } from '../bills/bills.repository';
+import { PaymentsRepository } from '../bills/payments.repository';
+import { ExpensesRepository } from '../expenses/expenses.repository';
+import { PurchaseOrdersRepository } from '../procurement/procurement.repositories';
+import { ContractsRepository } from '../marketplace/contracts.repository';
+import { ReportsRepository } from '../reports/reports.repository';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './create-project.dto';
 import { UpdateProjectDto } from './update-project.dto';
@@ -17,6 +26,7 @@ export class ProjectsController {
   constructor(
     private readonly service: ProjectsService,
     private readonly usersService: UsersService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   private validateProjectUserAssignments(
@@ -140,11 +150,10 @@ export class ProjectsController {
   }
 
   @Post()
-  @Roles('superuser', 'company_admin', 'project_manager')
-  @ApiOperation({ summary: 'Create a new project (Company ID derived from authenticated token)' })
-  @ApiResponse({ status: 201, description: 'The project has been successfully created.', type: CreateProjectDto })
-  @ApiResponse({ status: 400, description: 'Invalid input or user assignment mismatch.' })
-  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @Roles('superuser')
+  @ApiOperation({ summary: 'Platform superuser only (data setup). Companies never create projects by hand: a project is created when a client awards their quotation in the Marketplace.' })
+  @ApiResponse({ status: 201, description: 'Project created.' })
+  @ApiResponse({ status: 403, description: 'Company roles: projects come from awarded quotations.' })
   create(@Body() dto: CreateProjectDto, @CurrentUser() user?: UserContext) {
     const companyId = TenantHelper.getAuthoritativeCompanyId(user, dto.companyId);
 
@@ -165,49 +174,91 @@ export class ProjectsController {
     }
 
     this.validateProjectUserAssignments(dto, companyId);
-    const payload = { ...dto, companyId };
+    // Spend is calculated from approved expenses, so a new project always starts at zero.
+    const payload = { ...dto, companyId, spent: 0, progress: Number(dto.progress) || 0 };
     return this.service.create(payload);
   }
 
   @Patch(':id')
-  @Roles('superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager', 'procurement_storekeeper')
-  @ApiOperation({ summary: 'Update an existing project' })
-  @ApiResponse({ status: 200, description: 'The project has been successfully updated.', type: UpdateProjectDto })
-  @ApiResponse({ status: 400, description: 'Invalid input or user assignment mismatch.' })
-  @ApiResponse({ status: 403, description: 'Access denied.' })
-  @ApiResponse({ status: 404, description: 'Project not found.' })
+  @Roles('superuser', 'company_admin', 'project_manager', 'site_engineer', 'finance_manager')
+  @ApiOperation({ summary: 'Update a project. Company Admin: any field. Project Manager: own projects. Finance Manager: budget split of own projects. Site Engineer: progress of a project without milestones.' })
   update(@Param('id') id: string, @Body() dto: UpdateProjectDto, @CurrentUser() user?: UserContext) {
     const existing = this.service.findOne(id);
+    const changes: Record<string, any> = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined));
     if (!TenantHelper.isSuperuser(user) && user) {
       TenantHelper.validateCompanyAccess(user, existing.companyId);
+      const onlyFields = (allowed: string[], who: string) => {
+        const extra = Object.keys(changes).filter((k) => !allowed.includes(k) && !(k === 'companyId' && changes[k] === existing.companyId));
+        if (extra.length) throw new ForbiddenException(`${who} cannot change ${extra.join(', ')} on a project.`);
+      };
+      if (user.role === 'project_manager' && existing.managerId !== user.userId) {
+        throw new ForbiddenException('Only the project manager of this project (or the Company Admin) can edit it.');
+      }
+      if (user.role === 'finance_manager') {
+        if (existing.financeManagerId !== user.userId) throw new ForbiddenException('Only the Finance Manager of this project can change its budget split.');
+        onlyFields(['allocations', 'budget'], 'A Finance Manager');
+      }
+      if (user.role === 'site_engineer') {
+        const tasks = this.moduleRef.get(TasksRepository, { strict: false });
+        if (!tasks.hasOpenTask(user.userId, id)) throw new ForbiddenException('You can only report progress on a project where you have an unfinished task assigned to you.');
+        onlyFields(['progress'], 'A Site Engineer');
+        if (existing.progressMode === 'milestones') {
+          throw new BadRequestException('Progress of this project is calculated from its milestones.');
+        }
+        if (Number(changes.progress) < Number(existing.progress || 0)) {
+          throw new BadRequestException('Reported progress cannot go below the current progress.');
+        }
+      }
     }
     // The site budget of an awarded (staged) project is the Finance Manager's cap. Only the Company Admin can raise it,
     // and the normal way is a contingency top-up request (see /budget-topups), so staff cannot move it by hand.
     if (existing.internalBaseCost !== undefined && user && !['company_admin', 'superuser'].includes(user.role)
-      && (dto as any).budget !== undefined && Number((dto as any).budget) !== Number(existing.budget)) {
+      && changes.budget !== undefined && Number(changes.budget) !== Number(existing.budget)) {
       throw new ForbiddenException('The site budget of this project is fixed. Ask the Company Admin for a contingency top-up instead.');
     }
+    // A budget can never be set below what has already been approved as spend.
+    if (changes.budget !== undefined && Number(changes.budget) < Number(existing.spent || 0)) {
+      throw new BadRequestException(`The budget cannot be lower than what is already spent (${existing.spent}).`);
+    }
     const companyId = TenantHelper.isSuperuser(user)
-      ? (dto.companyId !== undefined ? dto.companyId : existing.companyId)
-      : (user ? user.companyId : existing.companyId);
+      ? (changes.companyId !== undefined ? changes.companyId : existing.companyId)
+      : existing.companyId;
 
-    this.validateProjectUserAssignments(dto, companyId, id);
+    this.validateProjectUserAssignments(changes, companyId, id);
 
-    const payload = { ...dto, companyId };
+    const payload = { ...changes, companyId };
     return this.service.update(id, payload);
   }
 
   @Delete(':id')
   @Roles('superuser', 'company_admin', 'project_manager')
-  @ApiOperation({ summary: 'Delete a project' })
-  @ApiResponse({ status: 200, description: 'The project has been successfully deleted.' })
-  @ApiResponse({ status: 403, description: 'Access denied.' })
-  @ApiResponse({ status: 404, description: 'Project not found.' })
+  @ApiOperation({ summary: 'Delete a project that has no financial or site records yet (its tasks and milestones go with it)' })
   remove(@Param('id') id: string, @CurrentUser() user?: UserContext) {
     const existing = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
       TenantHelper.validateCompanyAccess(user, existing.companyId);
+      if (user.role === 'project_manager' && existing.managerId !== user.userId) {
+        throw new ForbiddenException('Only the project manager of this project (or the Company Admin) can delete it.');
+      }
     }
+    // Money and site records must never point at a project that no longer exists.
+    const get = <T>(cls: any): T => this.moduleRef.get(cls, { strict: false });
+    const blockers: string[] = [];
+    const count = (n: number, label: string) => { if (n > 0) blockers.push(`${n} ${label}`); };
+    count(get<BillsRepository>(BillsRepository).findAll().filter((b: any) => b.projectId === id).length, 'bill(s)');
+    count(get<PaymentsRepository>(PaymentsRepository).findAll().filter((p: any) => p.projectId === id).length, 'payment(s)');
+    count(get<ExpensesRepository>(ExpensesRepository).findByProjectId(id).filter((e: any) => e.status !== 'cancelled').length, 'expense claim(s)');
+    count(get<PurchaseOrdersRepository>(PurchaseOrdersRepository).findAll().filter((p: any) => p.projectId === id && p.status !== 'cancelled').length, 'purchase order(s)');
+    count(get<ContractsRepository>(ContractsRepository).findAll().filter((c: any) => c.projectId === id).length, 'contract(s)');
+    count(get<ReportsRepository>(ReportsRepository).findAll().filter((r: any) => r.projectId === id).length, 'site report(s)');
+    if (blockers.length > 0) {
+      throw new ConflictException(`"${existing.name}" cannot be deleted because it has ${blockers.join(', ')}. Mark it Completed or On Hold instead.`);
+    }
+    // Nothing financial yet: remove its planning records with it.
+    const tasks = get<TasksRepository>(TasksRepository);
+    tasks.findAll().filter((t: any) => t.projectId === id).map((t: any) => t.id).forEach((tid: string) => tasks.remove(tid));
+    const milestones = get<MilestonesRepository>(MilestonesRepository);
+    milestones.findByProjectId(id).map((m) => m.id).forEach((mid) => milestones.remove(mid));
     return this.service.remove(id);
   }
 }

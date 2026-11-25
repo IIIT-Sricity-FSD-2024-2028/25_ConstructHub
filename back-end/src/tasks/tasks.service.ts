@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException, Inject, forwardRef } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
+import { MilestonesRepository } from '../milestones/milestones.repository';
 import { TasksRepository } from './tasks.repository';
 import { ProjectsRepository } from '../projects/projects.repository';
 import { ProgressService } from '../milestones/progress.service';
@@ -13,7 +15,10 @@ export class TasksService {
     private readonly projects: ProjectsRepository,
     @Inject(forwardRef(() => ProgressService)) private readonly progress: ProgressService,
     private readonly users: UsersRepository,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  private get milestones(): MilestonesRepository { return this.moduleRef.get(MilestonesRepository, { strict: false }); }
 
   /**
    * The people working on a project: its PM, FM and the site engineers with tasks on it (id, name and role only).
@@ -58,6 +63,10 @@ export class TasksService {
     this.validateBusinessRules(data);
     this.assertProjectBelongsToCompany(data);
     this.assertAdvancePaid(data.projectId);
+    const project = this.projects.findById(data.projectId);
+    if (project?.progressMode === 'milestones' && !data.milestoneId) {
+      throw new BadRequestException('Select a milestone for this task so it counts toward project progress.');
+    }
     if (data.milestoneId) this.progress.assertAssignable(data.projectId, data.milestoneId);
     const record = { ...data, id: data.id || randomUUID() };
     const created = this.repo.create(record);
@@ -65,9 +74,28 @@ export class TasksService {
     return created;
   }
 
+  /** Tasks of an approved milestone are the evidence behind the approval (and its bill), so they are frozen. */
+  private assertMilestoneOpen(task: any) {
+    if (!task?.milestoneId) return;
+    const ms = this.milestones.findById(task.milestoneId);
+    if (ms && ms.status === 'Completed') {
+      throw new ConflictException(`This task belongs to the approved milestone "${ms.name}", so it can no longer be changed.`);
+    }
+  }
+
+  /** A project manager manages the tasks of their own projects only. */
+  assertManager(user: UserContext | undefined, projectId: string) {
+    if (!user || user.role !== 'project_manager') return;
+    const project = this.projects.findById(projectId);
+    if (!project || project.managerId !== user.userId) {
+      throw new ForbiddenException('Only the project manager of this project (or the Company Admin) can manage its tasks.');
+    }
+  }
+
   update(id: string, data: any) {
     const existing = this.findOne(id);
     if (!data || Object.keys(data).length === 0) throw new BadRequestException('Payload cannot be empty.');
+    this.assertMilestoneOpen(existing);
 
     const merged = { ...existing, ...data };
     this.validateBusinessRules(merged);
@@ -112,6 +140,7 @@ export class TasksService {
 
   remove(id: string) {
     const existing = this.findOne(id);
+    this.assertMilestoneOpen(existing);
     const removed = this.repo.remove(id);
     this.progress.recalculateProject(existing.projectId);
     return removed;

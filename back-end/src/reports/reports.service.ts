@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { ReportsRepository } from './reports.repository';
 import { ProjectsRepository } from '../projects/projects.repository';
 import { MilestonesRepository } from '../milestones/milestones.repository';
@@ -106,18 +106,50 @@ export class ReportsService {
   create(data: any, user?: UserContext) {
     if (!data || Object.keys(data).length === 0) throw new BadRequestException('Payload cannot be empty.');
     const project = this.projects.findById(data.projectId);
+    if (!project || (user && user.role !== 'superuser' && project.companyId !== user.companyId)) {
+      throw new NotFoundException('Project not found.');
+    }
+    // A report is always filed under the name of the person who submits it.
+    if (user && user.role !== 'superuser') data = { ...data, submittedBy: user.userId };
+    if (user?.role === 'site_engineer') {
+      // Allowed while the engineer has unfinished work here, or to file the proof for a milestone whose tasks they
+      // finished and which is still waiting for the PM's approval (otherwise the milestone could never be approved).
+      const mine = this.tasks.findAll().filter((t) => t.projectId === project.id && t.assignedTo === user.userId);
+      const hasOpen = mine.some((t) => t.status !== 'Completed');
+      const awaitingProof = new Set(mine
+        .filter((t) => t.status === 'Completed' && t.milestoneId && this.milestones.findById(t.milestoneId)?.status !== 'Completed')
+        .map((t) => t.milestoneId));
+      if (!hasOpen && !(data.milestoneId && awaitingProof.has(data.milestoneId))) {
+        throw new ForbiddenException(awaitingProof.size > 0
+          ? 'Your tasks on this project are finished: you can only report on the milestone they belong to while it waits for approval.'
+          : 'You can only submit site reports for a project where you have an unfinished task assigned to you.');
+      }
+      if (data.taskId) {
+        const t = this.tasks.findById(data.taskId);
+        if (!t || t.assignedTo !== user.userId) throw new ForbiddenException('You can only report on tasks assigned to you.');
+      }
+    }
     let link = {};
-    if (project && project.progressMode === 'milestones') {
-      if (user?.role === 'site_engineer') data = { ...data, submittedBy: user.userId };
+    if (project.progressMode === 'milestones') {
       link = this.linkToMilestone(data, project, user);
     }
     const record = { ...data, ...link, id: data.id || randomUUID() };
     return this.repo.create(record);
   }
 
+  /** A report linked to an approved milestone is the proof behind that approval and its stage bill. */
+  private assertMilestoneOpen(report: any) {
+    if (!report?.milestoneId) return;
+    const ms = this.milestones.findById(report.milestoneId);
+    if (ms && ms.status === 'Completed') {
+      throw new ConflictException(`This report is evidence for the approved milestone "${ms.name}", so it can no longer be changed or deleted.`);
+    }
+  }
+
   update(id: string, data: any, user?: UserContext) {
     const existing = this.findOne(id);
     if (!data || Object.keys(data).length === 0) throw new BadRequestException('Payload cannot be empty.');
+    this.assertMilestoneOpen(existing);
     if (existing.milestoneId) {
       // The milestone link, progress and submitter of a milestone report cannot be rewritten afterwards.
       data = { ...data };
@@ -132,7 +164,7 @@ export class ReportsService {
   }
 
   remove(id: string) {
-    this.findOne(id);
+    this.assertMilestoneOpen(this.findOne(id));
     return this.repo.remove(id);
   }
 }

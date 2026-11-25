@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Pencil, Trash2, CheckCircle2, RotateCcw, FileText } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle2, RotateCcw } from 'lucide-react';
 import { api } from '../../../services/api';
-import { formatDate } from '../../../services/utils';
+import { formatDate, localDateISO } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import Modal from '../../../components/common/Modal';
 import { MilestoneStatusBadge, DelayBadge, Bar, ProgressSummary } from '../../../components/milestones/MilestoneUi';
@@ -91,7 +91,7 @@ export default function ProjectManagerMilestones() {
   }
 
   function openNewTask(m) {
-    const todayIso = new Date().toISOString().split('T')[0];
+    const todayIso = localDateISO();
     setTaskForm({
       title: '',
       milestoneId: m.id,
@@ -191,7 +191,15 @@ export default function ProjectManagerMilestones() {
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           )}
-
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy || isContractLocked || remaining <= 0}
+            onClick={openNew}
+            title={isContractLocked ? 'Stages come from the awarded quotation and cannot be added' : remaining <= 0 ? 'All 100% weight is already allocated' : 'Add a milestone'}
+          >
+            <Plus size={15} /> Add milestone
+          </button>
         </div>
       </div>
 
@@ -282,6 +290,18 @@ export default function ProjectManagerMilestones() {
                     </button>
                     <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => openNewTask(m)}>
                       <Plus size={13} /> Add task
+                    </button>
+                    <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => openEdit(m)}>
+                      <Pencil size={13} /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={busy || stageLocked}
+                      onClick={() => setDeleteTarget(m)}
+                      title={stageLocked ? 'Contract stages cannot be deleted' : 'Delete milestone'}
+                    >
+                      <Trash2 size={13} /> Delete
                     </button>
                     <span style={{ fontSize: 12, color: canApprove ? '#166534' : 'var(--text-muted)', marginLeft: 4 }}>
                       {m.taskCount === 0

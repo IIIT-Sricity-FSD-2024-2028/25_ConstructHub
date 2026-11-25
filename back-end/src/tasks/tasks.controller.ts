@@ -61,6 +61,7 @@ export class TasksController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   create(@Body() dto: CreateTaskDto, @CurrentUser() user?: UserContext) {
     const companyId = TenantHelper.getAuthoritativeCompanyId(user, dto.companyId);
+    this.service.assertManager(user, dto.projectId);
     const payload = { ...dto, companyId };
     return this.service.create(payload);
   }
@@ -78,7 +79,7 @@ export class TasksController {
     }
     const companyId = TenantHelper.isSuperuser(user)
       ? (dto.companyId !== undefined ? dto.companyId : existing.companyId)
-      : (user ? user.companyId : existing.companyId);
+      : existing.companyId;
 
     // A site engineer reports on their OWN tasks only, and can change nothing but status, progress and remarks
     // (progress feeds milestone and project progress, so it must not be open to everyone).
@@ -93,6 +94,8 @@ export class TasksController {
       return this.service.update(id, own);
     }
 
+    this.service.assertManager(user, existing.projectId);
+    if (dto.projectId && dto.projectId !== existing.projectId) this.service.assertManager(user, dto.projectId);
     const payload = { ...dto, companyId };
     return this.service.update(id, payload);
   }
@@ -107,6 +110,7 @@ export class TasksController {
     const existing = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
       TenantHelper.validateCompanyAccess(user, existing.companyId);
+      this.service.assertManager(user, existing.projectId);
     }
     return this.service.remove(id);
   }

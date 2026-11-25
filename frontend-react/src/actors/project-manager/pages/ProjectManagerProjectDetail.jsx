@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '../../../hooks/useToast';
 import { useParams, useSearchParams, useNavigate, Link, useOutletContext } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -23,6 +24,7 @@ import Button from '../../../components/common/Button';
 import { MilestoneStatusBadge, DelayBadge } from '../../../components/milestones/MilestoneUi';
 
 export default function ProjectManagerProjectDetail() {
+  const toast = useToast();
   const { id: paramId } = useParams();
   const [searchParams] = useSearchParams();
   const id = paramId || searchParams.get('id');
@@ -106,13 +108,13 @@ export default function ProjectManagerProjectDetail() {
         description: editForm.description.trim()
       });
       if (updated && updated.error) {
-        alert('Failed to update project: ' + updated.message);
+        toast.error('Failed to update project: ' + updated.message);
         return;
       }
       setIsEditOpen(false);
       loadProject();
     } catch (err) {
-      alert('Failed to update project: ' + err.message);
+      toast.error('Failed to update project: ' + err.message);
     }
   }
 
@@ -132,7 +134,7 @@ export default function ProjectManagerProjectDetail() {
 
   const completedTasksCount = tasks.filter((t) => t.status === 'Completed').length;
   const clientName = project.clientName || client?.name || 'Vikram Patel';
-  const clientEmail = client?.email || project.clientEmail || 'client@apex.com';
+  const clientEmail = client?.email || project.clientEmail || 'client1@gmail.com';
   const clientPhone = client?.phone || project.clientPhone || '+91 98765 43213';
   const fmName = project.financeManagerName || 'Amit Verma';
   const assignedEngineerNames = [...new Set((tasks || []).map((t) => t.assignedName).filter(Boolean))];
@@ -287,7 +289,7 @@ export default function ProjectManagerProjectDetail() {
                     <strong style={{ fontSize: 14.5 }}>{m.name}</strong>
                     <span className="badge badge-gray">{m.weight}% weight</span>
                     <MilestoneStatusBadge status={m.status} />
-                    {m.delayed && <DelayBadge daysLate={m.daysLate} />}
+                    <DelayBadge milestone={m} />
                   </div>
                   <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
                     Due: <strong>{formatDate(m.deadline)}</strong> · {m.completedTasks || 0}/{m.taskCount || 0} tasks done

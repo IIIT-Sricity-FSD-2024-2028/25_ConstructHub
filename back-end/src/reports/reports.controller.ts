@@ -165,10 +165,13 @@ export class ReportsController {
     const existing = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
       TenantHelper.validateCompanyAccess(user, existing.companyId);
+      if (user.role === 'site_engineer' && existing.submittedBy !== user.userId) {
+        throw new ForbiddenException('You can only edit your own site reports.');
+      }
     }
     const companyId = TenantHelper.isSuperuser(user)
       ? (dto.companyId !== undefined ? dto.companyId : existing.companyId)
-      : (user ? user.companyId : existing.companyId);
+      : existing.companyId;
 
     const payload = { ...dto, companyId };
     return this.service.update(id, payload, user);

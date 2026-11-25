@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '../../../hooks/useToast';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   CheckSquare,
@@ -16,6 +17,7 @@ import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 
 export default function ProjectManagerTasks() {
+  const toast = useToast();
   const { user } = useOutletContext();
   const navigate = useNavigate();
 
@@ -89,7 +91,7 @@ export default function ProjectManagerTasks() {
       priority: 'Medium',
       status: 'Pending',
       progress: 0,
-      milestoneId: '',
+      milestoneId: (milestones.find((m) => m.projectId === (projects[0]?.id || '') && m.status !== 'Completed')?.id) || '',
       description: ''
     });
     setErrors({});
@@ -130,7 +132,14 @@ export default function ProjectManagerTasks() {
     if (!form.description.trim()) errs.description = 'Task description is required';
 
     setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
+    const projMilestones = milestones.filter((m) => m.projectId === form.projectId);
+    if (projMilestones.length > 0 && !form.milestoneId) {
+      errs.milestoneId = 'Select a milestone for this task so it counts toward project progress.';
+    }
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      return;
+    }
 
     try {
       const proj = projects.find((p) => p.id === form.projectId);
@@ -196,13 +205,13 @@ export default function ProjectManagerTasks() {
     try {
       const del = await api.deleteTask(deleteTarget.id);
       if (del && del.error) {
-        alert('Failed to delete task: ' + del.message);
+        toast.error('Failed to delete task: ' + del.message);
         return;
       }
       setDeleteTarget(null);
       loadData();
     } catch (err) {
-      alert('Failed to delete task: ' + err.message);
+      toast.error('Failed to delete task: ' + err.message);
     }
   }
 
@@ -399,19 +408,26 @@ export default function ProjectManagerTasks() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Milestone</label>
+              <label className="form-label">
+                Milestone {milestones.some((m) => m.projectId === form.projectId) && <span className="req">*</span>}
+              </label>
               <select
-                className="form-select"
+                className={`form-select ${errors.milestoneId ? 'input-error' : ''}`}
                 value={form.milestoneId}
                 onChange={(e) => setForm({ ...form, milestoneId: e.target.value })}
               >
-                <option value="">No milestone</option>
+                {!milestones.some((m) => m.projectId === form.projectId) ? (
+                  <option value="">No milestones defined</option>
+                ) : (
+                  <option value="">Select milestone</option>
+                )}
                 {milestones
                   .filter((m) => m.projectId === form.projectId && (m.status !== 'Completed' || m.id === form.milestoneId))
                   .map((m) => (
                     <option key={m.id} value={m.id}>{m.name}</option>
                   ))}
               </select>
+              {errors.milestoneId && <span className="field-error">{errors.milestoneId}</span>}
             </div>
 
             <div className="form-group">
@@ -474,7 +490,7 @@ export default function ProjectManagerTasks() {
                   <select
                     className="form-select"
                     value={form.status}
-                    onChange={(e) => setForm({ ...form, status: e.target.value })}
+                    onChange={(e) => { const v = e.target.value; setForm({ ...form, status: v, progress: v === 'Completed' ? 100 : (Number(form.progress) === 100 ? 90 : form.progress) }); }}
                   >
                     <option value="Pending">Pending</option>
                     <option value="In Progress">In Progress</option>
@@ -493,7 +509,7 @@ export default function ProjectManagerTasks() {
                   min="0"
                   max="100"
                   value={form.progress}
-                  onChange={(e) => setForm({ ...form, progress: e.target.value })}
+                  onChange={(e) => { const v = e.target.value; const n = Number(v); setForm({ ...form, progress: v, status: n === 100 ? 'Completed' : (form.status === 'Completed' && n < 100 ? 'In Progress' : form.status) }); }}
                 />
               </div>
             )}

@@ -51,7 +51,7 @@ afterEach(() => cleanup());
 
 describe('milestones & progress UI', () => {
   test('PM plans milestones, engineer finishes work, PM approves, client sees both numbers', async () => {
-    // ── PM opens the milestone plan of P002 (seed: 40% physical progress) ──
+    // ── PM opens the milestone plan of P002 (seed: MS003 approved and billed = 50% physical progress) ──
     await signInAs('pm@apex.com');
     let ui = render(<App at="/pm/milestones" />);
     await find(/Physical progress \(weighted\)/);
@@ -61,7 +61,7 @@ describe('milestones & progress UI', () => {
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'P002' } });
     await find(/Electrical & plumbing rough-in/);
     await find(/Finishing/);
-    expect(screen.getAllByText('40%').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('50%').length).toBeGreaterThan(0);
 
     // ── weights above 100% are refused with a helpful message ──
     // P002 weights are 50 + 50 = 100%: nothing left to allocate, so the add button is disabled
@@ -93,7 +93,8 @@ describe('milestones & progress UI', () => {
 
     // ── the new milestone is empty, so it cannot be approved ──
     const card = screen.getByTestId(/milestone-MS0(09|10)/);
-    expect(within(card).getByRole('button', { name: /Verify & approve/ }).disabled).toBe(true);
+    fireEvent.click(within(card).getByRole('button', { name: /Verify & approve/ }));
+    await find(/assign at least 1 task to this milestone first/);
     ui.unmount();
 
     // ── PM creates a task INSIDE the milestone through the real task form ──
@@ -142,6 +143,11 @@ describe('milestones & progress UI', () => {
     expect((await api.updateTask(created.id, { status: 'Completed', progress: 100 })).error).toBeUndefined();
     // engineers cannot approve milestones
     expect((await api.approveMilestone('MS009')).error).toBe(true);
+    // the engineer files the site report that the PM approves on (evidence is required)
+    const today = new Date();
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const report = await api.createReport({ title: 'Snagging done', projectId: 'P002', submittedBy: 'U003', date: iso, progress: 100, status: 'Completed', workDone: 'All defects closed', priority: 'Low', materials: [], photos: 0, milestoneId: 'MS009', weather: 'Sunny', laborCount: 4 });
+    expect(report.error, JSON.stringify(report)).toBeUndefined();
 
     // ── PM approves; the milestone becomes approved and the button turns into Reopen ──
     await signInAs('pm@apex.com');
@@ -157,7 +163,7 @@ describe('milestones & progress UI', () => {
     ui.unmount();
 
     // ── client (owner of P002 is client2) sees physical progress AND milestones approved ──
-    await signInAs('client2@apex.com', 'password123');
+    await signInAs('client3@gmail.com', '123456');
     ui = render(<App at="/client/progress" />);
     await find(/Progress & Milestones/);
     await find(/Milestones approved/);
@@ -165,8 +171,8 @@ describe('milestones & progress UI', () => {
     expect(screen.getAllByText(/Approved/).length).toBeGreaterThan(0);
     // the milestone summary matches the API
     const sum = await api.getProjectProgress('P002');
-    expect(sum.milestonesApproved).toBe(1);
-    expect(sum.physicalProgress).toBe(Math.round(0.5 * 80 + 0.3 * 0 + 0.2 * 100));
+    expect(sum.milestonesApproved).toBe(2); // MS003 (seed, billed) + the new one
+    expect(sum.physicalProgress).toBe(Math.round(0.5 * 100 + 0.3 * 0 + 0.2 * 100));
     ui.unmount();
   }, 60000);
 });

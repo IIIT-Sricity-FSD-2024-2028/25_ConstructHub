@@ -9,6 +9,8 @@ import { MilestonesRepository, MilestoneRecord } from './milestones.repository';
 import { ProgressService } from './progress.service';
 import { CreateMilestoneDto, UpdateMilestoneDto } from './milestone.dto';
 import { today } from '../utils/ids';
+import { ModuleRef } from '@nestjs/core';
+import { BillsRepository } from '../bills/bills.repository';
 
 const MAX_MILESTONES_PER_PROJECT = 30;
 
@@ -22,6 +24,7 @@ export class MilestonesService {
     private readonly users: UsersRepository,
     private readonly notifications: NotificationsService,
     private readonly reports: ReportsRepository,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   // ───────────── access helpers ─────────────
@@ -153,11 +156,21 @@ export class MilestonesService {
     return this.progress.view(this.mustGetMilestone(created.id));
   }
 
+  /** A milestone that has a live bill (not declined) is part of the client's invoice history and stays as it is. */
+  private assertNotBilled(m: MilestoneRecord, action: string) {
+    const bills = this.moduleRef.get(BillsRepository, { strict: false });
+    const bill = bills.findAll().find((b: any) => b.milestoneId === m.id && !['declined', 'rejected'].includes(String(b.status || '').toLowerCase()));
+    if (bill) {
+      throw new ConflictException(`"${m.name}" was already billed (${bill.billNumber || bill.id}), so it cannot be ${action}. Ask the Finance Manager to delete the bill first if it was raised by mistake.`);
+    }
+  }
+
   update(user: UserContext, id: string, dto: UpdateMilestoneDto) {
     const m = this.mustGetMilestone(id);
     const project = this.mustGetProject(m.projectId);
     this.assertCanManage(user, project);
     if (m.status === 'Completed') throw new ConflictException('An approved milestone cannot be edited. Reopen it first.');
+    this.assertNotBilled(m, 'edited');
     this.validateInput(project, { deadline: dto.deadline, weight: dto.weight, name: dto.name }, id);
     const patch: Partial<MilestoneRecord> = { updatedAt: today() };
     if (dto.name !== undefined) patch.name = dto.name.trim();
@@ -174,6 +187,7 @@ export class MilestonesService {
     const project = this.mustGetProject(m.projectId);
     this.assertCanManage(user, project);
     if (m.status === 'Completed') throw new ConflictException('An approved milestone cannot be deleted. Reopen it first.');
+    this.assertNotBilled(m, 'deleted');
     // Tasks are kept; they just no longer belong to a milestone.
     this.tasks.findAll().filter((t) => t.milestoneId === id).forEach((t) => this.tasks.update(t.id, { milestoneId: null }));
     this.repo.remove(id);
@@ -217,6 +231,7 @@ export class MilestonesService {
     const project = this.mustGetProject(m.projectId);
     this.assertCanManage(user, project);
     if (m.status !== 'Completed') throw new BadRequestException('Only an approved milestone can be reopened.');
+    this.assertNotBilled(m, 'reopened');
     this.repo.update(id, { status: 'Ready for Review', approvedBy: undefined, approvedAt: undefined, updatedAt: today() });
     this.progress.recalculateProject(project.id);
     return this.progress.view(this.mustGetMilestone(id));

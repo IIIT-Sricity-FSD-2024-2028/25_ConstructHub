@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '../../../hooks/useToast';
 import { useOutletContext, Link } from 'react-router-dom';
 import {
   Folder,
@@ -9,27 +10,21 @@ import {
   Calendar,
   AlertCircle
 } from 'lucide-react';
-import { api } from '../../../services/api';
+import { api, unwrap } from '../../../services/api';
 import {
   formatCurrency,
   formatDate,
-  isValidEmail,
-  isValidPhone,
-  isValidName,
-  sanitizeName,
-  sanitizePhone,
   statusBadge
 } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 
-const NEW_CLIENT = '__new__';
 
 export default function ProjectManagerProjects() {
+  const toast = useToast();
   const { user } = useOutletContext();
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
-  const [company, setCompany] = useState(null);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
@@ -64,42 +59,15 @@ export default function ProjectManagerProjects() {
 
   async function loadData() {
     if (!user) return;
-    const [allProjects, allUsers, companies] = await Promise.all([
+    const [allProjects, allUsers] = await Promise.all([
       api.getProjects(user.companyId),
-      api.getUsers(user.companyId),
-      api.getCompanies()
+      api.getUsers(user.companyId)
     ]);
     const myProjects = (allProjects || []).filter(
       (p) => p.managerId === user.id || !p.managerId || user.role === 'superuser'
     );
     setProjects(myProjects);
     setUsers(allUsers || []);
-    const curCompany = (companies || []).find((c) => c.id === user.companyId);
-    setCompany(curCompany || null);
-  }
-
-  function openAddModal() {
-    setEditingProject(null);
-    const fms = (users || []).filter((u) => u.role === 'finance_manager');
-    setForm({
-      name: '',
-      clientId: (users || []).find((u) => u.role === 'client')?.id || '',
-      clientName: '',
-      clientEmail: '',
-      clientPhone: '',
-      clientPassword: '123456',
-      selectedFinanceManagerId: fms[0]?.id || '',
-      location: '',
-      startDate: '',
-      endDate: '',
-      budget: '',
-      teamSize: '1',
-      status: 'On Track',
-      progress: 0,
-      description: ''
-    });
-    setErrors({});
-    setIsModalOpen(true);
   }
 
   function openEditModal(proj) {
@@ -133,47 +101,6 @@ export default function ProjectManagerProjects() {
     if (!form.name.trim()) errs.name = 'Project name is required';
     if (!form.location.trim()) errs.location = 'Location is required';
 
-    if (!editingProject && !form.clientId) errs.clientId = 'Choose a client';
-    if (!editingProject && form.clientId === NEW_CLIENT) {
-      if (!form.clientName.trim()) {
-        errs.clientName = 'Client name is required';
-      } else if (!isValidName(form.clientName.trim())) {
-        errs.clientName = 'Client name should contain alphabets only';
-      }
-
-      if (!form.clientEmail.trim()) {
-        errs.clientEmail = 'Client email is required';
-      } else if (!isValidEmail(form.clientEmail.trim())) {
-        errs.clientEmail = 'Invalid email address';
-      } else {
-        const companyDomain = (company?.domain || user.email.split('@')[1] || '').toLowerCase();
-        const clientDomain = (form.clientEmail.split('@')[1] || '').toLowerCase();
-        if (companyDomain && clientDomain !== companyDomain) {
-          errs.clientEmail = `Client email domain must match company domain (@${companyDomain})`;
-        } else {
-          const emailLower = form.clientEmail.trim().toLowerCase();
-          const existingProj = projects.find(
-            (p) => (p.clientEmail || '').toLowerCase() === emailLower
-          );
-          if (existingProj) {
-            errs.clientEmail = `This client is already assigned to project "${existingProj.name}". A client can only have one project.`;
-          }
-        }
-      }
-
-      if (!form.clientPhone.trim()) {
-        errs.clientPhone = 'Client phone is required';
-      } else if (!isValidPhone(form.clientPhone.trim())) {
-        errs.clientPhone = 'Phone number must be 10 digits and cannot be 0000000000';
-      }
-
-      if (!form.clientPassword.trim()) {
-        errs.clientPassword = 'Password is required';
-      } else if (form.clientPassword.length < 6) {
-        errs.clientPassword = 'Min 6 characters';
-      }
-    }
-
     if (!form.startDate) errs.startDate = 'Start date is required';
     if (!form.endDate) {
       errs.endDate = 'End date is required';
@@ -195,86 +122,20 @@ export default function ProjectManagerProjects() {
       const financeManagerId = assignedFM?.id || '';
       const financeManagerName = assignedFM?.name || '';
 
-      if (editingProject) {
-        await api.updateProject(editingProject.id, {
-          name: form.name.trim(),
-          location: form.location.trim(),
-          startDate: form.startDate,
-          endDate: form.endDate,
-          budget: Number(form.budget),
-          teamSize: Number(form.teamSize) || 1,
-          status: form.status,
-          progress: Number(form.progress) || 0,
-          description: form.description.trim(),
-          ...(financeManagerId ? { financeManagerId, financeManagerName } : {})
-        });
-      } else {
-        const existingClient = form.clientId !== NEW_CLIENT ? (users || []).find((u) => u.id === form.clientId && u.role === 'client') : null;
-        const cleanPhone = existingClient ? String(existingClient.phone || '').replace(/\D/g, '').slice(-10) : (form.clientPhone || '').replace(/\D/g, '').slice(-10);
-        // A client picked from the list already has an account (and may already own other projects); only brand-new clients are created here.
-        const clientUser = existingClient || await api.createUser({
-          role: 'client',
-          companyId: user.companyId,
-          name: form.clientName.trim(),
-          email: form.clientEmail.trim().toLowerCase(),
-          phone: cleanPhone || '9876543210',
-          password: form.clientPassword || '123456',
-          status: 'active'
-        });
-
-        if (clientUser && clientUser.error) {
-          setErrors({
-            clientEmail: Array.isArray(clientUser.message) ? clientUser.message.join(', ') : (clientUser.message || 'Failed to create client user')
-          });
-          return;
-        }
-
-        const clientId = clientUser?.id;
-        const b = Number(form.budget);
-
-        const newProj = await api.createProject({
-          name: form.name.trim(),
-          companyId: user.companyId,
-          clientId: clientId,
-          clientName: existingClient ? existingClient.name : form.clientName.trim(),
-          clientEmail: existingClient ? existingClient.email : form.clientEmail.trim(),
-          clientPhone: cleanPhone || '',
-          location: form.location.trim(),
-          startDate: form.startDate,
-          endDate: form.endDate,
-          budget: b,
-          spent: 0,
-          progress: 0,
-          status: 'On Track',
-          teamSize: Number(form.teamSize) || 1,
-          managerId: user.id,
-          managerName: user.name,
-          ...(financeManagerId ? { financeManagerId, financeManagerName } : {}),
-          allocations: {
-            Materials: 0,
-            Labor: 0,
-            Equipment: 0,
-            Other: b
-          },
-          description: form.description.trim() || `Project ${form.name.trim()} workspace`
-        });
-
-        if (newProj && newProj.error) {
-          setErrors({
-            form: Array.isArray(newProj.message) ? newProj.message.join(', ') : (newProj.message || 'Failed to create project')
-          });
-          return;
-        }
-
-        if (clientId) {
-          await api.createNotification({
-            userId: clientId,
-            type: 'system',
-            title: 'Project Created',
-            body: `Your project "${newProj.name}" has been successfully set up.`
-          });
-        }
-      }
+      // Projects are created when a client awards a quotation (Marketplace); here the PM edits their own projects.
+      if (!editingProject) return;
+      unwrap(await api.updateProject(editingProject.id, {
+        name: form.name.trim(),
+        location: form.location.trim(),
+        startDate: form.startDate,
+        endDate: form.endDate,
+        budget: Number(form.budget),
+        teamSize: Number(form.teamSize) || 1,
+        status: form.status,
+        progress: Number(form.progress) || 0,
+        description: form.description.trim(),
+        ...(financeManagerId ? { financeManagerId, financeManagerName } : {})
+      }));
 
       setIsModalOpen(false);
       loadData();
@@ -286,16 +147,16 @@ export default function ProjectManagerProjects() {
   async function handleDeleteConfirm() {
     if (!deleteTarget) return;
     try {
-      await api.deleteProject(deleteTarget.id);
+      unwrap(await api.deleteProject(deleteTarget.id));
       // Only remove the client's account when this was their last project (clients can own several now).
       const sharesClient = projects.some((p) => p.id !== deleteTarget.id && p.clientId === deleteTarget.clientId);
-      if (deleteTarget.clientId && !sharesClient) {
+      if (deleteTarget.clientId && !sharesClient && (user?.role === 'company_admin' || user?.role === 'superuser')) {
         await api.deleteUser(deleteTarget.clientId).catch(() => {});
       }
       setDeleteTarget(null);
       loadData();
     } catch (err) {
-      alert('Failed to delete project: ' + err.message);
+      toast.error('Failed to delete project: ' + err.message);
     }
   }
 
@@ -317,9 +178,9 @@ export default function ProjectManagerProjects() {
           <h1 className="page-title">All Projects</h1>
           <p className="page-subtitle">Manage and track all construction projects</p>
         </div>
-        <Button variant="primary" onClick={openAddModal}>
-          + New Project
-        </Button>
+        <span style={{ fontSize: 12.5, color: 'var(--text-muted)', maxWidth: 280, textAlign: 'right' }}>
+          New projects appear here when a client awards your company's quotation.
+        </span>
       </div>
 
       {/* Filter Bar */}
@@ -469,8 +330,8 @@ export default function ProjectManagerProjects() {
       {isModalOpen && (
         <Modal
           isOpen={isModalOpen}
-          title={editingProject ? 'Edit Project' : 'Add New Project'}
-          subtitle={editingProject ? 'Update project information' : 'Create a new construction project and client account.'}
+          title="Edit Project"
+          subtitle="Update project information"
           onClose={() => setIsModalOpen(false)}
         >
           <form onSubmit={handleSaveProject}>
@@ -492,77 +353,6 @@ export default function ProjectManagerProjects() {
               {errors.name && <span className="field-error">{errors.name}</span>}
             </div>
 
-            {!editingProject && (
-              <div className="form-group">
-                <label className="form-label">Client <span className="req">*</span></label>
-                <select
-                  className={`form-select ${errors.clientId ? 'input-error' : ''}`}
-                  value={form.clientId}
-                  onChange={(e) => setForm({ ...form, clientId: e.target.value })}
-                >
-                  <option value="">Select client</option>
-                  {(users || []).filter((u) => u.role === 'client').map((c) => (
-                    <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
-                  ))}
-                  <option value={NEW_CLIENT}>+ New client (enter details)</option>
-                </select>
-                {errors.clientId && <span className="field-error">{errors.clientId}</span>}
-              </div>
-            )}
-
-            {!editingProject && form.clientId === NEW_CLIENT && (
-              <>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Client Name <span className="req">*</span></label>
-                    <input
-                      type="text"
-                      className={`form-input ${errors.clientName ? 'input-error' : ''}`}
-                      placeholder="e.g., Acme Corp"
-                      value={form.clientName}
-                      onChange={(e) => setForm({ ...form, clientName: sanitizeName(e.target.value) })}
-                    />
-                    {errors.clientName && <span className="field-error">{errors.clientName}</span>}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Client Email <span className="req">*</span></label>
-                    <input
-                      type="email"
-                      className={`form-input ${errors.clientEmail ? 'input-error' : ''}`}
-                      placeholder="client@acme.com"
-                      value={form.clientEmail}
-                      onChange={(e) => setForm({ ...form, clientEmail: e.target.value })}
-                    />
-                    {errors.clientEmail && <span className="field-error">{errors.clientEmail}</span>}
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Client Phone <span className="req">*</span></label>
-                    <input
-                      type="text"
-                      className={`form-input ${errors.clientPhone ? 'input-error' : ''}`}
-                      placeholder="e.g., 9876543210"
-                      value={form.clientPhone}
-                      onChange={(e) => setForm({ ...form, clientPhone: sanitizePhone(e.target.value) })}
-                    />
-                    {errors.clientPhone && <span className="field-error">{errors.clientPhone}</span>}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Client Password <span className="req">*</span></label>
-                    <input
-                      type="password"
-                      className={`form-input ${errors.clientPassword ? 'input-error' : ''}`}
-                      placeholder="Min 6 chars"
-                      value={form.clientPassword}
-                      onChange={(e) => setForm({ ...form, clientPassword: e.target.value })}
-                    />
-                    {errors.clientPassword && <span className="field-error">{errors.clientPassword}</span>}
-                  </div>
-                </div>
-              </>
-            )}
 
             <div className="form-group">
               <label className="form-label">Assigned Finance Manager <span className="req">*</span></label>
@@ -690,7 +480,7 @@ export default function ProjectManagerProjects() {
                 Cancel
               </Button>
               <Button variant="primary" type="submit">
-                {editingProject ? 'Save Changes' : '+ Save Project'}
+                Save Changes
               </Button>
             </div>
           </form>

@@ -66,6 +66,8 @@ export class MilestonesRepository {
     this.seed('MS003', 'COMP001', 'P002', 'Electrical & plumbing rough-in', '2026-04-10', 50, 'U002', {
       description: 'MEP rough-in, conduits, main water lines and floor wiring.', stageIndex: 0, durationDays: 75,
       materialScope: 'Copper cabling, PVC conduits, UPVC plumbing pipes and switchgear.', internalBudget: 21000000, clientStageAmount: 25200000,
+    
+      status: 'Completed', progress: 100, approvedBy: 'U002', approvedAt: '2026-03-08T11:00:00.000Z',
     }),
     this.seed('MS004', 'COMP001', 'P002', 'Finishing', '2026-06-01', 50, 'U002', {
       description: 'Flooring, glazing, false ceiling and commercial interior finishing.', stageIndex: 1, durationDays: 75,
@@ -74,6 +76,8 @@ export class MilestonesRepository {
     this.seed('MS005', 'COMP002', 'P003', 'Pier construction', '2026-05-30', 50, 'U007', {
       description: 'Pile foundation, pile caps and metro pier columns.', stageIndex: 0, durationDays: 120,
       materialScope: 'M40 grade concrete, Fe500D TMT reinforcement steel and bearings.', internalBudget: 32500000, clientStageAmount: 39000000,
+    
+      status: 'Completed', progress: 100, approvedBy: 'U007', approvedAt: '2026-02-27T10:00:00.000Z',
     }),
     this.seed('MS006', 'COMP002', 'P003', 'Superstructure', '2026-09-15', 50, 'U007', {
       description: 'Precast U-girder launching, deck slab and parapet walls.', stageIndex: 1, durationDays: 120,
@@ -82,6 +86,8 @@ export class MilestonesRepository {
     this.seed('MS007', 'COMP002', 'P004', 'Site preparation', '2026-04-30', 30, 'U007', {
       description: 'Mass excavation, leveling, soil stabilization and boundary wall.', stageIndex: 0, durationDays: 85,
       materialScope: 'Earthwork machinery, granular sub-base, geotextile membrane and aggregates.', internalBudget: 9300000, clientStageAmount: 11160000,
+    
+      status: 'Completed', progress: 100, approvedBy: 'U007', approvedAt: '2026-02-26T09:30:00.000Z',
     }),
     this.seed('MS008', 'COMP002', 'P004', 'Drainage works', '2026-11-20', 70, 'U007', {
       description: 'Storm water RCC box culverts, underground utilities and retention basin.', stageIndex: 1, durationDays: 200,

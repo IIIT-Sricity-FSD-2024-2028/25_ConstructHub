@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '../../../hooks/useToast';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   FileText,
@@ -13,11 +14,12 @@ import {
   X
 } from 'lucide-react';
 import { api, API_ORIGIN } from '../../../services/api';
-import { formatDate } from '../../../services/utils';
+import { formatDate, localDateISO } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 
 export default function SiteEngineerSubmitReport() {
+  const toast = useToast();
   const { user } = useOutletContext();
   const navigate = useNavigate();
 
@@ -25,7 +27,7 @@ export default function SiteEngineerSubmitReport() {
 
   // Form State
   const [projectId, setProjectId] = useState('');
-  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reportDate, setReportDate] = useState(localDateISO());
   const [workDone, setWorkDone] = useState('');
   const [progress, setProgress] = useState('');
 
@@ -68,14 +70,9 @@ export default function SiteEngineerSubmitReport() {
     const myTasks = (allTasks || []).filter((t) => t.assignedTo === user.id);
     setEngineerTasks(myTasks);
 
-    const myProjectIds = new Set(myTasks.map((t) => t.projectId));
-    let assignedProjects = (allProjects || []).filter((p) => myProjectIds.has(p.id));
-
-    // Fallback: If no tasks assigned yet (or legacy seed), include directly tagged or all company projects so user is not blocked
-    if (assignedProjects.length === 0 && (allProjects || []).length > 0) {
-      const directAssigned = (allProjects || []).filter((p) => p.siteEngineerId === user.id);
-      assignedProjects = directAssigned.length > 0 ? directAssigned : allProjects;
-    }
+    // Reports can only be filed for projects where this engineer still has an unfinished task (enforced by the server too).
+    const myProjectIds = new Set(myTasks.filter((t) => t.status !== 'Completed').map((t) => t.projectId));
+    const assignedProjects = (allProjects || []).filter((p) => myProjectIds.has(p.id));
 
     setProjects(assignedProjects || []);
     if (assignedProjects && assignedProjects.length > 0) {
@@ -137,7 +134,7 @@ export default function SiteEngineerSubmitReport() {
     if (!files.length) return;
 
     if (files.length + uploadedPhotos.length > 10) {
-      alert('Maximum 10 photos allowed per report.');
+      toast.error('Maximum 10 photos allowed per report.');
       return;
     }
 
@@ -146,14 +143,15 @@ export default function SiteEngineerSubmitReport() {
 
     try {
       const result = await api.uploadReportPhotos(files);
-      const urls = result?.photoUrls || [];
+      if (!result || result.error) {
+        // Never attach browser-only links: they would be broken for everyone else who opens the report.
+        setUploadStatus('');
+        toast.error(result?.message || 'Photos could not be uploaded. Please try again.');
+        return;
+      }
+      const urls = result.photoUrls || [];
       setUploadedPhotos([...uploadedPhotos, ...urls]);
-      setUploadStatus(`${result?.count || urls.length} photo(s) uploaded successfully.`);
-    } catch {
-      // Offline fallback: load local object URLs for testing/offline support
-      const localUrls = files.map((file) => URL.createObjectURL(file));
-      setUploadedPhotos([...uploadedPhotos, ...localUrls]);
-      setUploadStatus(`${files.length} photo(s) attached.`);
+      setUploadStatus(`${result.count || urls.length} photo(s) uploaded successfully.`);
     } finally {
       setIsUploading(false);
       e.target.value = '';
@@ -237,10 +235,8 @@ export default function SiteEngineerSubmitReport() {
 
       // Projects without milestones still use the typed progress. Milestone projects calculate it from tasks.
       if (!milestoneMode && proj && Number(progress) > (proj.progress || 0)) {
-        await api.updateProject(projectId, {
-          progress: Number(progress),
-          status: Number(progress) >= 100 ? 'Completed' : 'In Progress'
-        });
+        // Only the progress figure is reported; the project manager decides when the project is completed.
+        await api.updateProject(projectId, { progress: Number(progress) });
       }
 
       // Notify project manager
@@ -298,6 +294,9 @@ export default function SiteEngineerSubmitReport() {
                 ))}
               </select>
               {errors.projectId && <span className="field-error">{errors.projectId}</span>}
+              {projects.length === 0 && (
+                <span className="form-hint">You have no unfinished tasks, so there is no project to report on. Your project manager assigns tasks.</span>
+              )}
               {projectId && (() => {
                 const projTasks = engineerTasks.filter((t) => t.projectId === projectId);
                 if (projTasks.length > 0) {
