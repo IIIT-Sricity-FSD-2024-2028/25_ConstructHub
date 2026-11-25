@@ -20,6 +20,7 @@ import SiteEngineerExpenses from '../src/actors/site-engineer/pages/SiteEngineer
 import ProjectManagerExpenses from '../src/actors/project-manager/pages/ProjectManagerExpenses';
 import FinanceManagerExpenses from '../src/actors/finance-manager/pages/FinanceManagerExpenses';
 import ClientBillDetail from '../src/actors/client/pages/ClientBillDetail';
+import ClientPaymentPortal from '../src/actors/client/pages/ClientPaymentPortal';
 import FinanceManagerBillDetail from '../src/actors/finance-manager/pages/FinanceManagerBillDetail';
 import LiveSummary from '../src/components/dashboard/LiveSummary';
 
@@ -37,6 +38,8 @@ function App({ at }) {
               <Route path="/pm/expenses" element={<ProjectManagerExpenses />} />
               <Route path="/fm/expenses" element={<FinanceManagerExpenses />} />
               <Route path="/client/bill/:id" element={<ClientBillDetail />} />
+              <Route path="/client/bills/:id/pay" element={<ClientPaymentPortal />} />
+              <Route path="/client/payment-decisions" element={<div>PAYMENT HISTORY</div>} />
               <Route path="/fm/bill/:id" element={<FinanceManagerBillDetail />} />
               <Route path="/summary" element={<LiveSummary />} />
             </Route>
@@ -82,6 +85,11 @@ describe('expenses, payments and dashboards UI', () => {
     fireEvent.submit(modal.querySelector('form'));
     await find(/Enter the amount spent/);
     fireEvent.change(within(modal).getByLabelText('Amount'), { target: { value: '4500' } });
+    fireEvent.submit(modal.querySelector('form'));
+    await find(/Select the milestone this expense belongs to/); // milestone projects need the stage the cost belongs to
+    const msSelect = within(modal).getByLabelText('Milestone');
+    await waitFor(() => expect(msSelect.options.length).toBeGreaterThan(1), { timeout: 8000 });
+    fireEvent.change(msSelect, { target: { value: msSelect.options[1].value } });
     fireEvent.submit(modal.querySelector('form'));
     await modalClosed();
     await find(/Diesel for the concrete mixer/);
@@ -158,26 +166,34 @@ describe('expenses, payments and dashboards UI', () => {
     ui.unmount();
     expect((await api.getExpenseClaim(claim.id)).reimbursement.reference).toBe('UPI-5551');
 
-    // ── client accepts bill B001 and pays it in two demo payments ──
-    await signInAs('client@apex.com');
+    // ── client accepts bill B001 and pays it in two demo payments through the payment portal ──
+    await signInAs('client1@gmail.com');
     ui = render(<App at="/client/bill/B001" />);
-    fireEvent.click((await screen.findAllByRole('button', { name: /Accept Payment/ }, { timeout: 8000 }))[0]);
-    await screen.findByTestId('bill-payments');
+    fireEvent.click((await screen.findAllByRole('button', { name: /Accept Bill/ }, { timeout: 8000 }))[0]);
+    await find(/Nothing has been paid yet/); // accepting is not paying
+    ui.unmount();
+    expect((await api.getBillPayments('B001')).length).toBe(0);
+
+    ui = render(<App at="/client/bills/B001/pay" />);
+    await find(/Demo payment gateway/);
     const payAmount = await screen.findByLabelText('Payment amount', {}, { timeout: 8000 });
     fireEvent.change(payAmount, { target: { value: '9999999999' } });
     fireEvent.submit(payAmount.closest('form'));
-    await find(/cannot be more than the outstanding/);
+    await find(/cannot exceed the remaining balance/);
     fireEvent.change(payAmount, { target: { value: '1000000' } });
+    fireEvent.change(screen.getByLabelText('UPI ID'), { target: { value: 'vikram@okbank' } });
     fireEvent.submit(payAmount.closest('form'));
     await waitFor(async () => expect((await api.getBillPayments('B001')).length).toBe(1), { timeout: 8000 });
-    await find(/Partially Paid/);
-    fireEvent.click(screen.getByRole('button', { name: /Full balance/ }));
+    ui.unmount();
+    ui = render(<App at="/client/bills/B001/pay" />);
+    fireEvent.click((await screen.findByText(/Fill full balance/, {}, { timeout: 8000 })).closest('button'));
     fireEvent.submit(screen.getByLabelText('Payment amount').closest('form'));
-    await waitFor(async () => expect((await api.getBill?.('B001') ?? (await api.getBills()).find((b) => b.id === 'B001')).paymentStatus).toBe('Paid'), { timeout: 8000 });
+    await waitFor(async () => expect((await api.getBills()).find((b) => b.id === 'B001').paymentStatus).toBe('Paid'), { timeout: 8000 });
     ui.unmount();
     const pays = await api.getBillPayments('B001');
     expect(pays.reduce((s, p) => s + p.amount, 0)).toBe(4500000);
-    expect(pays.every((p) => p.method === 'Online payment (demo)' && p.reference.startsWith('DEMO-'))).toBe(true);
+    // the method is the portal choice, the receipt number always comes from the server
+    expect(pays.every((p) => p.method === 'UPI' && p.reference.startsWith('DEMO-'))).toBe(true);
 
     // ── finance records an offline payment on B002 (already partly paid) ──
     await signInAs('finance@apex.com');
@@ -193,15 +209,17 @@ describe('expenses, payments and dashboards UI', () => {
 
     // ── dashboards show the real numbers ──
     const fmData = await api.getDashboard();
-    expect(fmData.receivables.paid).toBe(4500000 + 3000000 + 200000);
+    expect(fmData.receivables.paid).toBe(4500000 + 3000000 + 200000 + 3125000 + 5040000); // + paid mobilization advances (B005, B006)
     ui = render(<App at="/summary" />);
     await screen.findByTestId('live-summary', {}, { timeout: 8000 });
-    expect((await find(new RegExp(inr(fmData.budget.spent).replace(/[₹.]/g, '\\$&'))))[0]).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: /Detailed Metrics/ }, { timeout: 8000 }));
+    // tiles show compact amounts (e.g. ₹7.34L) with the exact figure as the tooltip
+    await waitFor(() => expect(document.querySelector(`[title="${inr(fmData.budget.spent)}"]`)).toBeTruthy(), { timeout: 8000 });
     expect(screen.getByText('Spent (approved)')).toBeTruthy();
     expect(screen.getByTestId('project-row-P001')).toBeTruthy();
     ui.unmount();
 
-    await signInAs('client@apex.com');
+    await signInAs('client1@gmail.com');
     ui = render(<App at="/summary" />);
     await screen.findByTestId('live-summary', {}, { timeout: 8000 });
     await find(/Contract value/);

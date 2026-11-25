@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { CheckCircle2, ArrowLeft, Lock } from 'lucide-react';
 import { api } from '../../../services/api';
-import { formatCurrency } from '../../../services/utils';
+import { formatCurrency, localDateISO } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import Modal from '../../../components/common/Modal';
 import ReportPreviewModal from '../../../components/common/ReportPreviewModal';
@@ -10,7 +10,7 @@ import ReportPreviewModal from '../../../components/common/ReportPreviewModal';
 const plusDays = (n) => {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  return d.toISOString().split('T')[0];
+  return localDateISO(d);
 };
 
 /**

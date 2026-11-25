@@ -2,6 +2,7 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { BadRequestException } from '@nestjs/common';
+import { today } from '../utils/ids';
 
 // ─── Upload Directory ────────────────────────────────────────────────────────
 const UPLOADS_DIR = join(process.cwd(), 'uploads');
@@ -25,7 +26,7 @@ export const multerConfig = {
   storage: diskStorage({
     destination: (req: any, _file: any, cb: (e: Error | null, dest: string) => void) => {
       const companyId = req.user?.companyId || 'general';
-      const dateFolder = new Date().toISOString().slice(0, 10);
+      const dateFolder = today();
       const dest = join(UPLOADS_DIR, companyId, dateFolder);
       if (!existsSync(dest)) mkdirSync(dest, { recursive: true });
       cb(null, dest);

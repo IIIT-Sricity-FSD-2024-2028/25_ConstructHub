@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '../../../hooks/useToast';
 import { useOutletContext, Link } from 'react-router-dom';
 import { Edit2, Eye, Plus } from 'lucide-react';
 import { api } from '../../../services/api';
@@ -12,6 +13,7 @@ import Modal from '../../../components/common/Modal';
 import DataTable from '../../../components/common/DataTable';
 
 export default function FinanceManagerBillDecisions() {
+  const toast = useToast();
   const { user } = useOutletContext();
   const [bills, setBills] = useState([]);
   const [search, setSearch] = useState('');
@@ -25,7 +27,8 @@ export default function FinanceManagerBillDecisions() {
     milestone: '',
     amount: '',
     dueDate: '',
-    description: ''
+    description: '',
+    locked: false
   });
 
   useEffect(() => {
@@ -49,7 +52,7 @@ export default function FinanceManagerBillDecisions() {
   function openEdit(b) {
     const norm = normalizeBillStatus(b.status);
     if (norm === 'Accepted' || norm === 'Declined') {
-      alert('This bill has already been decided by the client (' + norm + ') and cannot be edited.');
+      toast.error('This bill has already been decided by the client (' + norm + ') and cannot be edited.');
       return;
     }
     setEditModal(b);
@@ -58,7 +61,9 @@ export default function FinanceManagerBillDecisions() {
       milestone: b.milestone || '',
       amount: b.amount || '',
       dueDate: b.dueDate || '',
-      description: b.description || ''
+      description: b.description || '',
+      // Stage and advance bills take their amount and milestone from the contract; only wording and due date change.
+      locked: !!b.milestoneId || b.billType === 'milestone' || b.billType === 'advance'
     });
   }
 
@@ -69,18 +74,21 @@ export default function FinanceManagerBillDecisions() {
     if (editModal) {
       const norm = normalizeBillStatus(editModal.status);
       if (norm === 'Accepted' || norm === 'Declined') {
-        alert('This bill has already been decided by the client and cannot be edited.');
+        toast.error('This bill has already been decided by the client and cannot be edited.');
         setEditModal(null);
         return;
       }
     }
 
-    await api.updateBill(editForm.id, {
-      milestone: editForm.milestone,
-      amount: Number(editForm.amount),
+    const saved = await api.updateBill(editForm.id, {
+      ...(editForm.locked ? {} : { milestone: editForm.milestone, amount: Number(editForm.amount) }),
       dueDate: editForm.dueDate,
       description: editForm.description
     });
+    if (saved && saved.error) {
+      toast.error(saved.message || 'Could not update the bill.');
+      return;
+    }
 
     setEditModal(null);
     loadBills();
@@ -292,8 +300,14 @@ export default function FinanceManagerBillDecisions() {
               className="form-input"
               value={editForm.milestone}
               onChange={(e) => setEditForm({ ...editForm, milestone: e.target.value })}
+              readOnly={editForm.locked}
               required
             />
+            {editForm.locked && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+                Stage bills take their milestone and amount from the quotation; only the due date and description can change.
+              </div>
+            )}
           </div>
 
           <div className="form-row">
@@ -304,6 +318,7 @@ export default function FinanceManagerBillDecisions() {
                 className="form-input"
                 value={editForm.amount}
                 onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                readOnly={editForm.locked}
                 min={1}
                 required
               />

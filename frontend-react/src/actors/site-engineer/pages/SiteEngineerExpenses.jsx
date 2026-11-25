@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Plus, Paperclip } from 'lucide-react';
 import { api } from '../../../services/api';
-import { formatDate } from '../../../services/utils';
+import { formatDate, localDateISO } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
 import Modal from '../../../components/common/Modal';
@@ -10,7 +10,7 @@ import { inr } from '../../../components/procurement/procurementUiData';
 import { ExpenseStatusBadge, ReimbursementBadge, ExpenseDetail } from '../../../components/expenses/ExpenseUi';
 import { EXPENSE_CATEGORIES } from '../../../components/expenses/expenseUiData';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDateISO();
 const PETTY_CAP = 10000; // bulk purchases go through Procurement POs
 const blank = (projectId = '') => ({ projectId, milestoneId: '', category: 'Materials', amount: '', date: today(), description: '' });
 
@@ -43,7 +43,8 @@ export default function SiteEngineerExpenses() {
   useEffect(() => {
     if (!user) return;
     Promise.all([api.getProjects(user.companyId), api.getTasks(user.companyId)]).then(([ps, ts]) => {
-      const mine = new Set((ts || []).filter((t) => t.assignedTo === user.id).map((t) => t.projectId));
+      // only projects where this engineer still has unfinished work (the server enforces the same rule)
+      const mine = new Set((ts || []).filter((t) => t.assignedTo === user.id && t.status !== 'Completed').map((t) => t.projectId));
       setProjects((ps || []).filter((p) => mine.has(p.id) && p.status !== 'Completed'));
     });
   }, [user]);
@@ -138,6 +139,11 @@ export default function SiteEngineerExpenses() {
         </div>
         <button type="button" className="btn btn-primary" onClick={openNew} disabled={projects.length === 0}><Plus size={15} /> New expense</button>
       </div>
+      {projects.length === 0 && (
+        <div className="form-hint" style={{ marginBottom: 12 }}>
+          You have no unfinished tasks on any project, so you cannot claim new expenses right now. Your project manager assigns tasks.
+        </div>
+      )}
       {returned > 0 && <div className="error-msg" style={{ display: 'block' }}>{returned} expense(s) were returned to you. Open them, correct the details and resubmit.</div>}
       {error && <div className="error-msg" style={{ display: 'block' }}>{error}</div>}
       <div className="card"><DataTable data={claims} columns={columns} emptyMessage="You have not submitted any expenses yet." onRowClick={open} /></div>

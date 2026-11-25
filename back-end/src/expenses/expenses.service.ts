@@ -145,9 +145,10 @@ export class ExpensesService implements OnModuleInit {
 
   private assertEngineerProject(user: UserContext, projectId: string) {
     const project = this.projects.findById(projectId);
-    const worksThere = project && project.companyId === user.companyId
-      && this.tasks.findAll().some((t) => t.projectId === projectId && t.assignedTo === user.userId);
-    if (!worksThere) throw new NotFoundException('Project not found, or you have no tasks on it.');
+    if (!project || project.companyId !== user.companyId) throw new NotFoundException('Project not found.');
+    if (!this.tasks.hasOpenTask(user.userId, projectId)) {
+      throw new ForbiddenException('You can only claim expenses on a project where you have an unfinished task assigned to you.');
+    }
     if (project.status === 'Completed') throw new BadRequestException('This project is completed; expenses can no longer be submitted.');
     return project;
   }
