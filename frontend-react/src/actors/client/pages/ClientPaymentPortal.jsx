@@ -15,10 +15,10 @@ import { formatCurrency, formatDate, normalizeBillStatus } from '../../../servic
 import { useToast } from '../../../hooks/useToast';
 
 const METHODS = [
-  { id: 'upi', label: 'UPI', icon: Smartphone, hint: 'Instant settlement via UPI ID (demo)' },
-  { id: 'card', label: 'Card', icon: CreditCard, hint: 'Corporate Debit or Credit Card (demo)' },
-  { id: 'netbanking', label: 'NetBanking', icon: Landmark, hint: 'Direct corporate bank login (demo)' },
-  { id: 'neft', label: 'NEFT / RTGS', icon: Building2, hint: 'Bank transfer with UTR reference (demo)' },
+  { id: 'upi', label: 'UPI', icon: Smartphone, hint: 'Instant settlement via UPI ID' },
+  { id: 'card', label: 'Card', icon: CreditCard, hint: 'Corporate Debit or Credit Card' },
+  { id: 'netbanking', label: 'NetBanking', icon: Landmark, hint: 'Direct corporate bank login' },
+  { id: 'neft', label: 'NEFT / RTGS', icon: Building2, hint: 'Bank transfer with UTR reference' },
 ];
 
 export default function ClientPaymentPortal() {
@@ -107,7 +107,13 @@ export default function ClientPaymentPortal() {
     setProcessing(true);
     // Brief realistic gateway confirmation feel before recording the real backend payment
     await new Promise((r) => setTimeout(r, 450));
-    const res = await api.payBill(bill.id, { amount: num });
+    const methodLabel = METHODS.find((m) => m.id === method)?.label || 'Online Payment';
+    const paymentRef =
+      method === 'upi' ? upiId.trim()
+      : method === 'neft' && utrRef.trim() ? utrRef.trim()
+      : method === 'netbanking' ? `${bankName} NetBanking`
+      : `CH-${Date.now().toString(36).toUpperCase()}`;
+    const res = await api.payBill(bill.id, { amount: num, method: methodLabel, reference: paymentRef });
     setProcessing(false);
 
     if (res && res.error) {
@@ -119,7 +125,6 @@ export default function ClientPaymentPortal() {
       await outletCtx.refreshProjects();
     }
 
-    const methodLabel = METHODS.find((m) => m.id === method)?.label || 'Online Payment';
     setReceipt({
       payment: res.payment,
       bill: res.bill,
@@ -225,8 +230,13 @@ export default function ClientPaymentPortal() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <h2 style={{ fontFamily: 'var(--font-head)', fontSize: 17, fontWeight: 600 }}>Payment Details</h2>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--green)', fontWeight: 600 }}>
-                <ShieldCheck size={14} /> Demo Checkout
+                <ShieldCheck size={14} /> Secure Checkout
               </span>
+            </div>
+
+            <div role="note" style={{ background: 'var(--surface-2, #f8fafc)', border: '1px dashed var(--border)', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 12 }}>
+              Demo payment gateway for this project: no money is charged and card or bank details are not sent anywhere.
+              Do not enter real card details.
             </div>
 
             {error && <div className="error-msg" style={{ display: 'block' }}>{error}</div>}
@@ -245,6 +255,7 @@ export default function ClientPaymentPortal() {
                 </label>
                 <input
                   type="number"
+                  aria-label="Payment amount"
                   min="1"
                   max={outstanding}
                   step="0.01"
@@ -292,7 +303,7 @@ export default function ClientPaymentPortal() {
               {method === 'upi' && (
                 <div className="form-group">
                   <label className="form-label">UPI ID</label>
-                  <input className="form-input" value={upiId} onChange={(e) => setUpiId(e.target.value)} placeholder="yourname@upi" required />
+                  <input className="form-input" aria-label="UPI ID" value={upiId} onChange={(e) => setUpiId(e.target.value)} placeholder="yourname@upi" required />
                 </div>
               )}
 
@@ -344,7 +355,7 @@ export default function ClientPaymentPortal() {
                 {processing ? 'Processing payment...' : `Pay ${formatCurrency(Number(amount) || 0)} Now`}
               </button>
               <p style={{ fontSize: 11.5, color: 'var(--text-muted)', textAlign: 'center', marginTop: 10 }}>
-                Demo payment portal — no real money is debited, and the payment is recorded immediately on the server.
+                Simulated payment gateway — payment is recorded immediately on your project billing ledger.
               </p>
             </form>
           </div>

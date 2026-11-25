@@ -159,8 +159,6 @@ export function QuotationReleaseForm({ quote, submitting, onRelease, onCancel })
     onRelease(payload);
   }
 
-  const box = { border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12, flex: '1 1 160px' };
-  const label = { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 };
 
   return (
     <form onSubmit={submit}>

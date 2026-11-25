@@ -2,10 +2,6 @@ import LiveSummary from '../../../components/dashboard/LiveSummary';
 import { useState, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import {
-  TrendingUp,
-  DollarSign,
-  Clock,
-  Receipt,
   Send,
   CheckCircle2
 } from 'lucide-react';
@@ -13,7 +9,6 @@ import { api } from '../../../services/api';
 import {
   formatCurrency,
   formatDate,
-  statusBadge,
   normalizeBillStatus
 } from '../../../services/utils';
 import Button from '../../../components/common/Button';
@@ -59,13 +54,6 @@ export default function ClientDashboard() {
   }, [user]);
 
   // Days remaining calculation
-  let daysRemaining = 'On Schedule';
-  if (project && project.endDate) {
-    const end = new Date(project.endDate);
-    const now = new Date();
-    const diff = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-    daysRemaining = diff > 0 ? `${diff} days` : diff === 0 ? 'Due today' : 'Past deadline';
-  }
 
   async function handleQuickFeedback(e) {
     e.preventDefault();

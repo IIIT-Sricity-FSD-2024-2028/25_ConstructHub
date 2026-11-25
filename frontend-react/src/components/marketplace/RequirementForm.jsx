@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { PROJECT_TYPES } from './marketplaceUiData';
+import { localDateISO } from '../../services/utils';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDateISO();
 
 /** Create / edit form for a construction requirement. */
 export default function RequirementForm({ initial, submitting, submitLabel = 'Publish requirement', onSubmit, onCancel }) {

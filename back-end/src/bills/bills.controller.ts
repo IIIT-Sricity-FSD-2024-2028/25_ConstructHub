@@ -9,6 +9,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, UserContext } from '../auth/current-user.decorator';
 import { TenantHelper } from '../auth/tenant-helper';
+import { today } from '../utils/ids';
 
 export class RecordPaymentDto {
   @ApiProperty({ example: 500000 })
@@ -89,8 +90,8 @@ export class BillsController {
   }
 
   @Post()
-  @Roles('superuser', 'company_admin', 'finance_manager', 'project_manager')
-  @ApiOperation({ summary: 'Create a new bill (Company ID derived from authenticated token)' })
+  @Roles('superuser', 'company_admin', 'finance_manager')
+  @ApiOperation({ summary: 'Create a bill (Finance Manager of the project or Company Admin; company, client and amount come from the project and milestone)' })
   @ApiResponse({ status: 201, description: 'The bill has been successfully created.', type: CreateBillDto })
   @ApiResponse({ status: 400, description: 'Invalid input.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
@@ -101,8 +102,8 @@ export class BillsController {
   }
 
   @Patch(':id')
-  @Roles('superuser', 'company_admin', 'finance_manager', 'project_manager', 'client')
-  @ApiOperation({ summary: 'Update an existing bill' })
+  @Roles('superuser', 'company_admin', 'finance_manager', 'client')
+  @ApiOperation({ summary: 'Client: accept or decline a pending bill. Finance Manager / Company Admin: edit the wording or due date of a bill the client has not decided yet.' })
   @ApiResponse({ status: 200, description: 'The bill has been successfully updated.', type: UpdateBillDto })
   @ApiResponse({ status: 400, description: 'Invalid bill update or status change forbidden.' })
   @ApiResponse({ status: 403, description: 'Access denied.' })
@@ -117,22 +118,6 @@ export class BillsController {
       } else {
         TenantHelper.validateCompanyAccess(user, existing.companyId);
       }
-
-      // Business rule: Finance manager cannot edit a generated bill once decided by the client (Accepted or Declined),
-      // and cannot modify the payment status directly (only clients decide acceptance/rejection).
-      if (user.role === 'finance_manager') {
-        const s = (existing.status || '').toLowerCase();
-        if (s === 'accepted' || s === 'declined' || s === 'approved' || s === 'rejected') {
-          throw new ForbiddenException(
-            `A finance manager cannot edit a generated bill once a decision has been made by the client (${existing.status}).`,
-          );
-        }
-        if (dto.status !== undefined && dto.status !== existing.status) {
-          throw new ForbiddenException(
-            'A finance manager cannot change the bill payment status. Payment status is determined by client decision.',
-          );
-        }
-      }
     }
     // A client may only DECIDE a pending bill (accept / decline). Amount, parties and everything else stay untouched,
     // and the decision date is set by the server.
@@ -144,22 +129,12 @@ export class BillsController {
       if (billDecision(existing.status) !== 'Pending Decision') {
         throw new ConflictException('This bill was already decided and cannot be changed.');
       }
-      const clientPayload: Record<string, any> = { status: decision === 'Accepted' ? 'Accepted' : 'Declined', decisionDate: new Date().toISOString().split('T')[0] };
+      const clientPayload: Record<string, any> = { status: decision === 'Accepted' ? 'Accepted' : 'Declined', decisionDate: today() };
       if (decision === 'Declined') clientPayload.rejectionReason = String((dto as any).rejectionReason || '').trim().slice(0, 500);
-      return this.service.update(id, clientPayload);
+      return this.service.update(id, clientPayload, user);
     }
-
-    // Everyone else cannot decide a bill on the client's behalf.
-    if (user && !TenantHelper.isSuperuser(user) && dto.status !== undefined && billDecision(dto.status) !== billDecision(existing.status)) {
-      throw new ForbiddenException('Only the client can accept or decline a bill.');
-    }
-
-    const companyId = TenantHelper.isSuperuser(user)
-      ? (dto.companyId !== undefined ? dto.companyId : existing.companyId)
-      : (user ? user.companyId : existing.companyId);
-
-    const payload = { ...dto, companyId };
-    return this.service.update(id, payload);
+    // Staff edits: the service allows wording and due date of an undecided bill only.
+    return this.service.update(id, { ...dto }, user);
   }
 
   @Get(':id/payments')
@@ -179,16 +154,17 @@ export class BillsController {
 
   @Delete(':id')
   @Roles('superuser', 'company_admin', 'finance_manager')
-  @ApiOperation({ summary: 'Delete a bill' })
+  @ApiOperation({ summary: 'Delete a bill the client has not accepted (never the mobilization advance, never a bill with payments)' })
   @ApiResponse({ status: 200, description: 'The bill has been successfully deleted.' })
   @ApiResponse({ status: 403, description: 'Access denied.' })
   @ApiResponse({ status: 404, description: 'Bill not found.' })
+  @ApiResponse({ status: 409, description: 'Accepted, paid or advance bill.' })
   remove(@Param('id') id: string, @CurrentUser() user?: UserContext) {
     const existing = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
       TenantHelper.validateCompanyAccess(user, existing.companyId);
     }
-    return this.service.remove(id);
+    return this.service.remove(id, user);
   }
 }
 

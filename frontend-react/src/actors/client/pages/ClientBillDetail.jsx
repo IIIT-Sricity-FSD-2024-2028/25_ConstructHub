@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '../../../hooks/useToast';
 import BillPayments from '../../../components/billing/BillPayments';
 import { Link, useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, X } from 'lucide-react';
-import { api } from '../../../services/api';
-import { formatCurrency, formatDate, statusBadge, normalizeBillStatus } from '../../../services/utils';
+import { api, unwrap } from '../../../services/api';
+import { formatCurrency, formatDate, statusBadge, normalizeBillStatus, localDateISO } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 import ReportPreviewModal from '../../../components/common/ReportPreviewModal';
 
 export default function ClientBillDetail() {
+  const toast = useToast();
   const { id: paramId } = useParams();
   const [searchParams] = useSearchParams();
   const id = paramId || searchParams.get('id');
@@ -42,15 +44,15 @@ export default function ClientBillDetail() {
 
   async function handleApprove() {
     try {
-      await api.updateBill(bill.id, {
+      unwrap(await api.updateBill(bill.id, {
         status: 'Accepted',
-        decisionDate: new Date().toISOString().split('T')[0]
-      });
+        decisionDate: localDateISO()
+      }));
 
       await loadBill();
       setApprovedModalOpen(true);
     } catch (err) {
-      alert('Error accepting bill: ' + err.message);
+      toast.error('Error accepting bill: ' + err.message);
     }
   }
 
@@ -71,17 +73,17 @@ export default function ClientBillDetail() {
     }
 
     try {
-      await api.updateBill(bill.id, {
+      unwrap(await api.updateBill(bill.id, {
         status: 'Declined',
-        decisionDate: new Date().toISOString().split('T')[0],
+        decisionDate: localDateISO(),
         rejectionReason: rejectReason.trim()
-      });
+      }));
 
       setRejectModalOpen(false);
       await loadBill();
       setRejectedModalOpen(true);
     } catch (err) {
-      alert('Error declining bill: ' + err.message);
+      toast.error('Error declining bill: ' + err.message);
     }
   }
 
@@ -314,20 +316,24 @@ export default function ClientBillDetail() {
           <div className="icon-box icon-box-green icon-box-lg" style={{ margin: '0 auto 16px', borderRadius: '50%' }}>
             <CheckCircle2 size={36} color="#10b981" />
           </div>
-          <h2 style={{ fontFamily: 'var(--font-head)', marginBottom: '8px', fontSize: '20px' }}>Payment Accepted!</h2>
+          <h2 style={{ fontFamily: 'var(--font-head)', marginBottom: '8px', fontSize: '20px' }}>Bill Accepted</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '24px' }}>
-            The payment will be processed within 2–3 business days. The finance manager has been notified.
+            You agreed to this bill and the finance manager has been notified. Nothing has been paid yet:
+            pay it now or later from the payment portal.
           </p>
           <Button
             variant="success"
-            fullWidth
+            full
             onClick={() => {
               setApprovedModalOpen(false);
-              navigate('/client/payment-decisions');
+              navigate(`/client/bills/${bill.id}/pay`);
             }}
           >
-            View Payment History
+            Pay Now
           </Button>
+          <button type="button" className="btn btn-secondary" style={{ width: '100%', marginTop: 8 }} onClick={() => setApprovedModalOpen(false)}>
+            Pay later
+          </button>
         </div>
       </Modal>
 
@@ -343,7 +349,7 @@ export default function ClientBillDetail() {
           </p>
           <Button
             variant="danger"
-            fullWidth
+            full
             onClick={() => {
               setRejectedModalOpen(false);
               navigate('/client/pending-bills');

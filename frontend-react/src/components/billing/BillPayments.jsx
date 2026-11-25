@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CreditCard, Landmark } from 'lucide-react';
 import { api } from '../../services/api';
-import { formatDate, normalizeBillStatus } from '../../services/utils';
+import { formatDate, normalizeBillStatus, localDateISO } from '../../services/utils';
 import { useToast } from '../../hooks/useToast';
 import { inr } from '../procurement/procurementUiData';
 
 const METHODS = ['Bank transfer', 'Cheque', 'Cash', 'UPI'];
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDateISO();
 
 /**
  * Payments against one bill. Accepting a bill and paying it are separate:
@@ -54,7 +55,7 @@ export default function BillPayments({ bill, role, onChanged }) {
     const res = await api.payBill(bill.id, payload);
     setBusy(false);
     if (res && res.error) return setError(res.message);
-    toast.success(role === 'client' ? `Demo payment of ${inr(n)} recorded.` : `Payment of ${inr(n)} recorded.`);
+    toast.success(`Payment of ${inr(n)} recorded.`);
     setAmount('');
     setReference('');
     setNote('');
@@ -93,12 +94,27 @@ export default function BillPayments({ bill, role, onChanged }) {
         </div>
       )}
 
-      {canPay && (
+      {canPay && role === 'client' && (
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <strong style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <CreditCard size={15} /> Ready to settle this invoice
+            </strong>
+            <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+              Pay the full balance ({inr(outstanding)}) or make a partial payment via UPI, Card, NetBanking, or NEFT.
+            </p>
+          </div>
+          <Link to={`/client/bills/${bill.id}/pay`} className="btn btn-primary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <CreditCard size={14} /> Proceed to Payment Portal
+          </Link>
+        </div>
+      )}
+
+      {canPay && role === 'finance_manager' && (
         <form onSubmit={submit} style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
           <strong style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-            {role === 'client' ? <><CreditCard size={15} /> Pay now (demo)</> : <><Landmark size={15} /> Record a payment received</>}
+            <Landmark size={15} /> Record a payment received
           </strong>
-          {role === 'client' && <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 10px' }}>This is a demonstration: no real money is moved. You can pay the full balance or part of it.</p>}
           {error && <div className="error-msg" style={{ display: 'block', margin: '8px 0' }}>{error}</div>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginTop: 8 }}>
             <div className="form-group" style={{ marginBottom: 0 }}>

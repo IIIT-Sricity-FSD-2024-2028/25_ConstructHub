@@ -4,13 +4,12 @@ import {
   CheckCircle2,
   X
 } from 'lucide-react';
-import { api } from '../../../services/api';
+import { api, unwrap } from '../../../services/api';
 import {
   formatCurrency,
   formatDate,
   statusBadge,
-  normalizeBillStatus
-} from '../../../services/utils';
+  normalizeBillStatus, localDateISO } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 import ReportPreviewModal from '../../../components/common/ReportPreviewModal';
@@ -23,7 +22,7 @@ export default function ClientPendingBills() {
   const toast = useToast();
   const [bills, setBills] = useState([]);
   const [payableBills, setPayableBills] = useState([]);
-  const [payingId, setPayingId] = useState('');
+  const [actingId, setActingId] = useState('');
   const [users, setUsers] = useState([]);
 
   // Modals
@@ -58,11 +57,13 @@ export default function ClientPendingBills() {
   }
 
   async function handleApprove(bill) {
+    if (actingId) return;
+    setActingId(bill.id);
     try {
-      await api.updateBill(bill.id, {
+      unwrap(await api.updateBill(bill.id, {
         status: 'Accepted',
-        decisionDate: new Date().toISOString().split('T')[0]
-      });
+        decisionDate: localDateISO()
+      }));
 
 
 
@@ -70,7 +71,9 @@ export default function ClientPendingBills() {
       setApprovedBillNotice(bill);
       loadBills();
     } catch (err) {
-      alert('Error accepting bill: ' + err.message);
+      toast.error('Error accepting bill: ' + err.message);
+    } finally {
+      setActingId('');
     }
   }
 
@@ -91,13 +94,15 @@ export default function ClientPendingBills() {
       return;
     }
 
+    if (actingId) return;
+    setActingId(rejectBillId);
     try {
       const b = bills.find((item) => item.id === rejectBillId);
-      await api.updateBill(rejectBillId, {
+      unwrap(await api.updateBill(rejectBillId, {
         status: 'Declined',
-        decisionDate: new Date().toISOString().split('T')[0],
+        decisionDate: localDateISO(),
         rejectionReason: rejectReason.trim()
-      });
+      }));
 
       // Notify Finance Managers
       const financeManagers = users.filter((u) => u.role === 'finance_manager');
@@ -115,24 +120,9 @@ export default function ClientPendingBills() {
       loadBills();
     } catch (err) {
       setRejectError(err.message || 'Error declining bill');
+    } finally {
+      setActingId('');
     }
-  }
-
-  async function handlePayAccepted(bill) {
-    setPayingId(bill.id);
-    const amountDue = Number(bill.outstanding ?? bill.amount ?? 0);
-    const res = await api.payBill(bill.id, { amount: amountDue });
-    setPayingId('');
-    if (res && res.error) {
-      toast.error(res.message || 'Payment failed.');
-      return;
-    }
-    toast.success(
-      res.projectStarted
-        ? 'Mobilization advance paid! Your project is now active (On Track) and site work is unlocked.'
-        : 'Payment recorded successfully.'
-    );
-    loadBills();
   }
 
   return (
@@ -254,7 +244,7 @@ export default function ClientPendingBills() {
               )}
 
               <div style={{ display: 'flex', gap: '10px' }}>
-                <Button variant="success" style={{ flex: 1 }} onClick={() => handleApprove(b)}>
+                <Button variant="success" style={{ flex: 1 }} disabled={!!actingId} onClick={() => handleApprove(b)}>
                   ✓ Accept Payment
                 </Button>
                 <Button variant="danger" style={{ flex: 1 }} onClick={() => openRejectModal(b.id)}>
@@ -333,7 +323,7 @@ export default function ClientPendingBills() {
             <Button variant="danger" onClick={() => openRejectModal(detailBill.id)}>
               Decline
             </Button>
-            <Button variant="success" onClick={() => handleApprove(detailBill)}>
+            <Button variant="success" disabled={!!actingId} onClick={() => handleApprove(detailBill)}>
               ✓ Accept
             </Button>
           </div>
@@ -367,7 +357,7 @@ export default function ClientPendingBills() {
             <Button variant="secondary" onClick={() => setRejectBillId(null)}>
               Cancel
             </Button>
-            <Button variant="danger" onClick={handleConfirmReject}>
+            <Button variant="danger" disabled={!!actingId} onClick={handleConfirmReject}>
               Confirm Decline
             </Button>
           </div>
@@ -388,20 +378,25 @@ export default function ClientPendingBills() {
             >
               <CheckCircle2 size={30} />
             </div>
-            <h2 style={{ fontSize: '20px', marginBottom: '8px' }}>Payment Accepted!</h2>
+            <h2 style={{ fontSize: '20px', marginBottom: '8px' }}>Bill Accepted</h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '24px' }}>
-              {approvedBillNotice.id} for {formatCurrency(approvedBillNotice.amount)} has been accepted. The payment will be processed within 2-3 business days.
+              {approvedBillNotice.billNumber || approvedBillNotice.id} for {formatCurrency(approvedBillNotice.amount)} has been accepted. Nothing has been paid yet:
+              pay it now or later from the payment portal.
             </p>
             <Button
               variant="success"
               style={{ width: '100%' }}
               onClick={() => {
+                const id = approvedBillNotice.id;
                 setApprovedBillNotice(null);
-                navigate('/client/payment-decisions');
+                navigate(`/client/bills/${id}/pay`);
               }}
             >
-              View Payment History
+              Pay Now
             </Button>
+            <button type="button" className="btn btn-secondary" style={{ width: '100%', marginTop: 8 }} onClick={() => setApprovedBillNotice(null)}>
+              Pay later
+            </button>
           </div>
         </Modal>
       )}

@@ -16,6 +16,8 @@ import { today, addDays } from '../utils/ids';
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`;
 export const PAYMENT_METHODS = ['Bank transfer', 'Cheque', 'Cash', 'UPI'];
+/** Methods offered by the client's demo payment portal (cash or cheque are never self-reported by a client). */
+export const CLIENT_PAYMENT_METHODS = ['UPI', 'Card', 'NetBanking', 'NEFT / RTGS'];
 
 /** Same normalisation the screens use: approved/accepted/paid -> Accepted, rejected/declined -> Declined. */
 export function billDecision(status?: string): 'Pending Decision' | 'Accepted' | 'Declined' {
@@ -161,14 +163,25 @@ export class BillsService implements OnModuleInit {
     if (!data || Object.keys(data).length === 0) throw new BadRequestException('Payload cannot be empty.');
     const proj = this.projectsRepo.findById(data.projectId);
     if (!proj) throw new BadRequestException('Project not found.');
+    // A bill always belongs to the project's own company and is addressed to the project's own client.
+    if (user && user.role !== 'superuser' && proj.companyId !== user.companyId) throw new BadRequestException('Project not found.');
+    this.mustBeBiller(user, proj);
+    if (!proj.clientId) throw new BadRequestException('This project has no client to bill.');
     if (data.milestoneId || this.milestones.findByProjectId(proj.id).length > 0) {
       data = this.createMilestoneBill(data, proj, user);
     } else {
       // Projects without a milestone plan keep the older free-form bill.
-      for (const k of ['clientId', 'amount', 'milestone', 'description', 'dueDate']) {
+      if (proj.status === 'Awaiting Advance') throw new BadRequestException('The mobilization advance has not been paid yet, so bills cannot be raised.');
+      for (const k of ['amount', 'milestone', 'description', 'dueDate']) {
         if (data[k] === undefined || data[k] === '') throw new BadRequestException(`${k} is required.`);
       }
-      data = { ...data, generatedBy: user?.userId || data.generatedBy };
+      data = {
+        companyId: proj.companyId, projectId: proj.id, projectName: proj.name,
+        clientId: proj.clientId, clientName: proj.clientName,
+        amount: round2(Number(data.amount)), milestone: String(data.milestone).trim(), milestoneId: null, billType: 'manual',
+        description: String(data.description).trim(), date: today(), dueDate: data.dueDate, priority: data.priority || 'Medium',
+        generatedBy: user?.userId || data.generatedBy,
+      };
     }
     // Invoice numbers are always issued by the server.
     data = { ...data, billNumber: this.nextBillNumber(this.companies.findById(data.companyId)?.code || '', data.companyId) };
@@ -239,32 +252,105 @@ export class BillsService implements OnModuleInit {
     return this.repo.create(record);
   }
 
-  update(id: string, data: any) {
-    const existing = this.findOne(id);
-    if (!data || Object.keys(data).length === 0) throw new BadRequestException('Payload cannot be empty.');
-    // Derived payment fields are never typed in.
-    data = { ...data };
-    for (const k of ['paidAmount', 'outstanding', 'paymentStatus']) delete data[k];
-
-    const paid = this.payments.findByBillId(id).length > 0;
-    if (paid) {
-      for (const k of ['amount', 'projectId', 'clientId']) {
-        if (data[k] !== undefined && data[k] !== existing[k]) {
-          throw new ConflictException('Payments were already received against this bill, so its amount and parties can no longer change.');
-        }
-      }
-      if (data.status !== undefined && billDecision(data.status) !== billDecision(existing.status)) {
-        throw new ConflictException('Payments were already received against this bill, so its decision can no longer change.');
-      }
-    }
-    const updated = this.repo.update(id, data);
-    this.syncPaymentFields(id);
-    return this.repo.findById(id) || updated;
+  /** Total of the non-declined bills of a project, optionally leaving one bill out. */
+  private billedSoFar(projectId: string, excludeBillId?: string) {
+    return this.repo.findAll()
+      .filter((b) => b.projectId === projectId && b.id !== excludeBillId && billDecision(b.status) !== 'Declined')
+      .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
   }
 
-  remove(id: string) {
-    this.findOne(id);
+  /**
+   * Staff edits of a bill (the client decides it through the controller).
+   * Only a bill still waiting for the client can change, and only its wording and due date;
+   * the amount of a stage bill comes from the milestone, a free-form bill's amount stays inside the contract value.
+   */
+  update(id: string, data: any, user?: UserContext) {
+    const existing = this.findOne(id);
+    if (!data || Object.keys(data).length === 0) throw new BadRequestException('Payload cannot be empty.');
+    data = Object.fromEntries(Object.entries({ ...data }).filter(([, v]) => v !== undefined));
+    // Derived and identity fields are never typed in.
+    for (const k of ['paidAmount', 'outstanding', 'paymentStatus', 'billNumber', 'billType', 'generatedBy', 'date', 'stageAmount', 'advanceRecovery', 'siteReportIds', 'id']) delete data[k];
+    for (const k of ['companyId', 'projectId', 'projectName', 'clientId', 'clientName', 'milestoneId']) {
+      if (data[k] !== undefined && data[k] !== existing[k]) {
+        throw new BadRequestException(`The ${k.replace(/Id$/, '').replace('Name', ' name')} of a bill cannot be changed. Delete it and raise a new bill instead.`);
+      }
+      delete data[k];
+    }
+
+    const isDecisionByClient = user?.role === 'client';
+    const paid = this.payments.findByBillId(id).length > 0;
+    if (!isDecisionByClient) {
+      if (paid) throw new ConflictException('Payments were already received against this bill, so it can no longer change.');
+      if (billDecision(existing.status) !== 'Pending Decision') {
+        throw new ConflictException(`This bill was already ${billDecision(existing.status).toLowerCase()} by the client, so it can no longer be edited.`);
+      }
+      if (user && user.role !== 'superuser') {
+        const project = this.projectsRepo.findById(existing.projectId);
+        if (project) this.mustBeBiller(user, project);
+      }
+      if (data.amount !== undefined && Number(data.amount) !== Number(existing.amount)) {
+        if (existing.billType === 'milestone' || existing.billType === 'advance' || existing.milestoneId) {
+          throw new BadRequestException('The amount of a stage bill comes from the quoted stage amount of its milestone and cannot be edited.');
+        }
+        const project = this.projectsRepo.findById(existing.projectId);
+        const amount = round2(Number(data.amount));
+        if (!(amount >= 1)) throw new BadRequestException('Enter the bill amount.');
+        const remaining = (Number(project?.contractValue ?? project?.budget) || 0) - this.billedSoFar(existing.projectId, id);
+        if (amount > remaining + 0.5) throw new BadRequestException(`Bill amount exceeds remaining project budget. Remaining: ${round2(remaining)}`);
+        data.amount = amount;
+      } else {
+        delete data.amount;
+      }
+      if (data.milestone !== undefined && data.milestone !== existing.milestone && existing.milestoneId) {
+        throw new BadRequestException('The milestone of a stage bill cannot be changed.');
+      }
+      if (data.status !== undefined && billDecision(data.status) !== billDecision(existing.status)) {
+        throw new ForbiddenException('Only the client can accept or decline a bill.');
+      }
+      delete data.status;
+      delete data.decisionDate;
+    } else if (paid) {
+      throw new ConflictException('Payments were already received against this bill, so its decision can no longer change.');
+    }
+    if (Object.keys(data).length === 0) return existing;
+    const prevDecision = billDecision(existing.status);
+    const updated = this.repo.update(id, data);
+    this.syncPaymentFields(id);
+    const finalBill = this.repo.findById(id) || updated;
+    const nextDecision = billDecision(finalBill?.status);
+    if (prevDecision !== nextDecision && (nextDecision === 'Accepted' || nextDecision === 'Declined')) {
+      const project = this.projectsRepo.findById(existing.projectId);
+      const label = existing.billNumber || existing.id;
+      const clientLabel = existing.clientName || 'Client';
+      if (nextDecision === 'Accepted') {
+        this.notify(
+          project?.financeManagerId,
+          existing.companyId,
+          'Bill Accepted by Client',
+          `${clientLabel} accepted ${label} (${inr(Number(existing.amount) || 0)}) for "${project?.name || existing.projectName || 'Project'}". It is now ready for payment.`
+        );
+      } else {
+        const reason = data.declineReason || data.remarks || '';
+        this.notify(
+          project?.financeManagerId,
+          existing.companyId,
+          'Bill Declined by Client',
+          `${clientLabel} declined ${label} for "${project?.name || existing.projectName || 'Project'}"${reason ? `: ${reason}` : '.'}`
+        );
+      }
+    }
+    return finalBill;
+  }
+
+  remove(id: string, user?: UserContext) {
+    const bill = this.findOne(id);
     if (this.payments.findByBillId(id).length > 0) throw new ConflictException('This bill has payments recorded against it and cannot be deleted.');
+    if (bill.billType === 'advance') throw new ConflictException('The mobilization advance bill is part of the contract and cannot be deleted.');
+    if (billDecision(bill.status) === 'Accepted') throw new ConflictException('The client already accepted this bill, so it cannot be deleted.');
+    if (user && user.role !== 'superuser') {
+      const project = this.projectsRepo.findById(bill.projectId);
+      if (project) this.mustBeBiller(user, project);
+    }
     return this.repo.remove(id);
   }
 
@@ -341,8 +427,10 @@ export class BillsService implements OnModuleInit {
     let reference: string;
     let paidAt = today();
     if (client) {
-      method = 'Online payment (demo)';
-      reference = `DEMO-${Date.now().toString(36).toUpperCase()}`;
+      // Demo gateway: the client picks one of the portal's methods; the receipt number always comes from the server.
+      const rawMethod = String(dto.method || '').trim();
+      method = CLIENT_PAYMENT_METHODS.includes(rawMethod) ? rawMethod : 'Online payment (demo)';
+      reference = `DEMO-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
     } else {
       method = String(dto.method || '');
       if (!PAYMENT_METHODS.includes(method)) throw new BadRequestException(`Payment method must be one of: ${PAYMENT_METHODS.join(', ')}.`);
@@ -358,7 +446,9 @@ export class BillsService implements OnModuleInit {
     const byName = this.users.findById(user.userId)?.name || 'User';
     const payment: PaymentRecord = this.payments.create({
       companyId: bill.companyId, billId, projectId: bill.projectId, clientId: bill.clientId, amount, method, reference, paidAt,
-      channel: client ? 'client_demo' : 'finance', recordedBy: user.userId, recordedByName: byName, note: dto.note?.trim() || undefined, createdAt: today(),
+      channel: client ? 'client_demo' : 'finance',
+      payerReference: client && dto.reference ? String(dto.reference).trim().slice(0, 80) : undefined,
+      recordedBy: user.userId, recordedByName: byName, note: dto.note?.trim() || undefined, createdAt: today(),
     });
     this.syncPaymentFields(billId);
     const after = this.findOne(billId);

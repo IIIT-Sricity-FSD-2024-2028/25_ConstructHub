@@ -4,7 +4,6 @@ import { ArrowLeft } from 'lucide-react';
 import { api } from '../../../services/api';
 import { formatDate, statusBadgeClass } from '../../../services/utils';
 import { formatINR } from '../../../hooks/usePlans';
-import { useToast } from '../../../hooks/useToast';
 import MessagesChat from '../../../components/common/MessagesChat';
 import { ProgressSummary, MilestoneList } from '../../../components/milestones/MilestoneUi';
 import ClientFeedback from './ClientFeedback';
@@ -18,7 +17,6 @@ const TABS = [
 export default function ClientProjectWorkspace() {
   const { projectId } = useParams();
   const { user } = useOutletContext();
-  const toast = useToast();
   const [params, setParams] = useSearchParams();
   const tab = TABS.some(([k]) => k === params.get('tab')) ? params.get('tab') : 'overview';
 
@@ -27,7 +25,6 @@ export default function ClientProjectWorkspace() {
   const [progress, setProgress] = useState(null);
   const [reports, setReports] = useState([]);
   const [bills, setBills] = useState([]);
-  const [paying, setPaying] = useState('');
   const [contactIds, setContactIds] = useState(null); // people on this project: its PM, FM and engineers with tasks on it
 
   const load = useCallback(async () => {
@@ -49,18 +46,6 @@ export default function ClientProjectWorkspace() {
   useEffect(() => {
     void Promise.resolve().then(load);
   }, [load]);
-
-  async function pay(bill) {
-    setPaying(bill.id);
-    const res = await api.payBill(bill.id, { amount: bill.outstanding });
-    setPaying('');
-    if (res && res.error) {
-      toast.error(res.message);
-      return;
-    }
-    toast.success(res.projectStarted ? 'Mobilization advance paid! Your project is now active (On Track) and site work is unlocked.' : 'Payment recorded.');
-    await load();
-  }
 
   if (notFound) {
     return (

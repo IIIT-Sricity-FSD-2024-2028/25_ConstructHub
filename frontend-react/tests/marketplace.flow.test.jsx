@@ -8,7 +8,7 @@
  */
 import { describe, test, expect, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { AuthProvider } from '../src/context/AuthContext';
 import { ToastProvider } from '../src/context/ToastContext';
 import { api } from '../src/services/api';
@@ -20,6 +20,11 @@ import CompanyMarketplaceDetail from '../src/actors/company-admin/pages/CompanyM
 
 const TITLE = 'UI flow test duplex house';
 
+// Pages read the signed-in user from the dashboard layout's outlet context.
+function Shell() {
+  return <Outlet context={{ user: api.getCurrentUser(), setUser: () => {} }} />;
+}
+
 function App({ at }) {
   return (
     <MemoryRouter initialEntries={[at]}>
@@ -28,11 +33,13 @@ function App({ at }) {
           <Routes>
             <Route path="/register-client" element={<RegisterClient />} />
             <Route path="/login" element={<div>LOGIN PAGE</div>} />
-            <Route path="/client/requirements" element={<ClientRequirements />} />
-            <Route path="/client/requirements/:id" element={<ClientRequirementDetail />} />
-            <Route path="/client/project-progress" element={<div>PROJECT PROGRESS</div>} />
-            <Route path="/company-admin/marketplace" element={<CompanyMarketplace />} />
-            <Route path="/company-admin/marketplace/:id" element={<CompanyMarketplaceDetail />} />
+            <Route element={<Shell />}>
+              <Route path="/client/requirements" element={<ClientRequirements />} />
+              <Route path="/client/requirements/:id" element={<ClientRequirementDetail />} />
+              <Route path="/client/project-progress" element={<div>PROJECT PROGRESS</div>} />
+              <Route path="/company-admin/marketplace" element={<CompanyMarketplace />} />
+              <Route path="/company-admin/marketplace/:id" element={<CompanyMarketplaceDetail />} />
+            </Route>
           </Routes>
         </ToastProvider>
       </AuthProvider>
@@ -48,6 +55,25 @@ const signInAs = async (email, password = '123456') => {
 };
 
 afterEach(() => cleanup());
+
+/** A company prices a requirement the way the app requires: admin assigns PM+FM, PM plans stages, FM costs them, admin releases. */
+async function estimate(reqId, who, internalCost) {
+  await signInAs(who.admin);
+  const q = await api.assignEstimateTeam(reqId, { pmId: who.pmId, fmId: who.fmId });
+  expect(q.error, JSON.stringify(q)).toBeUndefined();
+  await signInAs(who.pm);
+  const pm = await api.submitPmEstimate(q.id, { milestoneStages: [{ name: 'Turnkey construction', durationDays: 200, materialScope: 'Complete turnkey construction' }] });
+  expect(pm.error, JSON.stringify(pm)).toBeUndefined();
+  await signInAs(who.fm);
+  const fm = await api.submitFmEstimate(q.id, { stages: [{ internalCost }], mobilizationAdvancePercent: 0 });
+  expect(fm.error, JSON.stringify(fm)).toBeUndefined();
+  await signInAs(who.admin);
+  const until = new Date(Date.now() + 20 * 86400000);
+  const rel = await api.releaseQuotation(q.id, { markupPercent: 0, validUntil: `${until.getFullYear()}-${String(until.getMonth() + 1).padStart(2, '0')}-${String(until.getDate()).padStart(2, '0')}`, notes: 'UI flow quote' });
+  expect(rel.error, JSON.stringify(rel)).toBeUndefined();
+}
+const APEX = { admin: 'admin@apex.com', pm: 'pm@apex.com', fm: 'finance@apex.com', pmId: 'U002', fmId: 'U004' };
+const LT = { admin: 'admin@ltinfra.com', pm: 'pm@ltinfra.com', fm: 'finance@ltinfra.com', pmId: 'U007', fmId: 'U009' };
 
 describe('marketplace UI flow', () => {
   test('client signs up, posts a requirement, a company quotes, client awards it', async () => {
@@ -103,25 +129,22 @@ describe('marketplace UI flow', () => {
     const row = await screen.findByText(TITLE, {}, { timeout: 8000 });
     expect(screen.queryByText(email)).toBeNull(); // client contact details are not shown to companies
     fireEvent.click(row);
-    await text(/Your quotation/);
-    const desc = await screen.findByPlaceholderText(/Foundation and RCC/);
-    const rowInputs = desc.closest('tr').querySelectorAll('input');
-    fireEvent.change(rowInputs[0], { target: { value: 'Complete turnkey construction' } });
-    fireEvent.change(rowInputs[3], { target: { value: '4500000' } });
-    const duration = document.querySelector('input[type="number"][max="3650"]');
-    fireEvent.change(duration, { target: { value: '200' } });
-    fireEvent.submit(desc.closest('form'));
-    await waitFor(() => expect(screen.getAllByText(/₹45,00,000/).length).toBeGreaterThan(0), { timeout: 8000 });
+    // Companies now price a requirement through the PM -> FM -> admin estimate workflow (covered by the API suites);
+    // here the quotation is filed directly and the page must show it back.
+    await text(/Assign PM & FM for Estimate/);
+    const reqs = await api.getRequirements();
+    const target = reqs.find((r) => r.title === TITLE);
+    await estimate(target.id, APEX, 4500000);
     market.unmount();
+    const again = render(<App at={`/company-admin/marketplace/${target.id}`} />);
+    await text(/Your quotation/);
+    await waitFor(() => expect(screen.getAllByText(/₹45,00,000/).length).toBeGreaterThan(0), { timeout: 8000 });
+    again.unmount();
 
     await signInAs('admin@ltinfra.com');
     const list = await api.getRequirements();
     const req = list.find((r) => r.title === TITLE);
-    const q2 = await api.submitQuotation(req.id, {
-      items: [{ description: 'Turnkey', unit: 'lump sum', quantity: 1, rate: 5200000 }],
-      durationDays: 180
-    });
-    expect(q2.error).toBeUndefined();
+    await estimate(req.id, LT, 5200000);
 
     // L&T cannot see Apex's quotation in the UI (it only sees its own)
     const ltView = render(<App at={`/company-admin/marketplace/${req.id}`} />);

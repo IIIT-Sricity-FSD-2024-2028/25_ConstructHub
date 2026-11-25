@@ -20,15 +20,17 @@ export default function ClientProjectProgress() {
   const [myProjects, setMyProjects] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [progress, setProgress] = useState(null);
+  const [billedToDate, setBilledToDate] = useState(0);
 
 
 
   async function loadData() {
     if (!user) return;
-    const [allProjects, allTasks, allReports] = await Promise.all([
+    const [allProjects, allTasks, allReports, allBills] = await Promise.all([
       api.getProjects(user.companyId),
       api.getTasks(user.companyId),
-      api.getReports(user.companyId)
+      api.getReports(user.companyId),
+      api.getBills()
     ]);
 
     // A client can have several projects (one per awarded requirement).
@@ -38,6 +40,11 @@ export default function ClientProjectProgress() {
     setMyProjects(mine);
     const activeProject = mine.find((p) => p.id === selectedId) || mine[0] || (allProjects && allProjects[0]) || null;
     setProject(activeProject);
+
+    // What the client has been invoiced so far (declined bills do not count). The contractor's internal spend is never shown here.
+    setBilledToDate((allBills || [])
+      .filter((b) => activeProject && b.projectId === activeProject.id && !['declined', 'rejected'].includes(String(b.status || '').toLowerCase()))
+      .reduce((sum, b) => sum + (Number(b.amount) || 0), 0));
 
     if (activeProject) {
       const prog = await api.getProjectProgress(activeProject.id);
@@ -122,13 +129,13 @@ export default function ClientProjectProgress() {
             <div style={{ fontSize: '16px', fontWeight: 700, marginTop: '2px' }}>{formatCurrency(project.contractValue ?? project.budget)}</div>
           </div>
           <div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Utilized Budget</div>
-            <div style={{ fontSize: '16px', fontWeight: 700, marginTop: '2px' }}>{formatCurrency(project.spent || 0)}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Billed to Date</div>
+            <div style={{ fontSize: '16px', fontWeight: 700, marginTop: '2px' }}>{formatCurrency(billedToDate)}</div>
           </div>
           <div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Remaining Contract</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Still to be Billed</div>
             <div style={{ fontSize: '16px', fontWeight: 700, marginTop: '2px' }}>
-              {formatCurrency(Math.max(0, (project.contractValue ?? project.budget ?? 0) - (project.spent || 0)))}
+              {formatCurrency(Math.max(0, (project.contractValue ?? project.budget ?? 0) - billedToDate))}
             </div>
           </div>
           <div>
