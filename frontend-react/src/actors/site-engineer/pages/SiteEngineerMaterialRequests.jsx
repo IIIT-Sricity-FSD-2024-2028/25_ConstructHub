@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { api } from '../../../services/api';
-import { formatDate } from '../../../services/utils';
+import { formatDate, localDateISO } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
 import Modal from '../../../components/common/Modal';
@@ -12,7 +12,7 @@ import {
 import { PRIORITY_BADGE } from '../../../components/procurement/procurementUiData';
 
 const blankItem = () => ({ description: '', unit: '', quantity: '', specification: '' });
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDateISO();
 
 export default function SiteEngineerMaterialRequests() {
   const { user } = useOutletContext();
@@ -44,7 +44,8 @@ export default function SiteEngineerMaterialRequests() {
   useEffect(() => {
     if (!user) return;
     Promise.all([api.getProjects(user.companyId), api.getTasks(user.companyId)]).then(([ps, ts]) => {
-      const mine = new Set((ts || []).filter((t) => t.assignedTo === user.id).map((t) => t.projectId));
+      // only projects where this engineer still has unfinished work (the server enforces the same rule)
+      const mine = new Set((ts || []).filter((t) => t.assignedTo === user.id && t.status !== 'Completed').map((t) => t.projectId));
       setProjects((ps || []).filter((p) => mine.has(p.id) && p.status !== 'Completed'));
     });
   }, [user]);
@@ -107,6 +108,11 @@ export default function SiteEngineerMaterialRequests() {
           <Plus size={15} /> New request
         </button>
       </div>
+      {projects.length === 0 && (
+        <div className="form-hint" style={{ marginBottom: 12 }}>
+          You have no unfinished tasks on any project, so you cannot request materials right now. Your project manager assigns tasks.
+        </div>
+      )}
 
       <div className="module-tabs">
         <button type="button" className={`module-tab ${tab === 'requests' ? 'active' : ''}`} onClick={() => setTab('requests')}>My requests</button>

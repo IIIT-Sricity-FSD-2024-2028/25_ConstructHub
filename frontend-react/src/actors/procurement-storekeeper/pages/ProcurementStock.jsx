@@ -159,14 +159,17 @@ export default function ProcurementStock() {
               <label className="form-label">Issued to (site engineer)</label>
               <select className="form-select" aria-label="Issued to" value={issuedTo} onChange={(e) => setIssuedTo(e.target.value)}>
                 <option value="">Not specified</option>
-                {engineers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                {/* only engineers with unfinished work on this project (the server refuses anyone else) */}
+                {engineers
+                  .filter((u) => tasks.some((t) => t.projectId === issueProject && t.assignedTo === u.id && t.status !== 'Completed'))
+                  .map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </div>
             <div className="form-group">
               <label className="form-label">For task</label>
               <select className="form-select" aria-label="For task" value={taskId} onChange={(e) => setTaskId(e.target.value)}>
                 <option value="">Not specified</option>
-                {tasks.filter((t) => t.projectId === issueProject).map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+                {tasks.filter((t) => t.projectId === issueProject && t.status !== 'Completed' && (!issuedTo || t.assignedTo === issuedTo)).map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
               </select>
             </div>
           </div>

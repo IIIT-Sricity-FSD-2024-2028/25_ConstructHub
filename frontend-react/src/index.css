@@ -573,10 +573,44 @@ input:checked + .toggle-slider::before, input:checked + .slider::before { transf
 .gap-12 { gap: 12px; }
 
 /* ── Auth & Contact ──────────────────────────────────────── */
-.login-layout { min-height: 100vh; display: grid; grid-template-columns: minmax(420px, 500px) 1fr; background: var(--white); }
-.login-left { padding: 48px 56px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid var(--border); }
-.login-panel { width: 100%; max-width: 400px; margin: 0 auto; }
-.login-right { background: var(--navy); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 56px; color: white; position: relative; overflow: hidden; }
+.login-layout { min-height: 100vh; display: grid; grid-template-columns: minmax(420px, 520px) 1fr; background: var(--white); }
+.login-left { padding: 40px clamp(28px, 4vw, 56px); display: flex; flex-direction: column; justify-content: center; }
+.login-panel { width: 100%; max-width: 390px; margin: 0 auto; }
+.login-right { background: var(--white); padding: 18px 18px 18px 0; display: flex; }
+.login-visual-frame {
+  position: relative; flex: 1; border-radius: 26px; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+}
+.login-visual-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.login-visual-scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.06) 0%, rgba(15, 23, 42, 0.35) 52%, rgba(8, 21, 38, 0.88) 100%);
+}
+.login-visual-content {
+  position: relative; z-index: 2; padding: clamp(28px, 3.6vw, 44px); color: #ffffff; max-width: 560px;
+}
+.login-visual-pill {
+  display: inline-block; padding: 5px 12px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16); backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.25); font-size: 11.5px; font-weight: 600;
+  color: #fed7aa; margin-bottom: 14px;
+}
+.login-visual-content h2 {
+  font-family: var(--font-head); font-size: clamp(26px, 2.6vw, 34px); font-weight: 500;
+  line-height: 1.15; letter-spacing: -0.025em; margin-bottom: 12px; color: #ffffff;
+}
+.login-visual-content p {
+  font-size: 14px; line-height: 1.6; color: rgba(255, 255, 255, 0.82); margin-bottom: 20px;
+}
+.login-visual-steps {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.login-visual-steps span {
+  font-size: 11.5px; font-weight: 600; color: #ffffff;
+  background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2); padding: 5px 11px; border-radius: 999px;
+}
 .login-title { font-family: var(--font-head); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; color: var(--text); }
 .login-sub { color: var(--text-muted); font-size: 13.5px; margin-bottom: 24px; }
 .login-form-card { background: white; border: 1px solid var(--border); border-radius: 20px; padding: 26px; }

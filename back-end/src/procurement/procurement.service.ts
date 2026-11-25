@@ -196,6 +196,9 @@ export class ProcurementService {
     if (!project || !this.readableProjectIds(user).has(project.id)) {
       throw new NotFoundException('Project not found, or you have no tasks on it.');
     }
+    if (user.role === 'site_engineer' && !this.tasks.hasOpenTask(user.userId, project.id)) {
+      throw new ForbiddenException('You can only request materials for a project where you have an unfinished task assigned to you.');
+    }
     if (project.status === 'Completed') throw new BadRequestException('This project is completed; materials can no longer be requested.');
     if (dto.neededBy && dto.neededBy < today()) throw new BadRequestException('"Needed by" cannot be in the past.');
     const seen = new Set<string>();
@@ -585,11 +588,16 @@ export class ProcurementService {
     if (dto.issuedTo) {
       const u = this.users.findById(dto.issuedTo);
       if (!u || u.companyId !== user.companyId || u.role !== 'site_engineer') throw new BadRequestException('Material can only be issued to a site engineer of your company.');
+      if (!this.tasks.hasOpenTask(u.id, projectId)) {
+        throw new BadRequestException(`${u.name} has no unfinished task on this project, so material cannot be issued to them.`);
+      }
       issuedToName = u.name;
     }
     if (dto.taskId) {
       const t = this.tasks.findById(dto.taskId);
       if (!t || t.projectId !== projectId) throw new BadRequestException('That task does not belong to this project.');
+      if (t.status === 'Completed') throw new BadRequestException('That task is already completed.');
+      if (dto.issuedTo && t.assignedTo !== dto.issuedTo) throw new BadRequestException('That task is not assigned to the engineer receiving the material.');
     }
 
     const issueId = this.stock.nextIssueId();

@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
+import { UsersRepository } from '../users/users.repository';
 import { MessagesService } from './messages.service';
 import { CreateMessageDto } from './create-message.dto';
 import { UpdateMessageDto } from './update-message.dto';
@@ -17,14 +19,32 @@ export class MessagesController {
   constructor(
     private readonly service: MessagesService,
     private readonly projectsRepo: ProjectsRepository,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
-  /** Clients can only touch messages they sent or received. */
-  private assertClientOwnsMessage(user: UserContext | undefined, message: any) {
-    if (!user) return;
-    const mine = [message.from, message.to, message.senderId, message.receiverId].includes(user.userId);
-    if (!mine) throw new ForbiddenException('Access denied. Client can only access their own direct messages.');
+  /** Messages are private conversations: only the sender and the receiver see them (the superuser sees all). */
+  private isParticipant(user: UserContext, m: any) {
+    return [m.from, m.to, m.senderId, m.receiverId].includes(user.userId);
   }
+
+  /** Who may this user write to? Colleagues of the same company, and the clients of the company's projects (and back). */
+  private assertCanMessage(user: UserContext, receiverId: string, companyId: string) {
+    const users = this.moduleRef.get(UsersRepository, { strict: false });
+    const receiver = users.findById(receiverId);
+    if (!receiver || receiver.status === 'inactive') throw new NotFoundException('Recipient not found.');
+    if (receiver.id === user.userId) throw new BadRequestException('You cannot send a message to yourself.');
+    if (TenantHelper.isSuperuser(user)) return;
+    const projects = this.projectsRepo.findAll();
+    if (receiver.role === 'client') {
+      const ok = projects.some((p) => p.companyId === companyId && p.clientId === receiver.id) || receiver.invitedByCompanyId === companyId;
+      if (TenantHelper.isClient(user) || !ok) throw new ForbiddenException('You can only message clients of your company\'s projects.');
+      return;
+    }
+    if (receiver.role === 'superuser' || receiver.companyId !== companyId) {
+      throw new ForbiddenException('You can only message people of the same company.');
+    }
+  }
+
 
   @Get()
   @Roles('superuser', 'company_admin', 'project_manager', 'finance_manager', 'site_engineer', 'client', 'procurement_storekeeper')
@@ -34,12 +54,7 @@ export class MessagesController {
     if (TenantHelper.isSuperuser(user) || !user) {
       return this.service.findAll();
     }
-    if (TenantHelper.isClient(user)) {
-      return this.service.findAll().filter(
-        (m) => m.from === user.userId || m.to === user.userId || m.senderId === user.userId || m.receiverId === user.userId
-      );
-    }
-    return this.service.findByCompanyId(user.companyId);
+    return this.service.findAll().filter((m) => this.isParticipant(user, m));
   }
 
   @Get(':id')
@@ -51,13 +66,7 @@ export class MessagesController {
   findOne(@Param('id') id: string, @CurrentUser() user?: UserContext) {
     const message = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
-      if (TenantHelper.isClient(user)) {
-        if (message.from !== user.userId && message.to !== user.userId && message.senderId !== user.userId && message.receiverId !== user.userId) {
-          throw new ForbiddenException('Access denied. Client can only view direct messages.');
-        }
-      } else {
-        TenantHelper.validateCompanyAccess(user, message.companyId);
-      }
+      if (!this.isParticipant(user, message)) throw new ForbiddenException('Access denied. You can only view your own conversations.');
     }
     return message;
   }
@@ -72,8 +81,14 @@ export class MessagesController {
     const companyId = TenantHelper.isClient(user)
       ? TenantHelper.resolveClientCompanyId(user, dto.companyId, this.projectsRepo.findAll())
       : TenantHelper.getAuthoritativeCompanyId(user, dto.companyId);
-    const from = user ? user.userId : (dto.from || dto.senderId);
-    const payload = { ...dto, companyId, from: from || dto.from };
+    const receiverId = dto.receiverId || dto.to;
+    if (!receiverId) throw new BadRequestException('Choose who the message is for.');
+    if (user) this.assertCanMessage(user, receiverId, companyId);
+    const text = String((dto as any).text ?? (dto as any).content ?? '').trim();
+    if (!text) throw new BadRequestException('The message is empty.');
+    // The sender is always the signed-in user, whatever the body says.
+    const senderName = user ? (this.moduleRef.get(UsersRepository, { strict: false }).findById(user.userId)?.name || dto.senderName) : dto.senderName;
+    const payload = { ...dto, text, companyId, from: user?.userId || dto.from, senderId: user?.userId || dto.senderId, senderName, fromName: senderName, to: receiverId, receiverId };
     return this.service.create(payload);
   }
 
@@ -86,20 +101,14 @@ export class MessagesController {
   update(@Param('id') id: string, @Body() dto: UpdateMessageDto, @CurrentUser() user?: UserContext) {
     const existing = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
-      if (TenantHelper.isClient(user)) {
-        this.assertClientOwnsMessage(user, existing);
-      } else {
-        TenantHelper.validateCompanyAccess(user, existing.companyId);
-      }
+      if (!this.isParticipant(user, existing)) throw new ForbiddenException('Access denied. You can only change your own conversations.');
+      const isSender = existing.from === user.userId || existing.senderId === user.userId;
+      // The sender may correct the text; either side may mark it read. Nobody rewrites who sent it or to whom.
+      const allowed = isSender ? ['text', 'content', 'read'] : ['read'];
+      const extra = Object.keys(dto).filter((k) => (dto as any)[k] !== undefined && !allowed.includes(k));
+      if (extra.length) throw new ForbiddenException(`You cannot change ${extra.join(', ')} of this message.`);
     }
-    const companyId = TenantHelper.isSuperuser(user)
-      ? (dto.companyId !== undefined ? dto.companyId : existing.companyId)
-      : TenantHelper.isClient(user)
-        ? existing.companyId
-        : (user ? user.companyId : existing.companyId);
-
-    const payload = { ...dto, companyId };
-    return this.service.update(id, payload);
+    return this.service.update(id, { ...dto, companyId: existing.companyId });
   }
 
   @Delete(':id')
@@ -111,10 +120,8 @@ export class MessagesController {
   remove(@Param('id') id: string, @CurrentUser() user?: UserContext) {
     const existing = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
-      if (TenantHelper.isClient(user)) {
-        this.assertClientOwnsMessage(user, existing);
-      } else {
-        TenantHelper.validateCompanyAccess(user, existing.companyId);
+      if (existing.from !== user.userId && existing.senderId !== user.userId) {
+        throw new ForbiddenException('Only the sender can delete a message.');
       }
     }
     return this.service.remove(id);

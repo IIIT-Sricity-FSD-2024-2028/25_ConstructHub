@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { attachStore } from '../utils/json-store';
-import { nextSequentialId } from '../utils/ids';
+import { nextSequentialId, today } from '../utils/ids';
 
 // ───────────────────────── types ─────────────────────────
 
@@ -374,7 +374,7 @@ export class ProcurementSettingsRepository {
   }
   save(companyId: string, poApprovalLimit: number) {
     const i = this.data.findIndex((s) => s.companyId === companyId);
-    const rec = { companyId, poApprovalLimit, updatedAt: new Date().toISOString().slice(0, 10) };
+    const rec = { companyId, poApprovalLimit, updatedAt: today() };
     if (i === -1) this.data.push(rec); else this.data[i] = rec;
     return rec;
   }

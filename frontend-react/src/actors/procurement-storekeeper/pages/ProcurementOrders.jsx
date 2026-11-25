@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { PackageCheck, Ban, Paperclip, Download } from 'lucide-react';
 import { api } from '../../../services/api';
-import { formatDate } from '../../../services/utils';
+import { formatDate, localDateISO } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
 import Modal from '../../../components/common/Modal';
@@ -9,7 +9,7 @@ import { PoStatusBadge } from '../../../components/procurement/ProcurementUi';
 import { inr, qtyText } from '../../../components/procurement/procurementUiData';
 import { PurchaseOrderDetail } from '../../finance-manager/pages/FinanceManagerPurchaseOrders';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDateISO();
 
 export default function ProcurementOrders() {
   const toast = useToast();

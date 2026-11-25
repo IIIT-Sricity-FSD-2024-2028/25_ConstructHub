@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
+import { UsersRepository } from '../users/users.repository';
 import { NotificationsService } from './notifications.service';
 import { CreateNotificationDto } from './create-notification.dto';
 import { UpdateNotificationDto } from './update-notification.dto';
@@ -17,6 +19,7 @@ export class NotificationsController {
   constructor(
     private readonly service: NotificationsService,
     private readonly projectsRepo: ProjectsRepository,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   @Get()
@@ -42,10 +45,7 @@ export class NotificationsController {
     const notification = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
       if (notification.userId !== user.userId) {
-        if (TenantHelper.isClient(user)) {
-          throw new ForbiddenException('Access denied. You can only view your own notifications.');
-        }
-        TenantHelper.validateCompanyAccess(user, notification.companyId);
+        throw new ForbiddenException('Access denied. You can only view your own notifications.');
       }
     }
     return notification;
@@ -61,6 +61,18 @@ export class NotificationsController {
     const companyId = TenantHelper.isClient(user)
       ? TenantHelper.resolveClientCompanyId(user, dto.companyId, this.projectsRepo.findAll())
       : TenantHelper.getAuthoritativeCompanyId(user, dto.companyId);
+    // A notification can only be sent to someone you work with: a colleague, or the client of one of the company's projects.
+    if (user && !TenantHelper.isSuperuser(user)) {
+      const target = (dto as any).userId ? this.moduleRef.get(UsersRepository, { strict: false }).findById((dto as any).userId) : null;
+      if (!target) throw new NotFoundException('Recipient not found.');
+      if (target.id !== user.userId) {
+        const projects = this.projectsRepo.findAll();
+        const ok = target.role === 'client'
+          ? !TenantHelper.isClient(user) && (projects.some((p) => p.companyId === companyId && p.clientId === target.id) || target.invitedByCompanyId === companyId)
+          : target.role !== 'superuser' && target.companyId === companyId;
+        if (!ok) throw new BadRequestException('You can only notify people you work with.');
+      }
+    }
     const payload = { ...dto, companyId };
     return this.service.create(payload);
   }
@@ -75,10 +87,7 @@ export class NotificationsController {
     const existing = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
       if (existing.userId !== user.userId) {
-        if (TenantHelper.isClient(user)) {
-          throw new ForbiddenException('Access denied. You can only update your own notifications.');
-        }
-        TenantHelper.validateCompanyAccess(user, existing.companyId);
+        throw new ForbiddenException('Access denied. You can only update your own notifications.');
       }
     }
     const companyId = TenantHelper.isSuperuser(user)

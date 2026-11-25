@@ -1,32 +1,71 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, Settings, LogOut, X, Trash2, Menu } from 'lucide-react';
+import {
+  Bell,
+  Settings,
+  LogOut,
+  X,
+  Trash2,
+  Menu,
+  CheckCheck,
+  Receipt,
+  ClipboardCheck,
+  Package,
+  MessageSquare,
+  Sparkles,
+  Inbox
+} from 'lucide-react';
 import ConstructHubLogo from '../common/ConstructHubLogo';
 import { api } from '../../services/api';
 import { roleLabel, avatarColor } from '../../services/utils';
 import Modal from '../common/Modal';
 
+function getNotifVisual(n) {
+  const hay = `${n?.type || ''} ${n?.title || ''}`.toLowerCase();
+  if (hay.includes('bill') || hay.includes('pay') || hay.includes('budget') || hay.includes('expense') || hay.includes('top-up')) {
+    return { Icon: Receipt, bg: '#fff7ed', color: '#ea580c' };
+  }
+  if (hay.includes('milestone') || hay.includes('task') || hay.includes('report') || hay.includes('project') || hay.includes('contract')) {
+    return { Icon: ClipboardCheck, bg: '#ecfdf5', color: '#059669' };
+  }
+  if (hay.includes('material') || hay.includes('purchase') || hay.includes('stock') || hay.includes('order') || hay.includes('quote') || hay.includes('quotation')) {
+    return { Icon: Package, bg: '#eff6ff', color: '#2563eb' };
+  }
+  if (hay.includes('message') || hay.includes('chat') || hay.includes('feedback')) {
+    return { Icon: MessageSquare, bg: '#f5f3ff', color: '#7c3aed' };
+  }
+  return { Icon: Sparkles, bg: '#f1f5f9', color: '#475569' };
+}
+
 export default function SharedHeader({ user, onLogout, onToggleMobileNav }) {
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [notifFilter, setNotifFilter] = useState('all');
   const [notifications, setNotifications] = useState([]);
   const [selectedNotif, setSelectedNotif] = useState(null);
 
   const menuRef = useRef(null);
   const notifRef = useRef(null);
 
-  useEffect(() => {
-    if (user?.id) {
-      loadNotifications();
-    }
-  }, [user?.id]);
+  const userId = user?.id;
+  const loadNotifications = useCallback(async () => {
+    if (!userId) return;
+    const notifs = await api.getNotifications(userId);
+    setNotifications(Array.isArray(notifs) ? notifs : []);
+  }, [userId]);
 
-  async function loadNotifications() {
-    if (!user) return;
-    const notifs = await api.getNotifications(user.id);
-    setNotifications(notifs || []);
-  }
+  // Initial load + lightweight 20s background poll (pauses when tab is hidden)
+  useEffect(() => {
+    if (!userId) return;
+    const first = setTimeout(() => { void loadNotifications(); }, 0);
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void loadNotifications();
+      }
+    }, 20000);
+    return () => { clearTimeout(first); clearInterval(timer); };
+  }, [userId, loadNotifications]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -47,34 +86,49 @@ export default function SharedHeader({ user, onLogout, onToggleMobileNav }) {
     else api.logout();
   }
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  function handleToggleNotif() {
+    const next = !notifOpen;
+    setNotifOpen(next);
+    if (next) void loadNotifications();
+  }
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+  const displayedNotifs = notifFilter === 'unread'
+    ? notifications.filter((n) => !n.read)
+    : notifications;
 
   const initials = user?.name
-    ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+    ? user.name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
     : 'CH';
 
   const avatarBg = avatarColor(initials);
 
   async function handleNotificationClick(notif) {
-    if (!notif.read) {
+    if (!notif.read && notif.id) {
+      setNotifications((prev) => prev.map((x) => (x.id === notif.id ? { ...x, read: true } : x)));
       await api.markNotificationRead(notif.id);
-      loadNotifications();
     }
     setSelectedNotif(notif);
     setNotifOpen(false);
   }
 
+  async function handleMarkAllRead() {
+    const unread = notifications.filter((n) => !n.read && n.id);
+    if (!unread.length) return;
+    setNotifications((prev) => prev.map((x) => ({ ...x, read: true })));
+    await Promise.all(unread.map((n) => api.markNotificationRead(n.id)));
+  }
+
   async function handleClearNotifications() {
     if (!notifications.length) return;
-    if (window.confirm('Are you sure you want to clear all notifications?')) {
-      await api.clearNotifications(user?.id);
-      setNotifications([]);
-    }
+    await api.clearNotifications(user?.id);
+    await loadNotifications();
   }
 
   async function handleDeleteSingleNotification(notifId) {
-    await api.deleteNotification(notifId);
+    if (!notifId) return;
     setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+    await api.deleteNotification(notifId);
   }
 
   const rolePath = user?.role ? `/${user.role.replaceAll('_', '-')}` : '/login';
@@ -101,70 +155,234 @@ export default function SharedHeader({ user, onLogout, onToggleMobileNav }) {
         <div className="nav-center"></div>
 
         <div className="nav-right">
-          {/* Notification Button & Panel */}
+          {/* Notification Button & Redesigned Popover */}
           <div ref={notifRef} style={{ position: 'relative' }}>
             <button
               type="button"
               className="notif-btn"
-              onClick={() => setNotifOpen(!notifOpen)}
+              onClick={handleToggleNotif}
               title="Notifications"
+              aria-label="Notifications"
             >
-              <Bell size={19} color="var(--text-muted)" />
-              {unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
+              <Bell size={19} color={notifOpen ? 'var(--primary)' : 'var(--text-muted)'} />
+              {unreadCount > 0 && <span className="notif-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
             </button>
 
             {notifOpen && (
-              <div className="notif-panel" style={{ display: 'block' }}>
-                <div className="notif-header">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <strong>Notifications</strong>
-                    {unreadCount > 0 && (
-                      <span className="badge badge-red">{unreadCount} New</span>
-                    )}
+              <div
+                className="notif-panel"
+                style={{
+                  display: 'block',
+                  width: 390,
+                  maxWidth: 'calc(100vw - 24px)',
+                  borderRadius: 16,
+                  border: '1px solid #e5e7eb',
+                  boxShadow: '0 20px 48px rgba(15, 23, 42, 0.14)',
+                  overflow: 'hidden',
+                  background: '#ffffff'
+                }}
+              >
+                {/* Header */}
+                <div
+                  style={{
+                    padding: '14px 16px 10px',
+                    borderBottom: '1px solid #f1f5f9',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    background: '#ffffff'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <strong style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Notifications</strong>
+                      {unreadCount > 0 && (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            background: '#fff7ed',
+                            color: '#ea580c',
+                            border: '1px solid #fed7aa'
+                          }}
+                        >
+                          {unreadCount} unread
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAllRead}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#475569',
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            padding: '4px 7px',
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4
+                          }}
+                          title="Mark all as read"
+                        >
+                          <CheckCheck size={13} /> Mark read
+                        </button>
+                      )}
+                      {notifications.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleClearNotifications}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#ea580c',
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            padding: '4px 7px',
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4
+                          }}
+                          title="Clear notifications"
+                        >
+                          <Trash2 size={12} /> Clear
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  {notifications.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleClearNotifications}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--primary)',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
-                      title="Clear all notifications"
-                    >
-                      <Trash2 size={13} /> Clear All
-                    </button>
-                  )}
+
+                  {/* All / Unread Segmented Pill */}
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      background: '#f1f5f9',
+                      borderRadius: 9,
+                      padding: 3,
+                      alignSelf: 'flex-start',
+                      gap: 2
+                    }}
+                  >
+                    {['all', 'unread'].map((tab) => {
+                      const active = notifFilter === tab;
+                      return (
+                        <button
+                          key={tab}
+                          type="button"
+                          onClick={() => setNotifFilter(tab)}
+                          style={{
+                            border: 'none',
+                            borderRadius: 7,
+                            padding: '4px 11px',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            background: active ? '#ffffff' : 'transparent',
+                            color: active ? '#0f172a' : '#64748b',
+                            boxShadow: active ? '0 1px 3px rgba(15,23,42,0.08)' : 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {tab === 'all' ? `All (${notifications.length})` : `Unread (${unreadCount})`}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                {notifications.length > 0 ? (
-                  <>
-                    <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
-                      {notifications.map((n) => (
+
+                {/* List */}
+                {displayedNotifs.length > 0 ? (
+                  <div style={{ maxHeight: 370, overflowY: 'auto' }}>
+                    {displayedNotifs.map((n, idx) => {
+                      const { Icon, bg, color } = getNotifVisual(n);
+                      return (
                         <div
-                          key={n.id}
-                          className={`notif-item ${n.read ? '' : 'notif-unread'}`}
+                          key={n.id || idx}
+                          onClick={() => handleNotificationClick(n)}
                           style={{
                             display: 'flex',
                             alignItems: 'flex-start',
-                            justifyContent: 'space-between',
-                            gap: '8px'
+                            gap: 11,
+                            padding: '12px 16px',
+                            borderBottom: '1px solid #f1f5f9',
+                            background: n.read ? '#ffffff' : '#fffaf5',
+                            cursor: 'pointer',
+                            transition: 'background 0.15s ease',
+                            position: 'relative'
                           }}
-                          onClick={() => handleNotificationClick(n)}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = n.read ? '#f8fafc' : '#fff7ed'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = n.read ? '#ffffff' : '#fffaf5'; }}
                         >
-                          <div style={{ flex: 1 }}>
-                            <strong>{n.title}</strong>
-                            <p>{n.body || n.message}</p>
-                            <small>{n.time || n.date}</small>
+                          <div
+                            style={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: 10,
+                              background: bg,
+                              color,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                              marginTop: 1
+                            }}
+                          >
+                            <Icon size={16} />
                           </div>
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                              {!n.read && (
+                                <span
+                                  style={{
+                                    width: 7,
+                                    height: 7,
+                                    borderRadius: '50%',
+                                    background: '#f97316',
+                                    flexShrink: 0
+                                  }}
+                                />
+                              )}
+                              <strong
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: n.read ? 600 : 700,
+                                  color: '#0f172a',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                {n.title}
+                              </strong>
+                            </div>
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: 12.5,
+                                lineHeight: 1.45,
+                                color: '#475569',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden'
+                              }}
+                            >
+                              {n.body || n.message}
+                            </p>
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, fontWeight: 500 }}>
+                              {n.time || n.date || 'Just now'}
+                            </div>
+                          </div>
+
                           <button
                             type="button"
                             onClick={(e) => {
@@ -174,26 +392,51 @@ export default function SharedHeader({ user, onLogout, onToggleMobileNav }) {
                             style={{
                               background: 'none',
                               border: 'none',
-                              color: 'var(--text-muted)',
+                              color: '#94a3b8',
                               cursor: 'pointer',
-                              padding: '4px',
-                              borderRadius: '4px',
+                              padding: 4,
+                              borderRadius: 6,
                               display: 'flex',
                               alignItems: 'center',
-                              opacity: 0.5
+                              flexShrink: 0
                             }}
-                            title="Delete notification"
-                            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.5')}
+                            title="Dismiss"
+                            onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = '#fef2f2'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none'; }}
                           >
                             <X size={14} />
                           </button>
                         </div>
-                      ))}
-                    </div>
-                  </>
+                      );
+                    })}
+                  </div>
                 ) : (
-                  <p className="notif-empty">No notifications</p>
+                  <div style={{ padding: '34px 20px', textAlign: 'center', color: '#64748b' }}>
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 12,
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#94a3b8',
+                        marginBottom: 10
+                      }}
+                    >
+                      <Inbox size={20} />
+                    </div>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0f172a' }}>
+                      {notifFilter === 'unread' ? 'All caught up' : 'No notifications yet'}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
+                      {notifFilter === 'unread'
+                        ? 'You have no unread updates right now.'
+                        : 'Updates on bills, milestones, and messages will appear here.'}
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -252,7 +495,7 @@ export default function SharedHeader({ user, onLogout, onToggleMobileNav }) {
         isOpen={!!selectedNotif}
         onClose={() => setSelectedNotif(null)}
         title={selectedNotif?.title || 'Notification Details'}
-        subtitle={`Sent: ${selectedNotif?.time || selectedNotif?.date || ''}`}
+        subtitle={`Sent: ${selectedNotif?.time || selectedNotif?.date || 'Just now'}`}
         footer={
           <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
             <button
@@ -314,7 +557,7 @@ export default function SharedHeader({ user, onLogout, onToggleMobileNav }) {
               </div>
             </div>
           ) : (
-            <p>{selectedNotif?.body || selectedNotif?.message}</p>
+            <p style={{ margin: 0, color: '#334155' }}>{selectedNotif?.body || selectedNotif?.message}</p>
           )}
         </div>
       </Modal>

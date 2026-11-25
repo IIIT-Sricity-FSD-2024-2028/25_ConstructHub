@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Send,
   Search,
@@ -14,6 +14,7 @@ import {
   Building2
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useToast } from '../../hooks/useToast';
 import { avatarColor, roleLabel } from '../../services/utils';
 import '../../styles/whatsapp-chat.css';
 
@@ -40,9 +41,10 @@ function parseMessageTimestamp(m) {
 
 /**
  * `contactIds` (optional) limits who can be chatted with, e.g. a project workspace passes only the people
- * on that project. Without it the whole company directory is offered, as before.
+ * on that project. Without it the whole company directory is offered.
  */
 export default function MessagesChat({ user, contactIds }) {
+  const toast = useToast();
   const contactKey = contactIds ? contactIds.join(',') : '';
   const [contacts, setContacts] = useState([]);
   const [activeContact, setActiveContact] = useState(null);
@@ -60,30 +62,41 @@ export default function MessagesChat({ user, contactIds }) {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  async function loadInitialData() {
-    if (!user) return;
+  const userId = user?.id;
+  const userCompanyId = user?.companyId;
+
+  const refreshMessages = useCallback(async () => {
+    if (!userId) return;
+    const allMsgs = await api.getMessages();
+    setMessages(Array.isArray(allMsgs) ? allMsgs : []);
+  }, [userId]);
+
+  const loadInitialData = useCallback(async () => {
+    if (!userId) return;
     const [allUsers, allMsgs, allProjects] = await Promise.all([
-      api.getUsers(user.companyId),
-      api.getMessages(user.companyId),
-      api.getProjects(user.companyId)
+      api.getUsers(userCompanyId),
+      api.getMessages(),
+      api.getProjects(userCompanyId)
     ]);
 
     const scope = contactKey ? new Set(contactKey.split(',')) : null;
     const filteredUsers = (allUsers || []).filter(
-      (u) => u.id !== user.id && u.status === 'active' && u.role !== 'superuser' && (!scope || scope.has(u.id))
+      (u) => u.id !== userId && u.status === 'active' && u.role !== 'superuser' && (!scope || scope.has(u.id))
     );
 
     setContacts(filteredUsers);
-    setMessages(allMsgs || []);
-    setProjects(allProjects || []);
+    setMessages(Array.isArray(allMsgs) ? allMsgs : []);
+    setProjects(Array.isArray(allProjects) ? allProjects : []);
 
-    if (filteredUsers.length > 0 && !activeContact) {
+    setActiveContact((prev) => {
+      if (prev && filteredUsers.some((u) => u.id === prev.id)) return prev;
+      if (filteredUsers.length === 0) return null;
       const sortedByLatest = [...filteredUsers].sort((a, b) => {
         const getLatest = (cId) => {
           const thread = (allMsgs || []).filter((m) => {
-            const isMe = m.senderId === user.id || m.from === user.id;
+            const isMe = m.senderId === userId || m.from === userId;
             const isC = m.senderId === cId || m.from === cId;
-            const isToMe = m.receiverId === user.id || m.to === user.id;
+            const isToMe = m.receiverId === userId || m.to === userId;
             const isToC = m.receiverId === cId || m.to === cId;
             return (isMe && isToC) || (isC && isToMe);
           });
@@ -93,25 +106,25 @@ export default function MessagesChat({ user, contactIds }) {
         };
         return getLatest(b.id) - getLatest(a.id);
       });
-      setActiveContact(sortedByLatest[0]);
-    }
-  }
+      return sortedByLatest[0];
+    });
+  }, [userId, userCompanyId, contactKey]);
 
+  // Initial load + 8s background polling for live incoming replies (pauses when tab is hidden)
   useEffect(() => {
-    void Promise.resolve().then(() => loadInitialData());
-  }, [user, contactKey]);
-
-  async function refreshMessages() {
-    if (!user) return;
-    const allMsgs = await api.getMessages(user.companyId);
-    setMessages(allMsgs || []);
-  }
+    const first = setTimeout(() => { void loadInitialData(); }, 0);
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void refreshMessages();
+      }
+    }, 8000);
+    return () => { clearTimeout(first); clearInterval(timer); };
+  }, [loadInitialData, refreshMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, activeContact]);
+  }, [messages.length, activeContact?.id]);
 
-  // Handle contact click
   function selectContact(c) {
     setActiveContact(c);
     setMobileChatOpen(true);
@@ -121,7 +134,6 @@ export default function MessagesChat({ user, contactIds }) {
     setTimeout(() => inputRef.current?.focus(), 100);
   }
 
-  // Send message
   async function handleSendMessage(e) {
     e?.preventDefault();
     if (!inputText.trim() || !activeContact || !user) return;
@@ -130,16 +142,20 @@ export default function MessagesChat({ user, contactIds }) {
     const dateStr = now.toLocaleDateString('en-CA');
     const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const fullTimestamp = `${dateStr} ${timeStr}`;
+    const trimmed = inputText.trim();
+
+    // Route multi-company client messages to the recipient's company workspace
+    const targetCompanyId = user.companyId || activeContact.companyId || '';
 
     const newMsg = {
-      companyId: user.companyId || '',
+      companyId: targetCompanyId,
       senderId: user.id,
       senderName: user.name,
       from: user.id,
       to: activeContact.id,
       receiverId: activeContact.id,
       receiverName: activeContact.name,
-      text: inputText.trim(),
+      text: trimmed,
       timestamp: fullTimestamp,
       date: dateStr,
       time: timeStr
@@ -148,25 +164,31 @@ export default function MessagesChat({ user, contactIds }) {
     setInputText('');
     setShowEmojiBar(false);
 
-    await api.sendMessage(newMsg);
+    const sent = await api.sendMessage(newMsg);
+    if (sent && sent.error) {
+      setInputText(trimmed);
+      toast.error(sent.message || 'Message could not be sent.');
+      return;
+    }
     await api.createNotification({
       userId: activeContact.id,
+      companyId: activeContact.companyId || targetCompanyId,
+      type: 'message',
       title: `Message from ${user.name}`,
-      body: inputText.trim().substring(0, 60),
-      time: 'just now',
+      body: trimmed.substring(0, 80),
+      date: dateStr,
+      time: 'Just now',
       read: false
     });
 
     await refreshMessages();
   }
 
-  // Insert emoji
   function handleInsertEmoji(emoji) {
     setInputText((prev) => prev + emoji);
     inputRef.current?.focus();
   }
 
-  // Date and Time formatting helpers
   function formatTime(timestamp) {
     if (!timestamp) return '';
     const parts = timestamp.split(' ');
@@ -201,17 +223,19 @@ export default function MessagesChat({ user, contactIds }) {
     return datePart;
   }
 
+  // Only show role filter chips that actually have matching contacts
+  const roleChips = [
+    { key: 'all', label: 'All', match: () => true },
+    { key: 'admins', label: 'Managers', match: (c) => c.role === 'company_admin' || c.role === 'project_manager' },
+    { key: 'engineers', label: 'Engineers', match: (c) => c.role === 'site_engineer' },
+    { key: 'finance', label: 'Finance', match: (c) => c.role === 'finance_manager' },
+    { key: 'procurement', label: 'Procurement', match: (c) => c.role === 'procurement_storekeeper' },
+    { key: 'clients', label: 'Clients', match: (c) => c.role === 'client' }
+  ].filter((chip) => chip.key === 'all' || contacts.some(chip.match));
 
-  // Filter contacts by category tab
-  const categoryFilteredContacts = contacts.filter((c) => {
-    if (categoryFilter === 'engineers') return c.role === 'site_engineer';
-    if (categoryFilter === 'clients') return c.role === 'client';
-    if (categoryFilter === 'finance') return c.role === 'finance_manager';
-    if (categoryFilter === 'admins') return c.role === 'company_admin' || c.role === 'project_manager';
-    return true;
-  });
+  const activeChip = roleChips.find((ch) => ch.key === categoryFilter) || roleChips[0];
+  const categoryFilteredContacts = contacts.filter(activeChip.match);
 
-  // Search filter
   const displayedContacts = categoryFilteredContacts.filter((c) => {
     const q = searchQuery.toLowerCase();
     return (
@@ -221,7 +245,6 @@ export default function MessagesChat({ user, contactIds }) {
     );
   });
 
-  // Helper to get latest message timestamp with a contact
   function getLatestMsgTime(cId) {
     const thread = messages.filter((m) => {
       const isMe = m.senderId === user.id || m.from === user.id;
@@ -235,12 +258,8 @@ export default function MessagesChat({ user, contactIds }) {
     return parseMessageTimestamp(sorted[0]);
   }
 
-  // Sort contacts so the one with the latest message is on top of the sidebar list
-  const sortedContacts = [...displayedContacts].sort((a, b) => {
-    return getLatestMsgTime(b.id) - getLatestMsgTime(a.id);
-  });
+  const sortedContacts = [...displayedContacts].sort((a, b) => getLatestMsgTime(b.id) - getLatestMsgTime(a.id));
 
-  // Active conversation messages: sorted chronologically (oldest at top, newest added at the bottom)
   const conversationMessages = messages
     .filter((m) => {
       if (!activeContact) return false;
@@ -248,12 +267,10 @@ export default function MessagesChat({ user, contactIds }) {
       const isMeReceiver = m.receiverId === user.id || m.to === user.id;
       const isContactSender = m.senderId === activeContact.id || m.from === activeContact.id;
       const isContactReceiver = m.receiverId === activeContact.id || m.to === activeContact.id;
-
       return (isMeSender && isContactReceiver) || (isContactSender && isMeReceiver);
     })
     .sort((a, b) => parseMessageTimestamp(a) - parseMessageTimestamp(b));
 
-  // Contact's assigned projects
   const contactProjects = projects.filter(
     (p) =>
       p.managerId === activeContact?.id ||
@@ -265,9 +282,8 @@ export default function MessagesChat({ user, contactIds }) {
 
   return (
     <div className="wa-container">
-      {/* ── Left Sidebar (WhatsApp Contacts & Chats) ── */}
+      {/* Left Sidebar: Team & Project Contacts */}
       <div className={`wa-sidebar ${mobileChatOpen ? 'hide-mobile' : ''}`}>
-        {/* Sidebar Header */}
         <div className="wa-sidebar-header">
           <div className="wa-sidebar-user">
             <div
@@ -281,69 +297,55 @@ export default function MessagesChat({ user, contactIds }) {
               <span>{roleLabel(user?.role)}</span>
             </div>
           </div>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#64748b',
+              background: '#f1f5f9',
+              padding: '3px 8px',
+              borderRadius: 999
+            }}
+          >
+            {contacts.length} {contacts.length === 1 ? 'contact' : 'contacts'}
+          </span>
         </div>
 
-        {/* Search Bar */}
         <div className="wa-search-container">
           <div className="wa-search-bar">
-            <Search size={16} color="#8696a0" />
+            <Search size={15} color="#94a3b8" />
             <input
               type="text"
               className="wa-search-input"
-              placeholder="Search or start new chat"
+              placeholder="Search teammates or clients..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
             {searchQuery && (
               <X
                 size={14}
-                style={{ cursor: 'pointer', color: '#8696a0' }}
+                style={{ cursor: 'pointer', color: '#94a3b8' }}
                 onClick={() => setSearchQuery('')}
               />
             )}
           </div>
         </div>
 
-        {/* Filter Chips */}
-        <div className="wa-filter-chips">
-          <button
-            type="button"
-            className={`wa-chip ${categoryFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setCategoryFilter('all')}
-          >
-            All
-          </button>
-          <button
-            type="button"
-            className={`wa-chip ${categoryFilter === 'engineers' ? 'active' : ''}`}
-            onClick={() => setCategoryFilter('engineers')}
-          >
-            Engineers
-          </button>
-          <button
-            type="button"
-            className={`wa-chip ${categoryFilter === 'clients' ? 'active' : ''}`}
-            onClick={() => setCategoryFilter('clients')}
-          >
-            Clients
-          </button>
-          <button
-            type="button"
-            className={`wa-chip ${categoryFilter === 'finance' ? 'active' : ''}`}
-            onClick={() => setCategoryFilter('finance')}
-          >
-            Finance
-          </button>
-          <button
-            type="button"
-            className={`wa-chip ${categoryFilter === 'admins' ? 'active' : ''}`}
-            onClick={() => setCategoryFilter('admins')}
-          >
-            Admins
-          </button>
-        </div>
+        {roleChips.length > 2 && (
+          <div className="wa-filter-chips">
+            {roleChips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                className={`wa-chip ${activeChip.key === chip.key ? 'active' : ''}`}
+                onClick={() => setCategoryFilter(chip.key)}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* Chat List */}
         <div className="wa-chat-list">
           {sortedContacts.length > 0 ? (
             sortedContacts.map((c) => {
@@ -355,7 +357,7 @@ export default function MessagesChat({ user, contactIds }) {
                 return (isMe && isToC) || (isC && isToMe);
               });
 
-              const lastMsg = cMsgs.slice(-1)[0];
+              const lastMsg = [...cMsgs].sort((a, b) => parseMessageTimestamp(a) - parseMessageTimestamp(b)).slice(-1)[0];
               const isLastMsgMine = lastMsg && (lastMsg.senderId === user.id || lastMsg.from === user.id);
               const initials = c.name.substring(0, 2).toUpperCase();
               const isSelected = activeContact?.id === c.id;
@@ -386,9 +388,11 @@ export default function MessagesChat({ user, contactIds }) {
                     <div className="wa-chat-item-bottom">
                       <div className="wa-chat-preview">
                         {isLastMsgMine && (
-                          <CheckCheck size={14} color="#53bdeb" style={{ flexShrink: 0 }} />
+                          <CheckCheck size={13} color="#ea580c" style={{ flexShrink: 0 }} />
                         )}
-                        <span>{lastMsg ? lastMsg.text : 'Click to start chatting'}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {lastMsg ? lastMsg.text : 'Start a conversation'}
+                        </span>
                       </div>
                       <span className="wa-role-pill">{roleLabel(c.role)}</span>
                     </div>
@@ -397,17 +401,16 @@ export default function MessagesChat({ user, contactIds }) {
               );
             })
           ) : (
-            <div style={{ padding: 24, textAlign: 'center', color: '#8696a0', fontSize: 13 }}>
-              No contacts found
+            <div style={{ padding: 28, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+              No contacts match your search
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Right Panel (WhatsApp Chat Thread) ── */}
+      {/* Right Panel: Conversation Thread */}
       {activeContact ? (
         <div className={`wa-chat-main ${!mobileChatOpen ? 'hide-mobile' : ''}`}>
-          {/* WhatsApp Chat Header */}
           <div className="wa-chat-header">
             <div className="wa-chat-header-left" onClick={() => setShowInfoDrawer(!showInfoDrawer)}>
               <button
@@ -424,9 +427,9 @@ export default function MessagesChat({ user, contactIds }) {
                 <div
                   className="wa-avatar"
                   style={{
-                    width: 40,
-                    height: 40,
-                    fontSize: 14,
+                    width: 38,
+                    height: 38,
+                    fontSize: 13,
                     background: avatarColor(activeContact.name)
                   }}
                 >
@@ -437,6 +440,7 @@ export default function MessagesChat({ user, contactIds }) {
                 <strong>{activeContact.name}</strong>
                 <span className="wa-chat-header-status">
                   {roleLabel(activeContact.role)}
+                  {contactProjects.length > 0 ? ` · ${contactProjects[0].name}` : ''}
                 </span>
               </div>
             </div>
@@ -445,10 +449,10 @@ export default function MessagesChat({ user, contactIds }) {
               <button
                 type="button"
                 className="wa-action-icon"
-                title="Search in chat"
+                title="Search in conversation"
                 onClick={() => setShowInChatSearch(!showInChatSearch)}
               >
-                <Search size={18} />
+                <Search size={17} />
               </button>
               <button
                 type="button"
@@ -456,15 +460,14 @@ export default function MessagesChat({ user, contactIds }) {
                 title="Contact info"
                 onClick={() => setShowInfoDrawer(!showInfoDrawer)}
               >
-                <Info size={18} />
+                <Info size={17} />
               </button>
             </div>
           </div>
 
-          {/* Optional In-Chat Search Bar */}
           {showInChatSearch && (
             <div className="wa-inchat-search">
-              <Search size={15} color="#8696a0" />
+              <Search size={15} color="#94a3b8" />
               <input
                 type="text"
                 className="wa-search-input"
@@ -476,14 +479,13 @@ export default function MessagesChat({ user, contactIds }) {
               {inChatSearch && (
                 <X
                   size={14}
-                  style={{ cursor: 'pointer', color: '#8696a0' }}
+                  style={{ cursor: 'pointer', color: '#94a3b8' }}
                   onClick={() => setInChatSearch('')}
                 />
               )}
             </div>
           )}
 
-          {/* Messages Scroll Area */}
           <div className="wa-messages-thread">
             {conversationMessages.length > 0 ? (
               conversationMessages.map((m, idx) => {
@@ -492,8 +494,7 @@ export default function MessagesChat({ user, contactIds }) {
                 const prevDateHeader =
                   idx > 0 ? getDateHeader(conversationMessages[idx - 1].timestamp || conversationMessages[idx - 1].date) : null;
                 const showDateHeader = currentDateHeader !== prevDateHeader;
-
-                const isMatch = inChatSearch && m.text.toLowerCase().includes(inChatSearch.toLowerCase());
+                const isMatch = inChatSearch && (m.text || '').toLowerCase().includes(inChatSearch.toLowerCase());
 
                 return (
                   <React.Fragment key={m.id || idx}>
@@ -509,7 +510,7 @@ export default function MessagesChat({ user, contactIds }) {
                           <span>{formatTime(m.timestamp || m.time)}</span>
                           {isOut && (
                             <span className="wa-ticks">
-                              <CheckCheck size={14} />
+                              <CheckCheck size={13} />
                             </span>
                           )}
                         </div>
@@ -526,31 +527,35 @@ export default function MessagesChat({ user, contactIds }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   flex: 1,
-                  color: '#667781',
+                  color: '#64748b',
                   textAlign: 'center',
                   gap: 8
                 }}
               >
                 <div
                   style={{
-                    background: '#ffffff',
-                    padding: 8,
-                    borderRadius: 12,
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    background: '#fff7ed',
+                    border: '1px solid #fed7aa',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ea580c'
                   }}
                 >
-                  <MessageSquare size={24} color="#00a884" />
+                  <MessageSquare size={22} />
                 </div>
-                <strong style={{ color: '#111b21', fontSize: 14 }}>No messages yet</strong>
-                <p style={{ fontSize: 12.5, maxWidth: 260 }}>
-                  Send a greeting to start a real-time conversation with {activeContact.name}.
+                <strong style={{ color: '#0f172a', fontSize: 14.5 }}>No messages yet</strong>
+                <p style={{ fontSize: 13, maxWidth: 280, margin: 0 }}>
+                  Send a message to start coordinating with {activeContact.name}.
                 </p>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Emoji Reaction Strip */}
           {showEmojiBar && (
             <div className="wa-emoji-strip">
               {QUICK_EMOJIS.map((emoji) => (
@@ -566,21 +571,20 @@ export default function MessagesChat({ user, contactIds }) {
             </div>
           )}
 
-          {/* Bottom WhatsApp Input Bar */}
           <form className="wa-input-bar" onSubmit={handleSendMessage}>
             <button
               type="button"
               className="wa-tool-btn"
-              title="Add Emoji"
+              title="Insert quick emoji"
               onClick={() => setShowEmojiBar(!showEmojiBar)}
             >
-              <Smile size={20} />
+              <Smile size={19} />
             </button>
             <input
               type="text"
               ref={inputRef}
               className="wa-input-box"
-              placeholder={`Type a message to ${activeContact.name}...`}
+              placeholder={`Message ${activeContact.name}...`}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => {
@@ -594,65 +598,66 @@ export default function MessagesChat({ user, contactIds }) {
               type="submit"
               className="wa-send-btn"
               disabled={!inputText.trim()}
-              title="Send (Enter)"
+              title="Send message"
             >
               <Send size={16} />
             </button>
           </form>
 
-          {/* ── Contact Info Slideout Drawer ── */}
           {showInfoDrawer && (
             <div className="wa-drawer-overlay">
               <div className="wa-drawer-header">
-                <strong style={{ fontSize: 15, color: '#111b21' }}>Contact Info</strong>
+                <strong style={{ fontSize: 14.5, color: '#0f172a' }}>Contact Info</strong>
                 <button
                   type="button"
                   className="wa-action-icon"
                   onClick={() => setShowInfoDrawer(false)}
                 >
-                  <X size={18} />
+                  <X size={17} />
                 </button>
               </div>
 
               <div className="wa-drawer-body">
-                <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                <div style={{ textAlign: 'center', marginBottom: 22 }}>
                   <div
                     className="wa-avatar"
                     style={{
-                      width: 72,
-                      height: 72,
-                      fontSize: 24,
+                      width: 68,
+                      height: 68,
+                      borderRadius: 18,
+                      fontSize: 22,
                       margin: '0 auto 12px auto',
                       background: avatarColor(activeContact.name)
                     }}
                   >
                     {activeContact.name.substring(0, 2).toUpperCase()}
                   </div>
-                  <h3 style={{ fontSize: 17, fontWeight: 700, margin: '0 0 4px 0', color: '#111b21' }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px 0', color: '#0f172a' }}>
                     {activeContact.name}
                   </h3>
                   <span
                     style={{
-                      fontSize: 12,
+                      fontSize: 11.5,
                       fontWeight: 600,
-                      background: '#d9fdd3',
-                      color: '#00a884',
-                      padding: '2px 10px',
-                      borderRadius: 12
+                      background: '#fff7ed',
+                      color: '#ea580c',
+                      border: '1px solid #fed7aa',
+                      padding: '3px 10px',
+                      borderRadius: 999
                     }}
                   >
                     {roleLabel(activeContact.role)}
                   </span>
                 </div>
 
-                <div style={{ display: 'grid', gap: 14 }}>
+                <div style={{ display: 'grid', gap: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Mail size={16} color="#00a884" />
-                    <div>
-                      <div style={{ fontSize: 11, color: '#8696a0' }}>Email Address</div>
+                    <Mail size={15} color="#ea580c" />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>Email Address</div>
                       <a
                         href={`mailto:${activeContact.email}`}
-                        style={{ fontSize: 13, color: '#111b21', textDecoration: 'none', fontWeight: 500 }}
+                        style={{ fontSize: 13, color: '#0f172a', textDecoration: 'none', fontWeight: 500, wordBreak: 'break-all' }}
                       >
                         {activeContact.email}
                       </a>
@@ -661,12 +666,12 @@ export default function MessagesChat({ user, contactIds }) {
 
                   {activeContact.phone && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Phone size={16} color="#00a884" />
+                      <Phone size={15} color="#ea580c" />
                       <div>
-                        <div style={{ fontSize: 11, color: '#8696a0' }}>Phone</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>Phone</div>
                         <a
                           href={`tel:${activeContact.phone}`}
-                          style={{ fontSize: 13, color: '#111b21', textDecoration: 'none', fontWeight: 500 }}
+                          style={{ fontSize: 13, color: '#0f172a', textDecoration: 'none', fontWeight: 500 }}
                         >
                           {activeContact.phone}
                         </a>
@@ -674,21 +679,22 @@ export default function MessagesChat({ user, contactIds }) {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 4 }}>
-                    <Building2 size={16} color="#00a884" style={{ marginTop: 2 }} />
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <Building2 size={15} color="#ea580c" style={{ marginTop: 2 }} />
                     <div>
-                      <div style={{ fontSize: 11, color: '#8696a0' }}>Assigned Projects</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>Assigned Projects</div>
                       {contactProjects.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 5 }}>
                           {contactProjects.map((p) => (
                             <span
                               key={p.id}
                               style={{
                                 fontSize: 12,
-                                color: '#111b21',
-                                background: '#f0f2f5',
-                                padding: '3px 8px',
-                                borderRadius: 6
+                                color: '#0f172a',
+                                background: '#f8fafc',
+                                border: '1px solid #e2e8f0',
+                                padding: '4px 9px',
+                                borderRadius: 8
                               }}
                             >
                               {p.name}
@@ -696,7 +702,7 @@ export default function MessagesChat({ user, contactIds }) {
                           ))}
                         </div>
                       ) : (
-                        <span style={{ fontSize: 12, color: '#8696a0' }}>All company projects</span>
+                        <span style={{ fontSize: 12, color: '#94a3b8' }}>All company projects</span>
                       )}
                     </div>
                   </div>
@@ -706,18 +712,17 @@ export default function MessagesChat({ user, contactIds }) {
           )}
         </div>
       ) : (
-        /* Empty Splash Screen when no chat selected */
         <div className="wa-empty-screen">
           <div className="wa-empty-graphic">
-            <MessageSquare size={36} />
+            <MessageSquare size={28} />
           </div>
-          <h2>ConstructHub Web</h2>
+          <h2>ConstructHub Messages</h2>
           <p>
-            Send and receive messages with your site engineers, clients, and finance managers in real-time.
+            Coordinate directly with project managers, site engineers, storekeepers, finance teams, and clients.
           </p>
           <div className="wa-empty-footer">
-            <Shield size={14} color="#8696a0" />
-            <span>End-to-end encrypted within your enterprise workspace</span>
+            <Shield size={14} color="#94a3b8" />
+            <span>Private to your ConstructHub project workspace</span>
           </div>
         </div>
       )}

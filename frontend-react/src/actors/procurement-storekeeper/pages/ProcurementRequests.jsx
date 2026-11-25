@@ -296,15 +296,15 @@ export default function ProcurementRequests() {
             {formError && <div className="error-msg" style={{ display: 'block' }}>{formError}</div>}
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Supplier <span className="req">*</span></label>
-                <select className="form-select" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} required>
+                <label className="form-label" htmlFor="po-supplier">Supplier <span className="req">*</span></label>
+                <select id="po-supplier" aria-label="Supplier" className="form-select" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} required>
                   {suppliers.length === 0 && <option value="">No active suppliers</option>}
                   {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.category})</option>)}
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">Expected delivery</label>
-                <input className="form-input" type="date" value={delivery} onChange={(e) => setDelivery(e.target.value)} />
+                <label className="form-label" htmlFor="po-delivery">Expected delivery</label>
+                <input id="po-delivery" className="form-input" type="date" value={delivery} onChange={(e) => setDelivery(e.target.value)} />
               </div>
             </div>
             <div style={{ overflowX: 'auto', marginBottom: 14 }}>
@@ -318,8 +318,8 @@ export default function ProcurementRequests() {
                       <tr key={i.id}>
                         <td><strong>{i.description}</strong> <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>({i.unit})</span></td>
                         <td style={{ textAlign: 'right' }}>{qtyText(i.remainingQuantity)}</td>
-                        <td><input className="form-input" type="number" min="0" max={i.remainingQuantity} step="any" value={l.qty ?? ''} onChange={(e) => setLines((p) => ({ ...p, [i.id]: { ...p[i.id], qty: e.target.value } }))} /></td>
-                        <td><input className="form-input" type="number" min="0" step="any" placeholder="0" value={l.rate ?? ''} onChange={(e) => setLines((p) => ({ ...p, [i.id]: { ...p[i.id], rate: e.target.value } }))} /></td>
+                        <td><input className="form-input" aria-label={`Order quantity ${i.description}`} type="number" min="0" max={i.remainingQuantity} step="any" value={l.qty ?? ''} onChange={(e) => setLines((p) => ({ ...p, [i.id]: { ...p[i.id], qty: e.target.value } }))} /></td>
+                        <td><input className="form-input" aria-label={`Rate ${i.description}`} type="number" min="0" step="any" placeholder="0" value={l.rate ?? ''} onChange={(e) => setLines((p) => ({ ...p, [i.id]: { ...p[i.id], rate: e.target.value } }))} /></td>
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>{inr(lineTotal)}</td>
                       </tr>
                     );
@@ -328,12 +328,12 @@ export default function ProcurementRequests() {
               </table>
             </div>
             <div className="form-group">
-              <label className="form-label">Notes</label>
-              <input className="form-input" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} placeholder="Delivery instructions, payment terms..." />
+              <label className="form-label" htmlFor="po-notes">Notes</label>
+              <input id="po-notes" className="form-input" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} placeholder="Delivery instructions, payment terms..." />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                {limit !== null && total > limit ? `Above ${inr(limit)} limit — Finance Manager will approve.` : 'Within auto-approval limit.'}
+                {limit !== null && total > limit ? `Total is above the company approval limit (${inr(limit)}): the Finance Manager will approve it.` : 'Within auto-approval limit.'}
               </span>
               <strong style={{ fontSize: 16 }}>Total: {inr(total)}</strong>
             </div>
