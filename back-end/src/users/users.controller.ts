@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './create-user.dto';
 import { UpdateUserDto } from './update-user.dto';
@@ -87,24 +87,21 @@ export class UsersController {
   }
 
   @Post()
-  @Roles('superuser', 'company_admin', 'project_manager')
+  @Roles('superuser', 'company_admin')
   @ApiOperation({ summary: 'Create a new user (Company ID & role validated by backend)' })
   @ApiResponse({ status: 201, description: 'The user has been successfully created.', type: CreateUserDto })
   @ApiResponse({ status: 400, description: 'Invalid input or domain mismatch.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   create(@Body() dto: CreateUserDto, @CurrentUser() user?: UserContext) {
-    // 1. Role escalation check
+    UsersController.assertPlainPassword(dto.password);
+    // 1. Who may create which role
     if (dto.role === 'superuser') {
       throw new ForbiddenException('Platform Superuser accounts cannot be created via user management.');
     }
-
-    if (user && user.role === 'company_admin') {
-      const allowedRoles = ['project_manager', 'site_engineer', 'finance_manager', 'procurement_storekeeper', 'client'];
-      if (!allowedRoles.includes(dto.role)) {
-        throw new ForbiddenException(
-          'Company Admin can only create Project Manager, Site Engineer, Finance Manager, Procurement/Storekeeper, and Client accounts.',
-        );
-      }
+    if (user && user.role === 'company_admin' && !UsersController.ADMIN_CREATABLE.includes(dto.role)) {
+      throw new ForbiddenException(
+        'Company Admin can only create Project Manager, Site Engineer, Finance Manager, Procurement/Storekeeper, and Client accounts.',
+      );
     }
 
     // 2. Authoritative companyId derivation
@@ -122,13 +119,15 @@ export class UsersController {
       }
     }
 
+    // New accounts always start active unless an admin explicitly creates them inactive.
+    const base = { ...dto, status: dto.status || 'active' };
+
     // Clients are platform-level: no company membership, only a record of who invited them.
     if (dto.role === 'client') {
-      return this.service.create({ ...dto, companyId: '', invitedByCompanyId: companyId || '' });
+      return this.service.create({ ...base, companyId: '', invitedByCompanyId: companyId || '' });
     }
 
-    const payload = { ...dto, companyId };
-    return this.service.create(payload);
+    return this.service.create({ ...base, companyId });
   }
 
   @Patch(':id')
@@ -140,8 +139,17 @@ export class UsersController {
   @ApiResponse({ status: 404, description: 'User not found.' })
   update(@Param('id') id: string, @Body() dto: UpdateUserDto, @CurrentUser() user?: UserContext) {
     const targetUser = this.service.findOne(id);
-    if (!TenantHelper.isSuperuser(user) && user) {
-      if (id !== user.userId) {
+    const isSelf = !!user && id === user.userId;
+    const isSuper = TenantHelper.isSuperuser(user);
+    const isAdmin = !!user && user.role === 'company_admin';
+    const changes: Record<string, any> = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined));
+    const currentPassword = changes.currentPassword;
+    delete changes.currentPassword;
+
+    if (user && !isSuper) {
+      if (!isSelf) {
+        // Only a Company Admin manages other accounts: staff of the same company, or clients the company created.
+        if (!isAdmin) throw new ForbiddenException('You can only edit your own account. Ask your Company Admin to change other accounts.');
         if (targetUser.role === 'client') {
           if (!this.isClientOwnedByCompany(targetUser, user.companyId)) {
             throw new ForbiddenException('Access denied. You can only edit clients created by your company.');
@@ -149,40 +157,49 @@ export class UsersController {
         } else {
           TenantHelper.validateCompanyAccess(user, targetUser.companyId);
         }
+      } else {
+        // Your own account: profile fields and password only. Status and role are set by an admin.
+        if (changes.status !== undefined) {
+          if (changes.status !== targetUser.status) {
+            throw new BadRequestException(isAdmin
+              ? 'A company admin cannot lock or deactivate their own account.'
+              : 'You cannot change the status of your own account.');
+          }
+          delete changes.status;
+        }
+        for (const k of ['role', 'companyId', 'createdAt']) {
+          if (changes[k] !== undefined && changes[k] === (targetUser as any)[k]) delete changes[k];
+        }
+        const notAllowed = Object.keys(changes).filter((k) => !UsersController.SELF_EDITABLE.includes(k));
+        if (notAllowed.length > 0) throw new ForbiddenException(`You cannot change ${notAllowed.join(', ')} on your own account.`);
       }
     }
 
-    // Prevent modifying user role upon edit
-    if (dto.role && dto.role !== targetUser.role && !TenantHelper.isSuperuser(user)) {
-      throw new BadRequestException('User role cannot be changed once created.');
-    }
-
-    // Role escalation check on update
-    if (dto.role) {
-      if (dto.role === 'superuser' && targetUser.role !== 'superuser') {
-        throw new ForbiddenException('Cannot elevate account to Superuser role.');
-      }
-      if (user && user.role === 'company_admin' && dto.role !== targetUser.role && (dto.role === 'superuser' || dto.role === 'company_admin')) {
-        throw new ForbiddenException('Company Admin cannot elevate account to Superuser or Company Admin roles.');
+    if (changes.password !== undefined) {
+      UsersController.assertPlainPassword(changes.password);
+      // Changing your OWN password needs the current one (an admin resetting someone else's does not).
+      if (isSelf && !isSuper && !this.service.passwordMatches(id, String(currentPassword || ''))) {
+        throw new BadRequestException('Your current password is not correct.');
       }
     }
 
-    // Prevent company admin from locking or deactivating own account
-    if (user && user.role === 'company_admin' && id === user.userId && dto.status && dto.status !== 'active') {
-      throw new BadRequestException('A company admin cannot lock or deactivate their own account.');
+    // Role is fixed once created (only the platform superuser may change it, and never to superuser).
+    if (changes.role !== undefined && changes.role !== targetUser.role) {
+      if (!isSuper) throw new BadRequestException('User role cannot be changed once created.');
+      if (changes.role === 'superuser') throw new ForbiddenException('Cannot elevate account to Superuser role.');
     }
 
     // Clients stay platform-level whoever edits them; staff keep their own company.
     const companyId = targetUser.role === 'client'
       ? ''
-      : TenantHelper.isSuperuser(user)
-        ? (dto.companyId !== undefined ? dto.companyId : targetUser.companyId)
-        : (user ? user.companyId : targetUser.companyId);
+      : isSuper
+        ? (changes.companyId !== undefined ? changes.companyId : targetUser.companyId)
+        : targetUser.companyId;
 
     // Email Domain Validation on update (Clients are external parties)
-    if (dto.email && companyId && targetUser.role !== 'client' && dto.role !== 'client') {
+    if (changes.email && companyId && targetUser.role !== 'client') {
       const company = this.companiesService.findOne(companyId);
-      const emailDomain = dto.email.split('@')[1]?.toLowerCase();
+      const emailDomain = String(changes.email).split('@')[1]?.toLowerCase();
       const targetDomain = company.domain.toLowerCase();
       if (!emailDomain || emailDomain !== targetDomain) {
         throw new BadRequestException(
@@ -191,8 +208,8 @@ export class UsersController {
       }
     }
 
-    const payload = { ...dto, companyId };
-    return this.service.update(id, payload);
+    if (Object.keys(changes).length === 0) throw new BadRequestException('Nothing to update.');
+    return this.service.update(id, { ...changes, companyId });
   }
 
   @Delete(':id')
@@ -204,8 +221,8 @@ export class UsersController {
   remove(@Param('id') id: string, @CurrentUser() user?: UserContext) {
     const targetUser = this.service.findOne(id);
     if (!TenantHelper.isSuperuser(user) && user) {
-      if (user.role === 'company_admin' && id === user.userId) {
-        throw new BadRequestException('A company admin cannot delete their own account.');
+      if (id === user.userId) {
+        throw new BadRequestException('You cannot delete your own account.');
       }
       if (targetUser.role === 'client') {
         if (!this.isClientOwnedByCompany(targetUser, user.companyId)) {
@@ -215,6 +232,26 @@ export class UsersController {
         TenantHelper.validateCompanyAccess(user, targetUser.companyId);
       }
     }
+    // Keep project records consistent: someone still on a project team (or a client with a project) cannot be removed.
+    const linked = this.projectsRepo.findAll().filter((p) =>
+      [p.managerId, p.financeManagerId, p.siteEngineerId, p.clientId].includes(id));
+    if (linked.length > 0) {
+      throw new ConflictException(
+        `${targetUser.name} is still assigned to ${linked.length} project(s) (${linked.map((p) => p.name).slice(0, 3).join(', ')}). Reassign or close those projects first, or set the account to inactive.`,
+      );
+    }
     return this.service.remove(id);
+  }
+
+  /** Roles a Company Admin may create. */
+  private static readonly ADMIN_CREATABLE = ['project_manager', 'site_engineer', 'finance_manager', 'procurement_storekeeper', 'client'];
+  /** Fields anyone may change on their own account. */
+  private static readonly SELF_EDITABLE = ['name', 'email', 'phone', 'avatar', 'password'];
+
+  /** Passwords are always sent as plain text and hashed by the server, never as a ready-made hash. */
+  private static assertPlainPassword(password?: string) {
+    if (password !== undefined && /^\$2[aby]\$/.test(String(password))) {
+      throw new BadRequestException('Send the password as plain text; the server hashes it.');
+    }
   }
 }

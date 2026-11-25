@@ -10,21 +10,26 @@ export default function DashboardLayout() {
   const { user: authUser, setUser, logout } = useAuth();
   const user = authUser || api.getCurrentUser();
   const location = useLocation();
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // The mobile menu belongs to the page it was opened on, so it closes by itself when the route changes.
+  const routeKey = `${location.pathname}${location.search}`;
+  const [navOpenAt, setNavOpenAt] = useState(null);
+  const mobileNavOpen = navOpenAt === routeKey;
+  const setMobileNavOpen = (next) => setNavOpenAt((prevKey) => {
+    const wasOpen = prevKey === routeKey;
+    const open = typeof next === 'function' ? next(wasOpen) : next;
+    return open ? routeKey : null;
+  });
 
   // Clients: null while loading, then how many projects they own (drives the two-stage portal).
   const [projectCount, setProjectCount] = useState(null);
   const isClient = user?.role === 'client';
 
+  const userId = user?.id;
   const refreshProjects = useCallback(async () => {
-    if (!isClient || !user?.id) return;
+    if (!isClient || !userId) return;
     const all = await api.getProjects();
-    setProjectCount((all || []).filter((p) => p.clientId === user.id).length);
-  }, [isClient, user?.id]);
-
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [location.pathname, location.search]);
+    setProjectCount((all || []).filter((p) => p.clientId === userId).length);
+  }, [isClient, userId]);
 
   useEffect(() => {
     if (!isClient) return;

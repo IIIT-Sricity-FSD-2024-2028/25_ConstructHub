@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Delete, Param, UseGuards, ForbiddenException } from '@nestjs/common';
 import { InquiriesService } from './inquiries.service';
 import { CreateInquiryDto } from './create-inquiry.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
@@ -49,5 +49,19 @@ export class InquiriesController {
       throw new ForbiddenException('Only Platform Super Admin can update platform inquiries.');
     }
     return this.service.updateStatus(id, body.status);
+  }
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles('superuser')
+  @ApiHeader({ name: 'Authorization', required: true, description: 'Bearer JWT token' })
+  @ApiOperation({ summary: 'Delete inquiry (Superuser ONLY)' })
+  @ApiResponse({ status: 200, description: 'Inquiry deleted.' })
+  @ApiResponse({ status: 403, description: 'Forbidden for non-superuser.' })
+  remove(@Param('id') id: string, @CurrentUser() user?: UserContext) {
+    if (!user || user.role !== 'superuser') {
+      throw new ForbiddenException('Only Platform Super Admin can delete platform inquiries.');
+    }
+    return this.service.remove(id);
   }
 }

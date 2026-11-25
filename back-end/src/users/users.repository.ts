@@ -98,7 +98,7 @@ export class UsersRepository {
     {
       id: 'U005',
       name: 'Vikram Patel',
-      email: 'client@apex.com',
+      email: 'client1@gmail.com',
       password: '123456',
       role: 'client',
       companyId: '',
@@ -160,7 +160,7 @@ export class UsersRepository {
     {
       id: 'U010',
       name: 'Anand Mahindra',
-      email: 'client@ltinfra.com',
+      email: 'client2@gmail.com',
       password: '123456',
       role: 'client',
       companyId: '',
@@ -173,8 +173,8 @@ export class UsersRepository {
     {
       id: 'U011',
       name: 'Suresh Shah',
-      email: 'client2@apex.com',
-      password: 'password123',
+      email: 'client3@gmail.com',
+      password: '123456',
       role: 'client',
       companyId: '',
       invitedByCompanyId: 'COMP001',

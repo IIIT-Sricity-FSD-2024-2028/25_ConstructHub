@@ -5,6 +5,7 @@ import { UsersRepository } from '../users/users.repository';
 import { ProjectsRepository } from '../projects/projects.repository';
 import { SUBSCRIPTION_PLANS, OVERAGE_RATES } from './subscription-plans';
 import { getApprovalStatus } from './company-access';
+import { today } from '../utils/ids';
 
 @Injectable()
 export class CompaniesService {
@@ -66,7 +67,7 @@ export class CompaniesService {
       extraProjects: data.extraProjects || 0,
       status: data.status || 'active',
       approvalStatus: data.approvalStatus || 'approved',
-      createdAt: data.createdAt || new Date().toISOString().split('T')[0],
+      createdAt: data.createdAt || today(),
     };
     return this.repo.create(record);
   }
@@ -125,7 +126,7 @@ export class CompaniesService {
       customProjectLimit,
       status: 'active',
       approvalStatus: 'approved',
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: today(),
     });
 
     try {
@@ -139,7 +140,7 @@ export class CompaniesService {
         phone: admin.phone?.trim() || newCompany.phone,
         avatar: adminName.substring(0, 2).toUpperCase(),
         status: 'active',
-        createdAt: new Date().toISOString().split('T')[0],
+        createdAt: today(),
       });
 
       return {
@@ -212,7 +213,7 @@ export class CompaniesService {
       extraProjects: 0,
       status: 'active',
       approvalStatus: 'pending',
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: today(),
     });
 
     // 6. Create Initial Company Admin User (with atomic rollback)
@@ -226,7 +227,7 @@ export class CompaniesService {
         phone: admin.phone?.trim() || '+91 98000 00000',
         avatar: admin.name.trim().substring(0, 2).toUpperCase(),
         status: 'active',
-        createdAt: new Date().toISOString().split('T')[0],
+        createdAt: today(),
       });
 
       return {

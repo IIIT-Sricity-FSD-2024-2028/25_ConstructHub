@@ -39,12 +39,14 @@ export default function UserSettings({ user, onUpdateUser }) {
 
     setErrors({});
     const updatedName = `${firstName.trim()} ${lastName.trim()}`;
-    const changes = {
-      name: updatedName,
-      phone: phone ? `+91 ${phone}` : user?.phone || ''
-    };
+    // The server stores phone numbers as exactly 10 digits.
+    const changes = { name: updatedName, ...(phone ? { phone } : {}) };
 
-    await api.updateUser(user.id, changes);
+    const updateRes = await api.updateUser(user.id, changes);
+    if (updateRes && updateRes.error) {
+      setErrors({ firstName: Array.isArray(updateRes.message) ? updateRes.message.join(', ') : (updateRes.message || 'Failed to update profile.') });
+      return;
+    }
     const updatedUser = { ...user, ...changes };
     api.setCurrentUser(updatedUser);
     if (onUpdateUser) onUpdateUser(updatedUser);
@@ -65,13 +67,6 @@ export default function UserSettings({ user, onUpdateUser }) {
       return;
     }
 
-    // Verify current password against auth API
-    const verifyRes = await api.login(user.email, currentPw);
-    if (verifyRes && verifyRes.error) {
-      setPwError('Current password does not match.');
-      return;
-    }
-
     if (!newPw || newPw.length < 6) {
       setPwError('New password must be at least 6 characters.');
       return;
@@ -81,15 +76,17 @@ export default function UserSettings({ user, onUpdateUser }) {
       return;
     }
 
-    const updateRes = await api.updateUser(user.id, { password: newPw });
+    // The server checks the current password before saving the new one.
+    const updateRes = await api.updateUser(user.id, { password: newPw, currentPassword: currentPw });
     if (updateRes && updateRes.error) {
       setPwError(Array.isArray(updateRes.message) ? updateRes.message.join(', ') : (updateRes.message || 'Failed to update password.'));
       return;
     }
 
-    const updatedUser = { ...user, password: newPw };
-    api.setCurrentUser(updatedUser);
-    if (onUpdateUser) onUpdateUser(updatedUser);
+    const safeUser = { ...(user || {}) };
+    delete safeUser.password;
+    api.setCurrentUser(safeUser);
+    if (onUpdateUser) onUpdateUser(safeUser);
 
     setCurrentPw('');
     setNewPw('');

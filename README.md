@@ -1,161 +1,137 @@
-# Team Name : 25_ConstructHub
+# ConstructHub
 
+A multi-company construction management platform. Clients post construction requirements, companies price them
+through an internal estimate workflow, the client awards a contract, and the project then runs end to end:
+milestones and tasks, site reports, materials and stock, expense claims, stage billing and payments, with a
+dashboard per role.
 
+| Part | Stack | Folder |
+| --- | --- | --- |
+| API | NestJS 11 (TypeScript), JWT auth, class-validator, Swagger | `back-end/` |
+| Web app | React 19 + Vite, React Router 7 | `frontend-react/` |
+| Storage | In-memory repositories saved to JSON files (`back-end/data/db`) | created on first run |
 
-## Domain : Construction Management – Enterprise Resource Planning (ERP)
+## Run it
 
+Needs Node.js 20+ (and Python 3 only for the API test suites).
 
+```bash
+# 1. API on http://localhost:3000  (Swagger docs at /api/docs)
+cd back-end
+npm install
+npm run start:demo        # resets the demo data, builds and starts
 
-## Problem Statement :
-To develop a Unified Construction Management ERP system that integrates task management, project scheduling, site reporting, budgeting, billing, and payment approval into a single platform, enabling efficient coordination, real-time monitoring, and streamlined decision-making among all system users.
+# 2. Web app on http://localhost:5173  (second terminal)
+cd frontend-react
+npm install
+npm run dev
+```
 
+`npm run reset-data` (in `back-end`) puts the demo data back to the original seed at any time.
+Copy `back-end/.env.example` to `.env` (or set the variables) before any real deployment: without `JWT_SECRET`
+the API uses a built-in development secret and prints a warning.
 
+## Demo accounts
 
-## Problem Description :
+All passwords are `123456`.
 
-Construction projects involve multiple roles and activities such as task execution, site reporting, project scheduling, budgeting, billing, and payment approval across different stakeholders.
+| Role | Email | Company |
+| --- | --- | --- |
+| Platform superuser | `super@ch.com` | platform |
+| Company admin | `admin@apex.com` · `admin@ltinfra.com` | Apex Builders · L&T Infrastructure |
+| Project manager | `pm@apex.com` · `pm@ltinfra.com` | |
+| Site engineer | `site@apex.com` · `site@ltinfra.com` | |
+| Finance manager | `finance@apex.com` · `finance@ltinfra.com` | |
+| Procurement / storekeeper | `proc@apex.com` · `proc@ltinfra.com` | |
+| Client | `client1@gmail.com` (P001) · `client2@gmail.com` (P003, P004) · `client3@gmail.com` (P002) | platform-level |
 
-Currently, these activities are handled using multiple tools or manual processes, which results in:
+## How it fits together
 
-- Poor coordination between teams  
-- Inconsistent and fragmented data  
-- Delays in task execution and approvals  
-- Difficulty in tracking real-time project progress  
-- Lack of financial visibility and control  
+```
+Client ──requirement──▶ Company admin ──assigns──▶ PM (stages) ──▶ FM (costs, advance %) ──▶ Admin (markup, release)
+   ▲                                                                                              │
+   └──────────────────────────── compares quotations and awards ◀──────────────────────────────────┘
+                                         │
+                       contract ─▶ project "Awaiting Advance" ─▶ Bill #1 (mobilization advance)
+                                         │ paid
+                                         ▼
+   PM: milestones + tasks ─▶ Site engineer: work, site reports, petty expenses, material requests
+   Storekeeper: purchase orders ─▶ FM approval above the limit ─▶ goods receipts ─▶ site stock ─▶ issues
+   PM verifies expenses ─▶ FM approves (only approved spend counts) ─▶ reimbursement
+   PM approves a milestone (all tasks done + a site report) ─▶ FM raises the stage bill (amount from the quote,
+   less advance recovery) ─▶ client accepts or declines ─▶ client / FM record payments
+```
 
-This project aims to develop a **single integrated ERP platform** that centralizes project execution, monitoring, and financial management to improve efficiency, transparency, and decision-making.
+Business rules are enforced by the API, never only in the browser. The main ones:
 
+- Projects are never added by hand: a project is created only when a client awards a company's quotation, which
+  also creates its contract, milestones and the mobilization-advance bill. Company admins and project managers
+  can edit their projects but have no "add project" option.
+- Every request is re-checked against the database: a locked user or suspended company loses access at once.
+- A site engineer works on a project only while he has an unfinished task there: no expense claims, material
+  requests or site reports otherwise (except the proof report for a milestone still awaiting approval).
+- Each role can only change what its job needs (for example a site engineer reports task progress, a finance
+  manager edits the budget split of their own projects, only the client accepts or declines a bill).
+- A stage bill's amount comes from the accepted quotation; once the client accepts a bill it can no longer be
+  edited or deleted, and a milestone that was billed is locked (its tasks and site reports too).
+- Approved spend can never exceed the project budget; purchase orders above the company limit need the FM.
+- Records with money attached (projects with bills, payments, expenses, POs) cannot be deleted.
+- All dates are business dates in India time (`APP_TIMEZONE`, default `Asia/Kolkata`).
 
+## Tests
 
-## Identified Actors :
+```bash
+cd frontend-react && npm i --no-save vitest jsdom @testing-library/react @testing-library/dom   # once
+cd ../back-end && npm run check
+```
 
-The system supports the following primary actors:
+`npm run check` builds the API and runs, each against fresh demo data:
 
-- Admin
-  - Responsible for configuring, controlling, and maintaining the ERP platform, including user management, system configuration, and master data governance.
-- Project Manager
-  - Responsible for planning, executing, and monitoring construction activities, including task allocation and project schedule control.
-- Site Engineer
-  - An operational user responsible for executing assigned tasks, reporting daily site progress, and updating work status.  
-- Finance Manager
-  - Responsible for managing project budgets, tracking expenses, generating bills, and coordinating the payment workflow.
-- Client
-  - An external stakeholder responsible for reviewing project progress and approving payments based on completed work.
+| Suite | What it covers |
+| --- | --- |
+| `tests/api/step1` … `step7` | platform admin, marketplace, signup, milestones, procurement, expenses and payments, the full project lifecycle |
+| `tests/api/step8-regression-tests.py` | one check per bug fixed in the logic review (see `CHANGES.md`) |
+| `scripts/audit-routes.js` | every route is either authenticated or intentionally public, and refuses roles it does not list |
+| Jest unit tests | users and companies services |
+| `frontend-react/tests/*.flow.test.jsx` | four UI flows driven through the real pages against the real API |
+| `frontend-react/tests/pages.smoke.test.jsx` | signs in as every role and renders all 70 pages, failing on any crash or React error |
 
+## Demo walkthrough (about 10 minutes)
 
+The lifecycle suite (`tests/api/step7-e2e-lifecycle.py`) follows the same story.
 
-## Planned Features and Use Cases
+1. **Client** `client1@gmail.com`: *Requirements* → open REQ003 to see the quotations it was awarded on, then
+   *Projects* → Apex Skyline Tower: progress by milestone, bills and payments. Note the client sees what was
+   billed, never the contractor's internal costs.
+2. **Project manager** `pm@apex.com`: *Milestones* → P001 shows Foundation approved (and billed) and Structure
+   overdue. Try *Reopen* on Foundation: it is refused because it is already billed.
+3. **Site engineer** `site@apex.com`: submit an expense against Structure, raise a material request.
+4. **Project manager**: verify the expense; approve the material request.
+5. **Storekeeper** `proc@apex.com`: create the purchase order; above the limit it waits for finance.
+6. **Finance manager** `finance@apex.com`: approve the PO and the expense; open *Bill decisions*.
+7. **Client**: accept INV-APEX-001 and pay part of it in the demo payment portal.
+8. Each role's dashboard now shows the same numbers.
 
+## Project layout
 
+```
+back-end/
+  src/<module>/        controllers (routes + who may call them), services (business rules), repositories (data)
+  src/middleware/      request id, security headers + rate limit, logging, auth
+  scripts/             reset-data, audit-routes, run-all-checks
+  tests/api/           API test suites
+frontend-react/
+  src/actors/<role>/   pages of each role
+  src/components/      shared UI (billing, milestones, procurement, marketplace, layout)
+  src/services/api.js  the only place that talks to the API
+  tests/               UI flow tests and the page smoke test
+```
 
-### Admin
+## Known limitations
 
-**Use Case : Manage Users and System Configuration**
-
-The Admin is responsible for controlling system access and maintaining global configurations.
-
-- User Management  
-  - Create, update, and deactivate user accounts  
-- Role and Permission Control  
-  - Assign roles and define access levels  
-- System Configuration  
-  - Maintain master data and system-wide settings  
-
----
-
-### Project Manager
-
-**Use Case : Assign and Manage Tasks**
-
-Responsible for planning and controlling project execution.
-
-- Create Tasks  
-  - Define tasks with priorities, start dates, and deadlines  
-- Assign Tasks  
-  - Allocate tasks to site engineers  
-- Monitor Progress  
-  - Track task status and completion updates  
-- Close Tasks  
-  - Verify and mark tasks as completed  
-
-**Use Case : Manage Project Schedule**
-
-Controls overall project timelines and milestones.
-
-- Create Project Schedule  
-  - Define timelines, milestones, and dependencies  
-- Monitor Schedule Progress  
-  - Track adherence to planned schedules  
-- Update Schedule  
-  - Revise timelines due to delays or changes  
-
----
-
-### Site Engineer
-
-**Use Case : Submit Site Reports**
-
-Responsible for reporting daily on-site activities.
-
-- Daily Progress Reporting  
-  - Submit work progress for assigned tasks  
-- Material Usage Entry  
-  - Record materials consumed during execution  
-- Upload Evidence  
-  - Add site photos and remarks  
-
-**Use Case : Update Task Status**
-
-Keeps execution status up to date.
-
-- Update Completion Percentage  
-- Add Status Remarks  
-- Mark Task as Completed  
-
----
-
-### Finance Manager
-
-**Use Case : Manage Budget and Billing**
-
-Handles project financial operations.
-
-- Budget Management  
-  - Allocate and control project budgets  
-- Expense Tracking  
-  - Record and monitor project expenses  
-- Bill Generation  
-  - Generate bills based on completed work  
-- Payment Workflow  
-  - Send bills to clients for approval  
-
----
-
-### Client
-
-**Use Case : Approve Payments**
-
-Verifies work completion and authorizes payments.
-
-- Review Bills  
-- Approve or Reject Payments with remarks  
-
-**Use Case : View Progress and Provide Feedback**
-
-Monitors project execution.
-
-- View Dashboards  
-  - Track task, schedule, and budget status  
-- Provide Feedback  
-  - Share comments on project execution  
-
----
-
-## Use Case Diagram :
-
-The interactions between actors and system functionalities are represented using a Use Case Diagram.
-
-Use Case Diagram Link :  
-[Use Case Diagram](https://drive.google.com/file/d/1O5_mUEDVVt8n-u7oDRzt-REV0mSc_7rg/view?usp=sharing)
-
----
+- Data lives in JSON files, which is fine for a demo but has no transactions or concurrent-writer safety. A real
+  deployment would use a database such as PostgreSQL with foreign keys.
+- Payments are a demo gateway: nothing is charged, and card or bank details are never sent anywhere.
+- `eslint` reports 30 `react-hooks/exhaustive-deps` warnings (no errors). They are left as they are on purpose:
+  adding those dependencies mechanically would make several pages reload in a loop.
+- The web app ships as one 1 MB JavaScript bundle; splitting it per role with `React.lazy` would speed up the first load.

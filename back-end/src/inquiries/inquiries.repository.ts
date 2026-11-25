@@ -64,4 +64,11 @@ export class InquiriesRepository {
     inquiry.status = status;
     return inquiry;
   }
+
+  remove(id: string): InquiryRecord | null {
+    const idx = this.memoryData.findIndex((inq) => inq.id === id);
+    if (idx === -1) return null;
+    const [removed] = this.memoryData.splice(idx, 1);
+    return removed;
+  }
 }

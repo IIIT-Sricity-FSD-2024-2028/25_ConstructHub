@@ -72,7 +72,7 @@ export class UsersService {
       password = bcrypt.hashSync(password, 10);
     }
     const record = { ...data, password, id: data.id || randomUUID() };
-    return this.repo.create(record);
+    return UsersService.safe(this.repo.create(record));
   }
 
   update(id: string, data: any) {
@@ -88,7 +88,21 @@ export class UsersService {
     if (payload.password && !payload.password.startsWith('$2a$') && !payload.password.startsWith('$2b$')) {
       payload.password = bcrypt.hashSync(payload.password, 10);
     }
-    return this.repo.update(id, payload);
+    return UsersService.safe(this.repo.update(id, payload));
+  }
+
+  /** Never send a password hash back to a caller. */
+  static safe(user: any) {
+    if (!user) return user;
+    const { password, ...rest } = user;
+    return rest;
+  }
+
+  /** True when the plain-text password matches the stored hash of this user. */
+  passwordMatches(id: string, plain: string): boolean {
+    const record = this.repo.findById(id);
+    if (!record || !record.password || typeof plain !== 'string') return false;
+    try { return bcrypt.compareSync(plain, record.password); } catch { return false; }
   }
 
   remove(id: string) {

@@ -623,6 +623,31 @@
         ]
       }
     },
+    "/companies/onboard": {
+      "post": {
+        "operationId": "CompaniesController_onboardCompany",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Company onboarded and approved."
+          }
+        },
+        "summary": "Onboard a new firm directly as approved with initial Company Admin (Superuser only)",
+        "tags": [
+          "Companies"
+        ]
+      }
+    },
     "/companies/{id}/approval": {
       "patch": {
         "operationId": "CompaniesController_setApproval",
@@ -831,23 +856,13 @@
         },
         "responses": {
           "201": {
-            "description": "The project has been successfully created.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateProjectDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input or user assignment mismatch."
+            "description": "Project created."
           },
           "403": {
-            "description": "Forbidden."
+            "description": "Company roles: projects come from awarded quotations."
           }
         },
-        "summary": "Create a new project (Company ID derived from authenticated token)",
+        "summary": "Platform superuser only (data setup). Companies never create projects by hand: a project is created when a client awards their quotation in the Marketplace.",
         "tags": [
           "projects"
         ]
@@ -924,26 +939,10 @@
         },
         "responses": {
           "200": {
-            "description": "The project has been successfully updated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdateProjectDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input or user assignment mismatch."
-          },
-          "403": {
-            "description": "Access denied."
-          },
-          "404": {
-            "description": "Project not found."
+            "description": ""
           }
         },
-        "summary": "Update an existing project",
+        "summary": "Update a project. Company Admin: any field. Project Manager: own projects. Finance Manager: budget split of own projects. Site Engineer: progress of a project without milestones.",
         "tags": [
           "projects"
         ]
@@ -971,16 +970,10 @@
         ],
         "responses": {
           "200": {
-            "description": "The project has been successfully deleted."
-          },
-          "403": {
-            "description": "Access denied."
-          },
-          "404": {
-            "description": "Project not found."
+            "description": ""
           }
         },
-        "summary": "Delete a project",
+        "summary": "Delete a project that has no financial or site records yet (its tasks and milestones go with it)",
         "tags": [
           "projects"
         ]
@@ -2835,7 +2828,7 @@
             "description": "Forbidden."
           }
         },
-        "summary": "Create a new bill (Company ID derived from authenticated token)",
+        "summary": "Create a bill (Finance Manager of the project or Company Admin; company, client and amount come from the project and milestone)",
         "tags": [
           "bills"
         ]
@@ -2964,7 +2957,7 @@
             "description": "Bill not found."
           }
         },
-        "summary": "Update an existing bill",
+        "summary": "Client: accept or decline a pending bill. Finance Manager / Company Admin: edit the wording or due date of a bill the client has not decided yet.",
         "tags": [
           "bills"
         ]
@@ -2999,9 +2992,12 @@
           },
           "404": {
             "description": "Bill not found."
+          },
+          "409": {
+            "description": "Accepted, paid or advance bill."
           }
         },
-        "summary": "Delete a bill",
+        "summary": "Delete a bill the client has not accepted (never the mobilization advance, never a bill with payments)",
         "tags": [
           "bills"
         ]
@@ -3829,6 +3825,40 @@
         "tags": [
           "inquiries"
         ]
+      },
+      "delete": {
+        "operationId": "InquiriesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer JWT token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inquiry deleted."
+          },
+          "403": {
+            "description": "Forbidden for non-superuser."
+          }
+        },
+        "summary": "Delete inquiry (Superuser ONLY)",
+        "tags": [
+          "inquiries"
+        ]
       }
     },
     "/requirements": {
@@ -4480,13 +4510,20 @@
   },
   "info": {
     "title": "ConstructHub API",
-    "description": "ConstructHub Construction Management Platform API.\n\n**How to use:** Click \"Try it out\" on any endpoint, fill in the `x-role` header field with one of: `superuser`, `project_manager`, `site_engineer`, `finance_manager`, `procurement_storekeeper`, `client`, then click Execute.\n\n**Middleware active:**\n- 🔒 Security headers + Rate Limiting (120 req/min per IP)\n- 📝 Request logging to `logs/access-YYYY-MM-DD.log`\n- ❌ Error logging to `logs/error-YYYY-MM-DD.log`\n- 🆔 Request ID tracing (`x-request-id` header)\n- 📁 File uploads via `POST /reports/upload`\n- 🛡️ Auth middleware on all protected routes",
+    "description": "ConstructHub Construction Management Platform API.\n\n**How to use:** call `POST /auth/login` with a demo account (e.g. `admin@apex.com` / `123456`), copy the `accessToken`, click **Authorize** and paste it. Every protected route then runs as that user.\n\n**Middleware active:**\n- 🔒 Security headers + Rate Limiting (120 req/min per IP)\n- 📝 Request logging to `logs/access-YYYY-MM-DD.log`\n- ❌ Error logging to `logs/error-YYYY-MM-DD.log`\n- 🆔 Request ID tracing (`x-request-id` header)\n- 📁 File uploads via `POST /reports/upload`\n- 🛡️ Auth middleware on all protected routes",
     "version": "1.0",
     "contact": {}
   },
   "tags": [],
   "servers": [],
   "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
     "schemas": {
       "LoginDto": {
         "type": "object",
@@ -4548,7 +4585,7 @@
           },
           "password": {
             "type": "string",
-            "description": "Password for the user",
+            "description": "Password for the user (at least 6 characters)",
             "example": "123456"
           },
           "role": {
@@ -4617,7 +4654,7 @@
           },
           "password": {
             "type": "string",
-            "description": "Password for the user",
+            "description": "Password for the user (at least 6 characters)",
             "example": "123456"
           },
           "role": {
@@ -4661,6 +4698,10 @@
             "type": "string",
             "description": "Date of creation",
             "example": "2026-01-05"
+          },
+          "currentPassword": {
+            "type": "string",
+            "description": "Required when you change your OWN password: your current password."
           }
         }
       },
@@ -4926,8 +4967,8 @@
           },
           "spent": {
             "type": "number",
-            "description": "Amount spent so far",
-            "example": 18750000
+            "description": "Ignored: spend is calculated by the server from approved expenses",
+            "example": 0
           },
           "progress": {
             "type": "number",
@@ -4974,7 +5015,6 @@
           "clientId",
           "managerId",
           "budget",
-          "spent",
           "progress",
           "status",
           "startDate",
@@ -5036,11 +5076,6 @@
             "type": "number",
             "description": "Total budget of the project",
             "example": 25000000
-          },
-          "spent": {
-            "type": "number",
-            "description": "Amount spent so far",
-            "example": 18750000
           },
           "progress": {
             "type": "number",
@@ -6004,6 +6039,10 @@
           "quantity": {
             "type": "number",
             "example": 20
+          },
+          "requestItemId": {
+            "type": "string",
+            "description": "Optional material request item ID fulfilled by this stock issue"
           }
         },
         "required": [
@@ -6027,6 +6066,10 @@
           "taskId": {
             "type": "string",
             "description": "Task the material is used for"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "Optional material request ID fulfilled from site stock"
           },
           "notes": {
             "type": "string"
@@ -6799,5 +6842,10 @@
         }
       }
     }
-  }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
 }

@@ -3,12 +3,14 @@ import { usePlans, formatINR } from '../../../hooks/usePlans';
 import { useOutletContext } from 'react-router-dom';
 import { ShieldCheck, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { api } from '../../../services/api';
+import { useToast } from '../../../hooks/useToast';
 import { formatCurrency } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 
 const planRank = { Basic: 1, Pro: 2, Enterprise: 3 };
 
 export default function CompanyAdminSubscription() {
+  const toast = useToast();
   const { user } = useOutletContext();
   // Live plan prices/limits set by the platform admin (shadow the module-level defaults above).
   const { planPrices, planLimits, projLimits } = usePlans();
@@ -49,16 +51,19 @@ export default function CompanyAdminSubscription() {
     if (!user) return;
     const extraProj = enabled ? Math.max(0, projectCount - projectLimit) : 0;
     const extraUsr = enabled ? Math.max(0, userCount - userLimit) : 0;
-    await api.toggleOverage(user.companyId, {
+    const r1 = await api.toggleOverage(user.companyId, {
       overageEnabled: enabled,
       extraProjects: extraProj,
       extraUsers: extraUsr
     });
-    await api.updateCompany(user.companyId, {
+    const r2 = r1 && r1.error ? r1 : await api.updateCompany(user.companyId, {
       overageEnabled: enabled,
       extraProjects: extraProj,
       extraUsers: extraUsr
     });
+    if (r2 && r2.error) {
+      toast.error(r2.message || 'Could not change the overage setting.');
+    }
     await loadSubscription();
   }
 
@@ -81,12 +86,15 @@ export default function CompanyAdminSubscription() {
       extraUsers: extraUsr
     };
 
-    await api.updateCompany(user.companyId, updatePayload);
-    await api.toggleOverage(user.companyId, {
+    const planRes = await api.updateCompany(user.companyId, updatePayload);
+    const ovRes = planRes && planRes.error ? planRes : await api.toggleOverage(user.companyId, {
       overageEnabled: willHaveOverage,
       extraProjects: extraProj,
       extraUsers: extraUsr
     });
+    if (ovRes && ovRes.error) {
+      toast.error(ovRes.message || 'Could not change the plan.');
+    }
 
     setSubmittingDowngrade(false);
     setDowngradeModalOpen(false);

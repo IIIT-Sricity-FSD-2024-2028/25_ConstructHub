@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { today } from './ids';
 
 // ─── Directory Setup ────────────────────────────────────────────────────────
 const LOGS_DIR = path.join(process.cwd(), 'logs');
@@ -13,7 +14,7 @@ let errorBuffer: string[] = [];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 function todayStamp(): string {
-  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  return today(); // YYYY-MM-DD
 }
 
 function timestamp(): string {

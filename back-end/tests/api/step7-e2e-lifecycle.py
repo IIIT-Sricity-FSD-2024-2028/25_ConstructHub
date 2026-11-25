@@ -1,8 +1,8 @@
 """
 Final acceptance test: the whole project lifecycle from the scope document's success scenario, through the API.
 client requirement -> quotations -> contract -> project team -> milestones/tasks -> procurement & stock -> expenses ->
-client billing & payments -> dashboards.   Fresh data/db first, then:  API=http://localhost:3000 python3 step7-e2e-lifecycle.py
-Also doubles as the rehearsal of DEMO_SCRIPT.md (same story, same numbers).
+client billing & payments -> dashboards.   Fresh data/db first, then:  API=http://localhost:3000 python3 tests/api/step7-e2e-lifecycle.py
+Follows the same story as the demo walkthrough in the main README.
 """
 import json, os, sys, urllib.request, urllib.error, uuid, datetime
 B = os.environ.get('API', 'http://localhost:3000')
@@ -402,7 +402,7 @@ check('project manager can read the feedback; other clients cannot', any(f['id']
 scene('SEEDED P001: awarded through REQ003 / QUO005 / CON001, active, advance paid, Foundation approved and billed')
 p1 = must(call('GET', 'projects/P001', token=AD1))
 check('P001 is a marketplace project: internal budget 2,50,00,000 vs contract value 3,12,50,000', p1['source'] == 'marketplace' and p1['status'] == 'On Track' and p1['budget'] == 25000000 and p1['contractValue'] == 31250000 and p1['quotationId'] == 'QUO005' and p1['contractId'] == 'CON001', p1)
-check('its requirement is awarded and its contract is active', must(call('GET', 'requirements/REQ003', token=must(call('POST', 'auth/login', {'email': 'client@apex.com', 'password': '123456'}))['accessToken']))['status'] == 'awarded' and [c['status'] for c in must(call('GET', 'contracts', token=AD1)) if c['id'] == 'CON001'] == ['active'])
+check('its requirement is awarded and its contract is active', must(call('GET', 'requirements/REQ003', token=must(call('POST', 'auth/login', {'email': 'client1@gmail.com', 'password': '123456'}))['accessToken']))['status'] == 'awarded' and [c['status'] for c in must(call('GET', 'contracts', token=AD1)) if c['id'] == 'CON001'] == ['active'])
 check('the winning quotation carries stages with internal cost and client amount; the client copy hides the internal side', (lambda q: q['internalBaseCost'] == 25000000 and q['milestoneStages'][0]['clientAmount'] == 5000000)(must(call('GET', 'quotations/QUO005', token=AD1))))
 adv = [b for b in must(call('GET', 'bills', token=FM)) if b['projectId'] == 'P001' and b.get('billType') == 'advance']
 check('Bill #1 (mobilization advance, 10% = 31,25,000) is fully paid', len(adv) == 1 and adv[0]['amount'] == 3125000 and adv[0]['paymentStatus'] == 'Paid' and adv[0]['outstanding'] == 0, adv)
@@ -424,7 +424,7 @@ check('advance 31,25,000 + Foundation 45,00,000 + Structure 2,36,25,000 = contra
 check('P001 is now 100% physically complete with both milestones approved', must(call('GET', 'milestones/progress/P001', token=PM))['milestoneCompletion'] == 100)
 
 scene('FM report preview access and the project team list (client workspace chat)')
-CA = login('client@apex.com'); CLT = login('client@ltinfra.com')
+CA = login('client1@gmail.com'); CLT = login('client2@gmail.com')
 check('FM of P001 can read the site report attached to the bill', call('GET', 'reports/R001', token=FM)[0] == 200)
 check("another company's FM cannot read it", call('GET', 'reports/R001', token=FM2)[0] == 403)
 fm_reports = must(call('GET', 'reports', token=FM)); fm_projects = {p['id'] for p in must(call('GET', 'projects', token=FM))}

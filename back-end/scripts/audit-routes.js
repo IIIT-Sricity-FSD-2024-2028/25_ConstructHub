@@ -83,7 +83,7 @@ const INTENDED_PUBLIC = [
   // 3. Every role that is NOT listed in @Roles must be refused with 403 (checks that the role guard really runs on each route).
   const logins = {
     superuser: 'super@ch.com', company_admin: 'admin@apex.com', project_manager: 'pm@apex.com', finance_manager: 'finance@apex.com',
-    site_engineer: 'site@apex.com', procurement_storekeeper: 'proc@apex.com', client: 'client@apex.com',
+    site_engineer: 'site@apex.com', procurement_storekeeper: 'proc@apex.com', client: 'client1@gmail.com',
   };
   const tokens = {};
   for (const [role, email] of Object.entries(logins)) {

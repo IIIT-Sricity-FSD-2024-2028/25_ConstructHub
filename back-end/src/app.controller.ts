@@ -4,6 +4,7 @@ import { Roles } from './auth/roles.decorator';
 import { AppService } from './app.service';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { readLogTail, listLogFiles } from './utils/log-writer';
+import { today } from './utils/ids';
 
 const SERVER_BOOT_ID = Date.now().toString();
 
@@ -56,7 +57,7 @@ export class AppController {
     const lines = readLogTail(type as 'access' | 'error', 100);
     return {
       type,
-      date: new Date().toISOString().slice(0, 10),
+      date: today(),
       lineCount: lines.length,
       lines,
     };

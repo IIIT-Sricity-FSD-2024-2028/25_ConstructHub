@@ -311,18 +311,29 @@ export default function SuperuserDashboard() {
     }
     setOnboardingInquiryId(null);
     setCompModalOpen(false);
+    setSummaryRefreshKey((k) => k + 1);
     loadAllData();
   }
 
   async function handleToggleCompanyStatus(c) {
     const newStatus = c.status === 'active' ? 'inactive' : 'active';
-    await api.updateCompany(c.id, { status: newStatus });
+    const res = await api.updateCompany(c.id, { status: newStatus });
+    if (res && res.error) {
+      toast.error(res.message || 'Could not update the company.');
+      return;
+    }
+    setSummaryRefreshKey((k) => k + 1);
     loadAllData();
   }
 
   async function handleToggleInquiryStatus(inq) {
-    const nextStatus = inq.status === 'Resolved' ? 'Pending' : 'Resolved';
-    await api.updateInquiry(inq.id, { status: nextStatus });
+    const nextStatus = inq.status === 'Resolved' ? 'New' : 'Resolved';
+    const res = await api.updateInquiry(inq.id, { status: nextStatus });
+    if (res && res.error) {
+      toast.error(res.message || 'Could not update the inquiry.');
+      return;
+    }
+    setSummaryRefreshKey((k) => k + 1);
     loadAllData();
   }
 
@@ -796,7 +807,7 @@ export default function SuperuserDashboard() {
                         className={`btn btn-sm ${inq.status === 'Resolved' ? 'btn-secondary' : 'btn-success'}`}
                         onClick={() => handleToggleInquiryStatus(inq)}
                       >
-                        {inq.status === 'Resolved' ? 'Mark Pending' : 'Mark Resolved'}
+                        {inq.status === 'Resolved' ? 'Reopen' : 'Mark Resolved'}
                       </button>
                     </div>
                   );

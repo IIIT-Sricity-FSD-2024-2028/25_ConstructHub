@@ -6,6 +6,7 @@ import { LoginDto } from './login.dto';
 import { RegisterClientDto } from './register-client.dto';
 import * as bcrypt from 'bcryptjs';
 import { companyAccessBlockReason } from '../companies/company-access';
+import { today } from '../utils/ids';
 
 @Injectable()
 export class AuthService {
@@ -81,7 +82,7 @@ export class AuthService {
       phone: dto.phone || '',
       avatar: initials,
       status: 'active',
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: today(),
     });
     const { password, ...safe } = created as any;
     return { message: 'Account created. You can now sign in.', user: safe };

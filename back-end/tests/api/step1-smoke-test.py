@@ -22,11 +22,11 @@ def check(name, cond, extra=''):
 # --- login rules
 s,d=login('super@ch.com','123456'); check('superuser login',s==200,(s,d)); SU=d['accessToken']
 s,d=login('admin@apex.com','123456'); check('company admin login',s==200); AD=d['accessToken']
-s,d=login('client@apex.com','123456'); check('client login',s==200); CL=d['accessToken']; check('client token has empty companyId', d['user']['companyId']=='', d['user'])
+s,d=login('client1@gmail.com','123456'); check('client login',s==200); CL=d['accessToken']; check('client token has empty companyId', d['user']['companyId']=='', d['user'])
 check('password not leaked', 'password' not in d['user'])
-s,d=login('client@apex.com','password123'); check('interchangeable password shortcut removed',s==401,(s,d))
-s,d=login('client2@apex.com','password123'); check('client2 seed password works',s==200)
-s,d=login('client2@apex.com','123456'); check('client2 wrong pw rejected',s==401)
+s,d=login('client1@gmail.com','password123'); check('interchangeable password shortcut removed',s==401,(s,d))
+s,d=login('client3@gmail.com','123456'); check('client3 seed password works',s==200)
+s,d=login('client3@gmail.com','password123'); check('client3 wrong pw rejected',s==401)
 # forged mock token
 s,d=call('GET','users',token='mock_jwt_U000_superuser_')
 check('forged mock token rejected',s==401,(s,d))
@@ -68,7 +68,7 @@ s,d=call('GET','plans'); check('plan change visible publicly', [p for p in d['pl
 s,d=call('GET','companies/platform/revenue',token=SU); check('revenue endpoint works',s==200)
 
 # --- client platform-level behaviour
-s,d=call('GET','users',token=CL); names=sorted(u['email'] for u in d); check('client sees self + own company staff only', all(e.endswith('@apex.com') for e in names) and 'client@apex.com' in names and 'client2@apex.com' not in names and 'super@ch.com' not in names, names)
+s,d=call('GET','users',token=CL); names=sorted(u['email'] for u in d); check('client sees self + own company staff only', all(e.endswith('@apex.com') or e=='client1@gmail.com' for e in names) and 'client1@gmail.com' in names and 'client3@gmail.com' not in names and 'super@ch.com' not in names, names)
 s,d=call('GET','projects',token=CL); check('client sees own projects', s==200 and all(p['clientId']=='U005' for p in d) and len(d)>=1,(s,[p['id'] for p in d]))
 s,d=call('GET','companies',token=CL); check('client sees only project companies (sanitized)', s==200 and [c['id'] for c in d]==['COMP001'] and 'ownerEmail' not in d[0],(s,d))
 s,d=call('GET','companies/COMP002',token=CL); check('client cannot view unrelated company',s==403)
@@ -77,7 +77,7 @@ s,d=call('GET','users/U002',token=CL); check('client can view own PM',s==200)
 s,d=call('GET','users/U007',token=CL); check('client cannot view other company staff',s==403)
 s,d=call('PATCH','users/U005',{'phone':'9876543211'},token=CL); check('client can update self',s==200 and d['companyId']=='',(s,d))
 # company admin scoping of clients
-s,d=call('GET','users',token=AD); em=sorted(u['email'] for u in d if u['role']=='client'); check('company admin sees own clients only', 'client@apex.com' in em and 'client2@apex.com' in em and 'client@ltinfra.com' not in em, em)
+s,d=call('GET','users',token=AD); em=sorted(u['email'] for u in d if u['role']=='client'); check('company admin sees own clients only', 'client1@gmail.com' in em and 'client3@gmail.com' in em and 'client2@gmail.com' not in em, em)
 s,d=login('admin@ltinfra.com','123456'); LAD=d['accessToken']
 s,d=call('PATCH','users/U005',{'phone':'9876543222'},token=LAD); check('other company admin cannot edit client',s==403,(s,d))
 s,d=call('DELETE','users/U005',token=LAD); check('other company admin cannot delete client',s==403,(s,d))

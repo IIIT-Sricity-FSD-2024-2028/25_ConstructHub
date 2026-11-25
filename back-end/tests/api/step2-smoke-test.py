@@ -1,4 +1,4 @@
-"""Step 2 marketplace smoke test. Start the backend on a FRESH data/db first, then:  API=http://localhost:3000 python3 step2-smoke-test.py [phase2]"""
+"""Step 2 marketplace smoke test. Start the backend on a FRESH data/db first, then:  API=http://localhost:3000 python3 tests/api/step2-smoke-test.py [phase2]"""
 import json, os, sys, urllib.request, urllib.error, uuid, datetime
 B = os.environ.get('API', 'http://localhost:3000')
 TODAY = datetime.date.today()
@@ -46,7 +46,7 @@ def estimate(rid, admin, pm_tok, fm_tok, pm_id, fm_id, stages, advance=0, markup
     s_, d_ = call('PATCH', f"quotations/{q_['id']}/fm-estimate", {'stages': [{'internalCost': c} for n, d, c in stages], 'mobilizationAdvancePercent': advance}, token=fm_tok); assert s_ == 200, (s_, d_)
     s_, d_ = call('POST', f"quotations/{q_['id']}/release", {'markupPercent': markup, 'validUntil': iso(TODAY + datetime.timedelta(days=valid_days)), 'notes': 'Smoke quote'}, token=admin); assert s_ == 201, (s_, d_)
     return d_
-C1 = login('client@apex.com', '123456'); C2 = login('client2@apex.com', 'password123'); C3 = login('client@ltinfra.com', '123456')
+C1 = login('client1@gmail.com', '123456'); C2 = login('client3@gmail.com', '123456'); C3 = login('client2@gmail.com', '123456')
 
 if len(sys.argv) > 1 and sys.argv[1] == 'phase2':
     s, d = call('GET', 'requirements', token=C1); mine = [r for r in d if r['title'].startswith('SMOKE')]
@@ -145,7 +145,7 @@ s, b = call('GET',f'requirements/{RID}/documents/{DID}',token=C1,raw=True); chec
 s, b = call('GET',f'requirements/{RID}/documents/{DID}',token=AD2,raw=True); check('company can download open requirement document', s==200)
 check('other client cannot download', call('GET',f'requirements/{RID}/documents/{DID}',token=C2,raw=True)[0]==404)
 check('documents not served publicly', call('GET','private-uploads/requirements/'+RID+'/x',raw=True)[0] in (401,404))
-stray = os.path.join(os.path.dirname(os.path.abspath(__file__)),'private-uploads','requirements',RID)
+stray = os.path.join(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'),'private-uploads','requirements',RID)
 files = os.listdir(stray) if os.path.isdir(stray) else []
 check('rejected uploads leave no files behind', len(files)==1, files)
 

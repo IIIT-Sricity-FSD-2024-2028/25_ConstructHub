@@ -1,29 +1,28 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldCheck, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
-import ConstructHubLogo from '../components/common/ConstructHubLogo';
+import { ArrowLeft, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { isValidEmail } from '../services/utils';
 import Modal from '../components/common/Modal';
+import ConstructHubLogo from '../components/common/ConstructHubLogo';
+import towerFacadeImg from '../assets/login-architecture.jpg';
 
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem('ch_remembered_email') || '');
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(false);
+  const [remember, setRemember] = useState(() => Boolean(localStorage.getItem('ch_remembered_email')));
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Forgot password modal state
   const [forgotModal, setForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotError, setForgotError] = useState('');
   const [mailSentModal, setMailSentModal] = useState(false);
 
-  // If already authenticated, redirect straight to the user's dashboard
   useEffect(() => {
     const currentUser = api.getCurrentUser();
     if (currentUser && currentUser.role) {
@@ -56,6 +55,8 @@ export default function Login() {
     setLoading(false);
 
     if (res && res.success && res.user) {
+      if (remember) localStorage.setItem('ch_remembered_email', email.trim());
+      else localStorage.removeItem('ch_remembered_email');
       const role = res.user.role;
       const roleMap = {
         superuser: '/superuser/dashboard',
@@ -89,136 +90,133 @@ export default function Login() {
       {/* Left Form Panel */}
       <div className="login-left">
         <div className="login-panel">
-          <Link to="/" className="back-link">
-            ← Back to Home
-          </Link>
-          <h1 className="login-title">Sign in to your account</h1>
-          <p className="login-sub">Enter your email and password to continue to your workspace.</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 36 }}>
+            <Link to="/" aria-label="ConstructHub Home">
+              <ConstructHubLogo size={32} textSize={17} />
+            </Link>
+            <Link to="/" className="back-link" style={{ marginBottom: 0 }}>
+              <ArrowLeft size={14} /> Home
+            </Link>
+          </div>
 
-          <div className="login-form-card">
-            <div className="login-helper">
-              <div className="icon-box icon-box-orange" style={{ width: 32, height: 32 }}>
-                <ShieldCheck size={18} />
-              </div>
-              <div>
-                <strong>Secure access</strong>
-                Your credentials are required to open your role dashboard.
+          <h1 className="login-title">Sign in to your workspace</h1>
+          <p className="login-sub">Use your registered email and password to open your role portal.</p>
+
+          {errorMsg && (
+            <div className="error-msg" style={{ display: 'block' }}>
+              {errorMsg}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label className="form-label">Email Address</label>
+              <input
+                type="email"
+                className="form-input"
+                placeholder="name@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  className="form-input"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{ paddingRight: 40 }}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(!showPw)}
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: 4
+                  }}
+                >
+                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
 
-            {errorMsg && (
-              <div className="error-msg" style={{ display: 'block' }}>
-                {errorMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label className="form-label">Email Address</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <input
-                  type="email"
-                  className="form-input"
-                  placeholder="your.email@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
                 />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Password</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showPw ? 'text' : 'password'}
-                    className="form-input"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <span
-                    onClick={() => setShowPw(!showPw)}
-                    style={{
-                      position: 'absolute',
-                      right: '12px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      cursor: 'pointer',
-                      color: 'var(--text-muted)'
-                    }}
-                  >
-                    {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </span>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={remember}
-                    onChange={(e) => setRemember(e.target.checked)}
-                  />
-                  Remember me
-                </label>
-                <span
-                  onClick={() => { setForgotEmail(email); setForgotModal(true); }}
-                  style={{ color: 'var(--primary)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Forgot Password?
-                </span>
-              </div>
-
+                Remember me
+              </label>
               <button
-                type="submit"
-                className="btn btn-primary btn-full"
-                style={{ padding: '12px' }}
-                disabled={loading}
+                type="button"
+                onClick={() => { setForgotEmail(email); setForgotModal(true); }}
+                style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
               >
-                {loading ? 'Signing in...' : 'Sign In'}
+                Forgot password?
               </button>
-            </form>
+            </div>
 
-            <p style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--text-muted)' }}>
-              Want to build something?{' '}
+            <button
+              type="submit"
+              className="btn btn-primary btn-full"
+              style={{ padding: '12px 18px', fontSize: 14 }}
+              disabled={loading}
+            >
+              {loading ? 'Signing in...' : 'Sign In'}
+            </button>
+          </form>
+
+          <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: 'var(--text-muted)' }}>
+            <div>
+              New project owner?{' '}
               <Link to="/register-client" style={{ color: 'var(--primary)', fontWeight: 600 }}>
                 Create a client account
               </Link>
-            </p>
-            <p style={{ textAlign: 'center', marginTop: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
-              Looking to onboard your firm?{' '}
+            </div>
+            <div>
+              Onboarding a construction firm?{' '}
               <Link to="/contact?request=firm" style={{ color: 'var(--primary)', fontWeight: 600 }}>
-                Request Enterprise Workspace
+                Request workspace access
               </Link>
-            </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Right Hero Panel */}
+      {/* Right Framed Architectural Panel */}
       <div className="login-right">
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ marginBottom: '16px' }}>
-            <ConstructHubLogo size={64} textSize={32} variant="light" stacked />
-          </div>
-          <div style={{ fontSize: '18px', fontWeight: 600, textAlign: 'center', lineHeight: 1.8, opacity: 0.9 }}>
-            Build Smarter.<br />Manage Better.<br />Deliver Faster.
-          </div>
-          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13.5px', marginTop: '20px', maxWidth: '320px', textAlign: 'center', lineHeight: 1.7 }}>
-            The all-in-one construction management platform designed to streamline your projects from planning to completion.
-          </p>
-          <div style={{ display: 'flex', gap: '36px', marginTop: '44px' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-head)', fontSize: '28px', fontWeight: 800, color: 'var(--primary)' }}>500+</div>
-              <div style={{ fontSize: '12px', opacity: 0.6, marginTop: '2px' }}>Projects</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-head)', fontSize: '28px', fontWeight: 800, color: '#3b82f6' }}>98%</div>
-              <div style={{ fontSize: '12px', opacity: 0.6, marginTop: '2px' }}>On Time</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-head)', fontSize: '28px', fontWeight: 800, color: '#10b981' }}>50K+</div>
-              <div style={{ fontSize: '12px', opacity: 0.6, marginTop: '2px' }}>Users</div>
+        <div className="login-visual-frame">
+          <img src={towerFacadeImg} alt="Modern construction tower facade" className="login-visual-img" />
+          <div className="login-visual-scrim" />
+          <div className="login-visual-content">
+            <span className="login-visual-pill">7-Role Construction ERP</span>
+            <h2>From tender estimation to verified stage billing.</h2>
+            <p>
+              Keep project owners, estimators, project managers, storekeepers, site engineers, and finance teams aligned on one milestone-locked ledger.
+            </p>
+            <div className="login-visual-steps">
+              <span>01 · 3-Role Bid Quote</span>
+              <span>02 · Mobilization Gate</span>
+              <span>03 · Site Stock &amp; Proof</span>
+              <span>04 · Stage RA Billing</span>
             </div>
           </div>
         </div>

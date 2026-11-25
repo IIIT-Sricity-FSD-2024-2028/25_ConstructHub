@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { attachStore } from '../utils/json-store';
+import { today } from '../utils/ids';
 
 export interface CompanyRecord {
   id?: string;
@@ -129,8 +130,8 @@ export class CompaniesRepository {
       plan: record.plan || 'Basic',
       billingCycle: record.billingCycle || 'monthly',
       subscriptionStatus: record.subscriptionStatus || 'active',
-      subscriptionStartedAt: record.subscriptionStartedAt || new Date().toISOString().split('T')[0],
-      nextBillingDate: record.nextBillingDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      subscriptionStartedAt: record.subscriptionStartedAt || today(),
+      nextBillingDate: record.nextBillingDate || today(new Date(Date.now() + 30 * 86400000)),
       overageEnabled: record.overageEnabled !== undefined ? record.overageEnabled : false,
       extraUsers: record.extraUsers || 0,
       extraProjects: record.extraProjects || 0,

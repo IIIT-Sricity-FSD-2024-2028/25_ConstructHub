@@ -1,6 +1,7 @@
 import LiveSummary from '../../../components/dashboard/LiveSummary';
+import { useToast } from '../../../hooks/useToast';
 import { useState, useEffect } from 'react';
-import { useSearchParams, useOutletContext } from 'react-router-dom';
+import { Link, useSearchParams, useOutletContext } from 'react-router-dom';
 import {
   ShieldCheck,
   Users,
@@ -10,7 +11,6 @@ import {
   FileText,
   Wallet,
   UserPlus,
-  FolderPlus,
   Edit2,
   Trash2,
   Power,
@@ -31,8 +31,7 @@ import {
   normalizeBillStatus,
   isValidEmail,
   isValidPhone,
-  avatarColor
-} from '../../../services/utils';
+  avatarColor, localDateISO } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import DataTable from '../../../components/common/DataTable';
 
@@ -54,6 +53,7 @@ function KpiStrip({ items, note }) {
 }
 
 export default function CompanyAdminDashboard() {
+  const toast = useToast();
   const { user } = useOutletContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentTab = searchParams.get('tab') || 'users';
@@ -82,7 +82,6 @@ export default function CompanyAdminDashboard() {
   const [userFormErrors, setUserFormErrors] = useState({});
 
   const [projectModalOpen, setProjectModalOpen] = useState(false);
-  const [isEditingProject, setIsEditingProject] = useState(false);
   const [projectForm, setProjectForm] = useState({
     id: '',
     name: '',
@@ -224,7 +223,7 @@ export default function CompanyAdminDashboard() {
       email: u.email,
       role: u.role,
       phone: (u.phone || '').replace(/[^0-9]/g, '').slice(-10),
-      password: u.password || '123456',
+      password: '',
       status: u.status || 'active'
     });
     setUserFormErrors({});
@@ -249,7 +248,7 @@ export default function CompanyAdminDashboard() {
     if (userForm.phone && !isValidPhone(userForm.phone)) {
       errors.phone = 'Phone number must be exactly 10 digits';
     }
-    if (!isEditingUser && (!userForm.password || userForm.password.trim().length < 6)) {
+    if ((!isEditingUser || userForm.password) && (!userForm.password || userForm.password.trim().length < 6)) {
       errors.password = 'Password must be at least 6 characters';
     }
 
@@ -274,9 +273,12 @@ export default function CompanyAdminDashboard() {
       email: userForm.email.trim().toLowerCase(),
       companyId: user.companyId,
       avatar: userForm.name.substring(0, 2).toUpperCase(),
-      status: userForm.status || 'active',
-      password: userForm.password || '123456'
+      status: userForm.status || 'active'
     };
+    // Only send a password when creating, or when the admin typed a new one (editing must not reset it).
+    if (!isEditingUser || userForm.password) payload.password = userForm.password;
+    // Your own account cannot be locked, so do not send a status for it.
+    if (isEditingUser && userForm.id === user.id) delete payload.status;
 
     if (!isEditingUser) {
       payload.role = userForm.role;
@@ -301,59 +303,34 @@ export default function CompanyAdminDashboard() {
 
   async function handleToggleUserStatus(u) {
     if (u.id === user.id) {
-      alert('You cannot lock your own account.');
+      toast.error('You cannot lock your own account.');
       return;
     }
     const nextStatus = u.status === 'active' ? 'inactive' : 'active';
-    await api.updateUser(u.id, { status: nextStatus });
+    const res = await api.updateUser(u.id, { status: nextStatus });
+    if (res && res.error) {
+      toast.error(res.message || 'Could not update the user.');
+      return;
+    }
     loadCompanyData();
   }
 
   async function handleDeleteUser(id) {
     if (id === user.id) {
-      alert('You cannot delete your own account.');
+      toast.error('You cannot delete your own account.');
       return;
     }
     if (window.confirm('Are you sure you want to remove this team member?')) {
-      await api.deleteUser(id);
+      const res = await api.deleteUser(id);
+      if (res && res.error) {
+        toast.error(res.message || 'Could not remove the user.');
+        return;
+      }
       loadCompanyData();
     }
   }
 
-  function openAddProjectModal() {
-    if (!isCoreTeamComplete) {
-      const missingTitles = coreRolesStatus.filter((r) => !r.isComplete).map((r) => r.title).join(', ');
-      setSetupWarning(
-        `Company setup incomplete: You must create at least one Project Manager, one Finance Manager, and one Site Engineer before creating projects. Missing: ${missingTitles}.`
-      );
-      return;
-    }
-    setIsEditingProject(false);
-    const existingPMs = teamUsers.filter((u) => u.role === 'project_manager');
-    const existingFMs = teamUsers.filter((u) => u.role === 'finance_manager');
-    setProjectForm({
-      id: '',
-      name: '',
-      location: '',
-      budget: '',
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: '',
-      description: '',
-      status: 'On Track',
-      clientId: '',
-      clientName: '',
-      clientEmail: '',
-      clientPhone: '',
-      clientPassword: '123456',
-      selectedManagerId: existingPMs[0]?.id || '',
-      selectedFinanceManagerId: existingFMs[0]?.id || ''
-    });
-    setProjectFormErrors({});
-    setProjectModalOpen(true);
-  }
-
   function openEditProjectModal(p) {
-    setIsEditingProject(true);
     const existingPMs = teamUsers.filter((u) => u.role === 'project_manager');
     const existingFMs = teamUsers.filter((u) => u.role === 'finance_manager');
     setProjectForm({
@@ -390,94 +367,16 @@ export default function CompanyAdminDashboard() {
       errors.endDate = 'End date cannot be earlier than start date';
     }
 
-    // Quota check
-    if (!isEditingProject && company) {
-      const defaultProjLimits = { Basic: 3, Pro: 15, Enterprise: 100 };
-      const projLimit = company.customProjectLimit || defaultProjLimits[company.plan] || 3;
-      if (projects.length >= projLimit && !company.overageEnabled) {
-        errors.name = `Project quota reached (${projects.length}/${projLimit}). Upgrade plan or enable overage.`;
-      }
-    }
-
-    let clientId;
-    let clientName;
-    let clientEmail;
-    let clientPhone;
-
-    if (!isEditingProject) {
-      // New client required for each project (1 client = 1 project)
-      if (!projectForm.clientName.trim()) {
-        errors.clientName = 'Client Name is required';
-      }
-      if (!projectForm.clientEmail.trim()) {
-        errors.clientEmail = 'Client Email is required';
-      } else if (!isValidEmail(projectForm.clientEmail.trim())) {
-        errors.clientEmail = 'Enter a valid email address';
-      } else {
-        const emailLower = projectForm.clientEmail.trim().toLowerCase();
-        const existingProjWithClient = projects.find(
-          (p) => (p.clientEmail || '').toLowerCase() === emailLower
-        );
-        if (existingProjWithClient) {
-          errors.clientEmail = `This client is already assigned to project "${existingProjWithClient.name}". A client can only have one project.`;
-        } else {
-          const existingUserWithEmail = teamUsers.find(
-            (u) => (u.email || '').toLowerCase() === emailLower
-          );
-          if (existingUserWithEmail) {
-            errors.clientEmail = 'A user with this email already exists. Each project requires a dedicated new client.';
-          }
-        }
-      }
-
-      if (projectForm.clientPhone && !isValidPhone(projectForm.clientPhone)) {
-        errors.clientPhone = 'Phone number must be exactly 10 digits';
-      }
-      if (!projectForm.clientPassword || projectForm.clientPassword.length < 6) {
-        errors.clientPassword = 'Password must be at least 6 characters';
-      }
-    }
-
     if (Object.keys(errors).length > 0) {
       setProjectFormErrors(errors);
       return;
     }
 
-    if (!isEditingProject) {
-      const cleanPhone = (projectForm.clientPhone || '').replace(/\D/g, '').slice(-10);
-      const clientPayload = {
-        name: projectForm.clientName.trim(),
-        email: projectForm.clientEmail.trim().toLowerCase(),
-        role: 'client',
-        companyId: user.companyId,
-        avatar: projectForm.clientName.substring(0, 2).toUpperCase(),
-        status: 'active',
-        password: projectForm.clientPassword || '123456'
-      };
-      if (cleanPhone && cleanPhone.length === 10) {
-        clientPayload.phone = cleanPhone;
-      }
-
-      const clientRes = await api.createUser(clientPayload);
-      if (clientRes && clientRes.error) {
-        setProjectFormErrors({
-          clientEmail: Array.isArray(clientRes.message)
-            ? clientRes.message.join(', ')
-            : (clientRes.message || 'Failed to create client user')
-        });
-        return;
-      }
-
-      clientId = clientRes.id;
-      clientName = clientRes.name;
-      clientEmail = clientRes.email;
-      clientPhone = clientRes.phone || '';
-    } else {
-      clientId = projectForm.clientId;
-      clientName = projectForm.clientName;
-      clientEmail = projectForm.clientEmail;
-      clientPhone = projectForm.clientPhone;
-    }
+    // Projects are created only when a client awards the company's quotation (Marketplace); here they are edited.
+    const clientId = projectForm.clientId;
+    const clientName = projectForm.clientName;
+    const clientEmail = projectForm.clientEmail;
+    const clientPhone = projectForm.clientPhone;
 
     const assignedPM =
       teamUsers.find((u) => u.id === projectForm.selectedManagerId && u.role === 'project_manager') ||
@@ -504,44 +403,17 @@ export default function CompanyAdminDashboard() {
       managerId,
       managerName,
       ...(financeManagerId ? { financeManagerId, financeManagerName } : {}),
-      progress: isEditingProject ? undefined : 0,
-      spent: isEditingProject ? undefined : 0,
       teamSize: 1,
-      allocations: isEditingProject
-        ? (projects.find(p => p.id === projectForm.id)?.allocations || { Materials: 0, Labor: 0, Equipment: 0, Other: b })
-        : {
-            Materials: 0,
-            Labor: 0,
-            Equipment: 0,
-            Other: b
-          },
+      allocations: projects.find(p => p.id === projectForm.id)?.allocations || { Materials: 0, Labor: 0, Equipment: 0, Other: b },
       ...(clientId ? { clientId, clientName, clientEmail, clientPhone } : {})
     };
 
-    if (isEditingProject) {
-      const updateRes = await api.updateProject(projectForm.id, payload);
-      if (updateRes && updateRes.error) {
-        setProjectFormErrors({
-          name: Array.isArray(updateRes.message) ? updateRes.message.join(', ') : (updateRes.message || 'Failed to update project')
-        });
-        return;
-      }
-    } else {
-      const createdProj = await api.createProject(payload);
-      if (createdProj && createdProj.error) {
-        setProjectFormErrors({
-          name: Array.isArray(createdProj.message) ? createdProj.message.join(', ') : (createdProj.message || 'Failed to create project')
-        });
-        return;
-      }
-      if (clientId) {
-        await api.createNotification({
-          userId: clientId,
-          type: 'system',
-          title: 'Project Created',
-          body: `Your project "${createdProj.name}" has been successfully set up.`
-        });
-      }
+    const updateRes = await api.updateProject(projectForm.id, payload);
+    if (updateRes && updateRes.error) {
+      setProjectFormErrors({
+        name: Array.isArray(updateRes.message) ? updateRes.message.join(', ') : (updateRes.message || 'Failed to update project')
+      });
+      return;
     }
 
     setProjectModalOpen(false);
@@ -551,7 +423,11 @@ export default function CompanyAdminDashboard() {
   async function handleDeleteProject(id) {
     if (window.confirm('Are you sure you want to delete this project?')) {
       const proj = projects.find((p) => p.id === id);
-      await api.deleteProject(id);
+      const delRes = await api.deleteProject(id);
+      if (delRes && delRes.error) {
+        toast.error(delRes.message || 'Could not delete the project.');
+        return;
+      }
       if (proj && proj.clientId) {
         await api.deleteUser(proj.clientId).catch(() => {});
       }
@@ -604,21 +480,6 @@ export default function CompanyAdminDashboard() {
           >
             APPROVED DOMAIN: @{company?.domain || 'company.com'}
           </span>
-          <button
-            type="button"
-            onClick={openAddProjectModal}
-            className="btn btn-secondary"
-            style={{
-              background: !isCoreTeamComplete ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.15)',
-              borderColor: 'rgba(255,255,255,0.3)',
-              color: 'white',
-              opacity: !isCoreTeamComplete ? 0.75 : 1,
-              cursor: !isCoreTeamComplete ? 'not-allowed' : 'pointer'
-            }}
-            title={!isCoreTeamComplete ? 'Setup required: Add at least 1 PM, 1 FM, and 1 SE first' : 'Add Project'}
-          >
-            {!isCoreTeamComplete ? <Lock size={15} /> : <FolderPlus size={16} />} Add Project
-          </button>
           <button
             type="button"
             onClick={() => openAddUserModal()}
@@ -983,13 +844,9 @@ export default function CompanyAdminDashboard() {
               value={projectSearch}
               onChange={(e) => setProjectSearch(e.target.value)}
             />
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={openAddProjectModal}
-            >
-              + New Project
-            </button>
+            <Link to="/company-admin/marketplace" className="btn btn-primary btn-sm" title="New projects come from quotations your clients award in the Marketplace">
+              Find work in Marketplace
+            </Link>
           </div>
 
           <DataTable
@@ -1081,7 +938,7 @@ export default function CompanyAdminDashboard() {
               ['Tasks', tasks.length],
               ['In progress', tasks.filter((t) => t.status === 'In Progress').length],
               ['Completed', tasks.filter((t) => t.status === 'Completed').length],
-              ['Overdue', tasks.filter((t) => t.status !== 'Completed' && t.deadline && t.deadline < new Date().toISOString().slice(0, 10)).length],
+              ['Overdue', tasks.filter((t) => t.status !== 'Completed' && t.deadline && t.deadline < localDateISO()).length],
             ]}
             note="Read-only overview. Project managers plan and assign tasks."
           />
@@ -1419,13 +1276,13 @@ export default function CompanyAdminDashboard() {
             <input
               type="password"
               className={`form-input ${userFormErrors.password ? 'input-error' : ''}`}
-              placeholder="e.g. 123456 (default)"
+              placeholder={isEditingUser ? 'Leave blank to keep the current password' : 'e.g. 123456 (default)'}
               value={userForm.password || ''}
               onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
             />
             {userFormErrors.password && <span className="field-error">{userFormErrors.password}</span>}
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
-              Default password: 123456
+              {isEditingUser ? 'Type a new password only to reset it (min. 6 characters).' : 'Default password: 123456'}
             </div>
           </div>
 
@@ -1448,7 +1305,7 @@ export default function CompanyAdminDashboard() {
       <Modal
         isOpen={projectModalOpen}
         onClose={() => setProjectModalOpen(false)}
-        title={isEditingProject ? 'Edit Project' : 'Create New Project'}
+        title="Edit Project"
         subtitle="Manage construction project parameters and allocation"
       >
         <form onSubmit={handleSaveProject}>
@@ -1466,90 +1323,7 @@ export default function CompanyAdminDashboard() {
             {projectFormErrors.name && <span className="field-error">{projectFormErrors.name}</span>}
           </div>
 
-          {!isEditingProject ? (
-            <div
-              style={{
-                marginBottom: 16,
-                padding: 14,
-                background: 'var(--bg)',
-                borderRadius: 'var(--radius)',
-                border: '1px solid var(--border)'
-              }}
-            >
-              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--primary)', marginBottom: 4 }}>
-                Client Information (New Client) <span className="req">*</span>
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                A client can only have one project. Enter the new client account details below.
-              </p>
-
-              <div style={{ display: 'grid', gap: 10 }}>
-                <div className="grid-2">
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Client Name <span className="req">*</span></label>
-                    <input
-                      type="text"
-                      className={`form-input ${projectFormErrors.clientName ? 'input-error' : ''}`}
-                      placeholder="e.g. John Doe"
-                      value={projectForm.clientName}
-                      onChange={(e) => setProjectForm({ ...projectForm, clientName: e.target.value })}
-                    />
-                    {projectFormErrors.clientName && (
-                      <span className="field-error">{projectFormErrors.clientName}</span>
-                    )}
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Client Email <span className="req">*</span></label>
-                    <input
-                      type="email"
-                      className={`form-input ${projectFormErrors.clientEmail ? 'input-error' : ''}`}
-                      placeholder={`client@${company?.domain || 'apex.com'}`}
-                      value={projectForm.clientEmail}
-                      onChange={(e) => setProjectForm({ ...projectForm, clientEmail: e.target.value })}
-                    />
-                    {projectFormErrors.clientEmail && (
-                      <span className="field-error">{projectFormErrors.clientEmail}</span>
-                    )}
-                  </div>
-                </div>
-                <div className="grid-2">
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Client Phone</label>
-                    <input
-                      type="tel"
-                      className={`form-input ${projectFormErrors.clientPhone ? 'input-error' : ''}`}
-                      placeholder="10-digit phone"
-                      value={projectForm.clientPhone}
-                      maxLength={10}
-                      onChange={(e) =>
-                        setProjectForm({
-                          ...projectForm,
-                          clientPhone: e.target.value.replace(/[^0-9]/g, '').slice(0, 10)
-                        })
-                      }
-                    />
-                    {projectFormErrors.clientPhone && (
-                      <span className="field-error">{projectFormErrors.clientPhone}</span>
-                    )}
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Client Password <span className="req">*</span></label>
-                    <input
-                      type="password"
-                      className={`form-input ${projectFormErrors.clientPassword ? 'input-error' : ''}`}
-                      placeholder="Min 6 characters"
-                      value={projectForm.clientPassword}
-                      onChange={(e) => setProjectForm({ ...projectForm, clientPassword: e.target.value })}
-                    />
-                    {projectFormErrors.clientPassword && (
-                      <span className="field-error">{projectFormErrors.clientPassword}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            projectForm.clientName && (
+          {projectForm.clientName && (
               <div
                 style={{
                   padding: 12,
@@ -1564,8 +1338,7 @@ export default function CompanyAdminDashboard() {
                   {projectForm.clientName} {projectForm.clientEmail ? `(${projectForm.clientEmail})` : ''}
                 </div>
               </div>
-            )
-          )}
+            )}
 
           <div className="grid-2">
             <div className="form-group">
@@ -1691,7 +1464,7 @@ export default function CompanyAdminDashboard() {
               Cancel
             </button>
             <button type="submit" className="btn btn-primary">
-              {isEditingProject ? 'Save Changes' : 'Create Project'}
+              Save Changes
             </button>
           </div>
         </form>
@@ -1871,7 +1644,7 @@ export default function CompanyAdminDashboard() {
           );
 
           const clientName = viewProjectModal.clientName || clientUser?.name || '-';
-          const clientEmail = viewProjectModal.clientEmail || clientUser?.email || 'client@apex.com';
+          const clientEmail = viewProjectModal.clientEmail || clientUser?.email || 'client1@gmail.com';
           const clientPhone = viewProjectModal.clientPhone || clientUser?.phone || '+91 98765 43213';
 
           const pmName = viewProjectModal.managerName || viewProjectModal.pmName || pmUser?.name || 'Rajesh Kumar';

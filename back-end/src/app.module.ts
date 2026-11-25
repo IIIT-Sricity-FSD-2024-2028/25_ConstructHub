@@ -1,5 +1,6 @@
 import { Module, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { LoggerMiddleware } from './middleware/logger.middleware';
+import { RequestIdMiddleware } from './middleware/request-id.middleware';
 import { SecurityMiddleware } from './middleware/security.middleware';
 import { AuthMiddleware } from './middleware/auth.middleware';
 import { UsersModule } from './users/users.module';
@@ -45,7 +46,7 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // Global middleware for security headers, rate-limiting, and structured logging
     consumer
-      .apply(SecurityMiddleware, LoggerMiddleware)
+      .apply(RequestIdMiddleware, SecurityMiddleware, LoggerMiddleware)
       .forRoutes('*');
 
     // Router-level authentication middleware attaching identity context
@@ -81,6 +82,7 @@ export class AppModule implements NestModule {
         { path: 'notifications/:id', method: RequestMethod.ALL },
         { path: 'inquiries', method: RequestMethod.GET },
         { path: 'inquiries/:id', method: RequestMethod.PATCH },
+        { path: 'inquiries/:id', method: RequestMethod.DELETE },
         { path: 'users', method: RequestMethod.ALL },
         { path: 'users/:id', method: RequestMethod.ALL },
         { path: 'companies', method: RequestMethod.ALL },

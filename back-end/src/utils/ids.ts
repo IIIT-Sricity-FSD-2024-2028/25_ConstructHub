@@ -9,9 +9,20 @@ export function nextSequentialId(prefix: string, existing: Array<{ id?: string }
   return `${prefix}${String(max + 1).padStart(pad, '0')}`;
 }
 
-/** Today as YYYY-MM-DD (server local date). */
-export function today(): string {
-  return new Date().toISOString().slice(0, 10);
+/** Business time zone of the app (all dates the users see and type are in this zone). Override with APP_TIMEZONE. */
+export const APP_TIMEZONE = process.env.APP_TIMEZONE || 'Asia/Kolkata';
+
+/**
+ * Today as YYYY-MM-DD in the business time zone.
+ * (toISOString() would give the UTC date, which in India is still "yesterday" until 05:30 in the morning.)
+ */
+export function today(at: Date = new Date()): string {
+  try {
+    // en-CA formats dates as YYYY-MM-DD
+    return new Intl.DateTimeFormat('en-CA', { timeZone: APP_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
+  } catch {
+    return at.toISOString().slice(0, 10);
+  }
 }
 
 export function addDays(isoDate: string, days: number): string {

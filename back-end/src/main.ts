@@ -29,7 +29,7 @@ async function bootstrap() {
   app.enableCors({
     origin: true,          // reflect request origin (fine for demo/dev)
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'authorization', 'x-role', 'x-request-id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-request-id'],
     exposedHeaders: ['x-request-id', 'x-response-time', 'x-ratelimit-remaining'],
   });
 
@@ -56,9 +56,8 @@ async function bootstrap() {
     .setTitle('ConstructHub API')
     .setDescription(
       'ConstructHub Construction Management Platform API.\n\n' +
-      '**How to use:** Click "Try it out" on any endpoint, fill in the `x-role` header field ' +
-      'with one of: `superuser`, `project_manager`, `site_engineer`, `finance_manager`, `procurement_storekeeper`, `client`, ' +
-      'then click Execute.\n\n' +
+      '**How to use:** call `POST /auth/login` with a demo account (e.g. `admin@apex.com` / `123456`), copy the ' +
+      '`accessToken`, click **Authorize** and paste it. Every protected route then runs as that user.\n\n' +
       '**Middleware active:**\n' +
       '- 🔒 Security headers + Rate Limiting (120 req/min per IP)\n' +
       '- 📝 Request logging to `logs/access-YYYY-MM-DD.log`\n' +
@@ -68,9 +67,11 @@ async function bootstrap() {
       '- 🛡️ Auth middleware on all protected routes',
     )
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
+  document.security = [{ bearer: [] }]; // the Authorize button applies the token to every call
   SwaggerModule.setup('api/docs', app, document);
 
   // Write swagger.json to disk
@@ -85,13 +86,6 @@ async function bootstrap() {
   // Serve uploaded photos at /uploads
   httpAdapter.use('/uploads', expressStatic(UPLOADS_DIR));
 
-  // Serve frontend static files
-  // __dirname in dev = back-end/src, in prod = back-end/dist — go two levels up to root.
-  const frontendPath = path.join(__dirname, '..', '..', 'front-end');
-  if (fs.existsSync(frontendPath)) {
-    httpAdapter.use(expressStatic(frontendPath));
-  }
-
   // Gracefully handle browser font fallback requests so they do not log 404
   httpAdapter.use('/assets/fonts', (req: any, res: any) => {
     res.status(200).type('application/font-woff2').send('');
@@ -104,7 +98,7 @@ async function bootstrap() {
   console.log(`\n========================================`);
   console.log(`  ConstructHub is running!`);
   console.log(`========================================`);
-  console.log(`  🌐  App (Login):   http://localhost:${port}/login.html`);
+  console.log(`  🌐  Frontend:      run "npm run dev" in frontend-react (http://localhost:5173)`);
   console.log(`  🚀  Backend API:   http://localhost:${port}`);
   console.log(`  📚  Swagger Docs:  http://localhost:${port}/api/docs`);
   console.log(`  📁  Uploads:       http://localhost:${port}/uploads`);
@@ -118,5 +112,8 @@ async function bootstrap() {
   console.log(`    ✅ File Upload     → POST /reports/upload`);
   console.log(`    ✅ Error Handling  → global (→ logs/error-*.log)`);
   console.log(`========================================\n`);
+  if (!process.env.JWT_SECRET) {
+    console.warn('  ⚠  JWT_SECRET is not set: using the built-in development secret. Set it (see .env.example) before any real deployment.\n');
+  }
 }
 bootstrap();

@@ -1,16 +1,6 @@
-import { Injectable, NestMiddleware, ForbiddenException } from '@nestjs/common';
+import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 
-// Allowed role values — any x-role header outside this list is rejected immediately
-const VALID_ROLES = new Set([
-  'superuser',
-  'company_admin',
-  'project_manager',
-  'site_engineer',
-  'finance_manager',
-  'procurement_storekeeper',
-  'client',
-]);
 
 // Simple in-memory rate limiter (per IP, per minute)
 // Configured with high threshold for local development and viva evaluation
@@ -25,7 +15,6 @@ const RATE_WINDOW_MS = 60_000;   // 1 minute window
  *  1. Set secure HTTP headers manually (XSS, no-sniff, frame options, etc.)
  *     → equivalent to what Helmet does, done inline so no extra package is required.
  *  2. Rate-limit by IP (120 req/min) — blocks brute-force login attacks.
- *  3. Sanitise the x-role header — reject unknown roles before they hit any guard.
  *  4. Add X-Response-Time header on response finish.
  */
 @Injectable()
@@ -83,12 +72,6 @@ export class SecurityMiddleware implements NestMiddleware {
         retryAfter: Math.ceil((entry.resetAt - now) / 1000),
       });
       return;
-    }
-
-    // ── 3. Sanitise x-role header ────────────────────────────────────────
-    const role = req.headers['x-role'] as string | undefined;
-    if (role && !VALID_ROLES.has(role)) {
-      throw new ForbiddenException(`Invalid role: "${role}"`);
     }
 
     // ── 4. Response Time Header ──────────────────────────────────────────
