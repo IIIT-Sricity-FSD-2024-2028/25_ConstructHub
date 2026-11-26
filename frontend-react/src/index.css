@@ -60,6 +60,7 @@ a { text-decoration: none; color: inherit; }
   min-height: calc(100vh - var(--nav-h));
   background: var(--bg-page);
   max-width: 1560px;
+  min-width: 0; /* a flex child must be allowed to shrink, or one wide table stretches the whole page */
 }
 
 /* ── Clean White Top Navbar ─────────────────────────────── */
@@ -1169,6 +1170,12 @@ input:checked + .toggle-slider::before, input:checked + .slider::before { transf
 @media (max-width: 768px) {
   .sidebar { display: none; }
   .main-content { margin-left: 0; padding: 16px; }
+  /* on a phone, a wide table scrolls inside its card instead of widening the page */
+  .card, .modal-body { overflow-x: auto; }
+  .page-header-row { flex-wrap: wrap; gap: 10px; }
+  .nav-right .user-info { display: none; }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 16px; }
+  .stat-card, .stat-card:not(:first-child) { border-right: none; padding: 4px 8px 4px 0; }
   .login-layout { grid-template-columns: 1fr; }
   .login-right { display: none; }
   .lp-about-stats { grid-template-columns: 1fr; gap: 16px; }
@@ -1352,3 +1359,7 @@ input:checked + .toggle-slider::before, input:checked + .slider::before { transf
 @media (max-width: 680px) {
   .hero-mini-grid-4, .hero-mini-grid-6 { grid-template-columns: 1fr; }
 }
+
+/* Amber "this is locked for now" note, e.g. a project still waiting for its mobilization advance. */
+.notice-warn { display: flex; align-items: flex-start; gap: 8px; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; padding: 10px 14px; border-radius: 10px; font-size: 13px; margin-bottom: 14px; }
+.notice-warn svg { flex-shrink: 0; margin-top: 2px; }

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { api, API_ORIGIN } from '../../services/api';
+import { API_ORIGIN } from '../../services/api';
+import { useAppDispatch, useAppSelector, errorText } from '../../store/hooks';
+import { fetchReportById, selectReportById } from '../../features/reports/reportsSlice';
 import { formatDate } from '../../services/utils';
 import Modal from './Modal';
 
@@ -12,18 +14,18 @@ const field = (label, value) => (
 
 /** Read-only preview of one site report: what was done, weather, workers, material used and photos. */
 export default function ReportPreviewModal({ reportId, onClose }) {
-  const [loaded, setLoaded] = useState(null); // { id, report?, error? }
+  const dispatch = useAppDispatch();
+  const report = useAppSelector((state) => (reportId ? selectReportById(state, reportId) : null));
+  const [failed, setFailed] = useState(null); // { id, error }
 
+  // Always re-read the report when the preview opens (the list version may lack details such as photos).
   useEffect(() => {
     if (!reportId) return;
-    let live = true;
-    api.getReport(reportId).then((res) => {
-      if (live) setLoaded(res && res.error ? { id: reportId, error: res.message } : { id: reportId, report: res });
-    });
-    return () => { live = false; };
-  }, [reportId]);
+    dispatch(fetchReportById(reportId)).unwrap().catch((err) => setFailed({ id: reportId, error: errorText(err) }));
+  }, [dispatch, reportId]);
 
-  const current = loaded && loaded.id === reportId ? loaded : null;
+  const errorForThis = failed && failed.id === reportId ? failed.error : '';
+  const current = errorForThis ? { error: errorForThis } : report ? { report } : null;
   const r = current?.report;
   const photos = Array.isArray(r?.photoUrls) ? r.photoUrls : [];
   const materials = Array.isArray(r?.materials) ? r.materials : [];

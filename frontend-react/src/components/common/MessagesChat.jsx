@@ -1,4 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { fetchMessages, sendMessage, selectAllMessages } from '../../features/messages/messagesSlice';
+import { fetchUsers, selectAllUsers } from '../../features/users/usersSlice';
+import { fetchProjects, selectAllProjects } from '../../features/projects/projectsSlice';
+import { sendNotification } from '../../features/notifications/notificationsSlice';
 import {
   Send,
   Search,
@@ -13,7 +18,6 @@ import {
   Info,
   Building2
 } from 'lucide-react';
-import { api } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
 import { avatarColor, roleLabel } from '../../services/utils';
 import '../../styles/whatsapp-chat.css';
@@ -46,10 +50,11 @@ function parseMessageTimestamp(m) {
 export default function MessagesChat({ user, contactIds }) {
   const toast = useToast();
   const contactKey = contactIds ? contactIds.join(',') : '';
-  const [contacts, setContacts] = useState([]);
-  const [activeContact, setActiveContact] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [projects, setProjects] = useState([]);
+  const dispatch = useAppDispatch();
+  const allUsers = useAppSelector(selectAllUsers);
+  const messages = useAppSelector(selectAllMessages);
+  const projects = useAppSelector(selectAllProjects);
+  const [chosenContactId, setChosenContactId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [inputText, setInputText] = useState('');
@@ -65,68 +70,56 @@ export default function MessagesChat({ user, contactIds }) {
   const userId = user?.id;
   const userCompanyId = user?.companyId;
 
-  const refreshMessages = useCallback(async () => {
-    if (!userId) return;
-    const allMsgs = await api.getMessages();
-    setMessages(Array.isArray(allMsgs) ? allMsgs : []);
-  }, [userId]);
+  const refreshMessages = useCallback(() => {
+    if (userId) dispatch(fetchMessages());
+  }, [userId, dispatch]);
 
-  const loadInitialData = useCallback(async () => {
-    if (!userId) return;
-    const [allUsers, allMsgs, allProjects] = await Promise.all([
-      api.getUsers(userCompanyId),
-      api.getMessages(),
-      api.getProjects(userCompanyId)
-    ]);
-
+  // People this user can write to (optionally limited to one project's team), active and not the platform admin.
+  const contacts = useMemo(() => {
     const scope = contactKey ? new Set(contactKey.split(',')) : null;
-    const filteredUsers = (allUsers || []).filter(
-      (u) => u.id !== userId && u.status === 'active' && u.role !== 'superuser' && (!scope || scope.has(u.id))
-    );
+    return allUsers.filter((u) => u.id !== userId && u.status === 'active' && u.role !== 'superuser'
+      && (userCompanyId ? (u.companyId === userCompanyId || u.role === 'client') : true)
+      && (!scope || scope.has(u.id)));
+  }, [allUsers, userId, userCompanyId, contactKey]);
 
-    setContacts(filteredUsers);
-    setMessages(Array.isArray(allMsgs) ? allMsgs : []);
-    setProjects(Array.isArray(allProjects) ? allProjects : []);
-
-    setActiveContact((prev) => {
-      if (prev && filteredUsers.some((u) => u.id === prev.id)) return prev;
-      if (filteredUsers.length === 0) return null;
-      const sortedByLatest = [...filteredUsers].sort((a, b) => {
-        const getLatest = (cId) => {
-          const thread = (allMsgs || []).filter((m) => {
-            const isMe = m.senderId === userId || m.from === userId;
-            const isC = m.senderId === cId || m.from === cId;
-            const isToMe = m.receiverId === userId || m.to === userId;
-            const isToC = m.receiverId === cId || m.to === cId;
-            return (isMe && isToC) || (isC && isToMe);
-          });
-          if (thread.length === 0) return 0;
-          const s = [...thread].sort((x, y) => parseMessageTimestamp(y) - parseMessageTimestamp(x));
-          return parseMessageTimestamp(s[0]);
-        };
-        return getLatest(b.id) - getLatest(a.id);
+  // The open conversation: the one the user picked, otherwise the contact with the latest message.
+  const activeContact = useMemo(() => {
+    const picked = contacts.find((u) => u.id === chosenContactId);
+    if (picked) return picked;
+    if (contacts.length === 0) return null;
+    const latest = (cId) => {
+      const thread = messages.filter((m) => {
+        const isMe = m.senderId === userId || m.from === userId;
+        const isC = m.senderId === cId || m.from === cId;
+        const isToMe = m.receiverId === userId || m.to === userId;
+        const isToC = m.receiverId === cId || m.to === cId;
+        return (isMe && isToC) || (isC && isToMe);
       });
-      return sortedByLatest[0];
-    });
-  }, [userId, userCompanyId, contactKey]);
+      return thread.reduce((max, m) => Math.max(max, parseMessageTimestamp(m)), 0);
+    };
+    return [...contacts].sort((a, b) => latest(b.id) - latest(a.id))[0];
+  }, [contacts, chosenContactId, messages, userId]);
 
   // Initial load + 8s background polling for live incoming replies (pauses when tab is hidden)
   useEffect(() => {
-    const first = setTimeout(() => { void loadInitialData(); }, 0);
+    if (!userId) return undefined;
+    const first = setTimeout(() => {
+      dispatch(fetchUsers());
+      dispatch(fetchProjects());
+      dispatch(fetchMessages());
+    }, 0);
     const timer = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        void refreshMessages();
-      }
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') refreshMessages();
     }, 8000);
     return () => { clearTimeout(first); clearInterval(timer); };
-  }, [loadInitialData, refreshMessages]);
+  }, [userId, dispatch, refreshMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, activeContact?.id]);
 
   function selectContact(c) {
-    setActiveContact(c);
+    setChosenContactId(c.id);
     setMobileChatOpen(true);
     setShowInChatSearch(false);
     setInChatSearch('');
@@ -164,13 +157,14 @@ export default function MessagesChat({ user, contactIds }) {
     setInputText('');
     setShowEmojiBar(false);
 
-    const sent = await api.sendMessage(newMsg);
-    if (sent && sent.error) {
+    try {
+      await dispatch(sendMessage(newMsg)).unwrap(); // the slice adds it to the conversation
+    } catch (message) {
       setInputText(trimmed);
-      toast.error(sent.message || 'Message could not be sent.');
+      toast.error(message || 'Message could not be sent.');
       return;
     }
-    await api.createNotification({
+    dispatch(sendNotification({
       userId: activeContact.id,
       companyId: activeContact.companyId || targetCompanyId,
       type: 'message',
@@ -179,9 +173,7 @@ export default function MessagesChat({ user, contactIds }) {
       date: dateStr,
       time: 'Just now',
       read: false
-    });
-
-    await refreshMessages();
+    }));
   }
 
   function handleInsertEmoji(emoji) {

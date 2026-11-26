@@ -11,7 +11,8 @@ import {
   ShieldCheck,
   MapPin
 } from 'lucide-react';
-import { api } from '../services/api';
+import { useAppDispatch, errorText } from '../store/hooks';
+import { createInquiry } from '../features/platform/platformSlice';
 import { isValidEmail } from '../services/utils';
 import ConstructHubLogo from '../components/common/ConstructHubLogo';
 import contactArchitectureImg from '../assets/contact-architecture.jpg';
@@ -21,6 +22,7 @@ export default function Contact() {
   const initialPlan = searchParams.get('plan') || '';
   const isFirmRequest = searchParams.get('request') === 'firm' || Boolean(initialPlan);
 
+  const dispatch = useAppDispatch();
   const [requestType, setRequestType] = useState(isFirmRequest ? 'firm_onboarding' : 'inquiry');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -95,12 +97,13 @@ export default function Contact() {
       message: fullMessage
     };
 
-    const res = await api.createInquiry(payload);
-    setLoading(false);
-
-    if (res && res.error) {
-      setServerError(res.message || 'Failed to submit inquiry. Please try again.');
+    try {
+      await dispatch(createInquiry(payload)).unwrap();
+    } catch (err) {
+      setServerError(errorText(err, 'Failed to submit inquiry. Please try again.'));
       return;
+    } finally {
+      setLoading(false);
     }
 
     setSubmitted(true);

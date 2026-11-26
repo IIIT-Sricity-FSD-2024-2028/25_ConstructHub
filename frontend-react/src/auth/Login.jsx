@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
-import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { isValidEmail } from '../services/utils';
 import Modal from '../components/common/Modal';
@@ -10,7 +9,7 @@ import towerFacadeImg from '../assets/login-architecture.jpg';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, user: currentUser } = useAuth();
   const [email, setEmail] = useState(() => localStorage.getItem('ch_remembered_email') || '');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(() => Boolean(localStorage.getItem('ch_remembered_email')));
@@ -24,7 +23,6 @@ export default function Login() {
   const [mailSentModal, setMailSentModal] = useState(false);
 
   useEffect(() => {
-    const currentUser = api.getCurrentUser();
     if (currentUser && currentUser.role) {
       const roleMap = {
         superuser: '/superuser/dashboard',
@@ -39,7 +37,7 @@ export default function Login() {
         navigate(roleMap[currentUser.role], { replace: true });
       }
     }
-  }, [navigate]);
+  }, [navigate, currentUser]);
 
   async function handleSubmit(e) {
     if (e && e.preventDefault) e.preventDefault();

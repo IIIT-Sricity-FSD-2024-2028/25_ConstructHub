@@ -1,4 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import {
+  fetchNotifications, markNotificationRead, deleteNotification, clearNotifications,
+  selectAllNotifications, selectUnreadCount,
+} from '../../features/notifications/notificationsSlice';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -16,7 +21,6 @@ import {
   Inbox
 } from 'lucide-react';
 import ConstructHubLogo from '../common/ConstructHubLogo';
-import { api } from '../../services/api';
 import { roleLabel, avatarColor } from '../../services/utils';
 import Modal from '../common/Modal';
 
@@ -42,18 +46,18 @@ export default function SharedHeader({ user, onLogout, onToggleMobileNav }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifFilter, setNotifFilter] = useState('all');
-  const [notifications, setNotifications] = useState([]);
+  const dispatch = useAppDispatch();
+  const notifications = useAppSelector(selectAllNotifications);
+  const unreadCount = useAppSelector(selectUnreadCount);
   const [selectedNotif, setSelectedNotif] = useState(null);
 
   const menuRef = useRef(null);
   const notifRef = useRef(null);
 
   const userId = user?.id;
-  const loadNotifications = useCallback(async () => {
-    if (!userId) return;
-    const notifs = await api.getNotifications(userId);
-    setNotifications(Array.isArray(notifs) ? notifs : []);
-  }, [userId]);
+  const loadNotifications = useCallback(() => {
+    if (userId) dispatch(fetchNotifications());
+  }, [userId, dispatch]);
 
   // Initial load + lightweight 20s background poll (pauses when tab is hidden)
   useEffect(() => {
@@ -83,7 +87,6 @@ export default function SharedHeader({ user, onLogout, onToggleMobileNav }) {
 
   function handleLogout() {
     if (onLogout) onLogout();
-    else api.logout();
   }
 
   function handleToggleNotif() {
@@ -92,7 +95,6 @@ export default function SharedHeader({ user, onLogout, onToggleMobileNav }) {
     if (next) void loadNotifications();
   }
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
   const displayedNotifs = notifFilter === 'unread'
     ? notifications.filter((n) => !n.read)
     : notifications;
@@ -104,31 +106,25 @@ export default function SharedHeader({ user, onLogout, onToggleMobileNav }) {
   const avatarBg = avatarColor(initials);
 
   async function handleNotificationClick(notif) {
-    if (!notif.read && notif.id) {
-      setNotifications((prev) => prev.map((x) => (x.id === notif.id ? { ...x, read: true } : x)));
-      await api.markNotificationRead(notif.id);
-    }
+    if (!notif.read && notif.id) dispatch(markNotificationRead(notif.id)); // optimistic in the slice
     setSelectedNotif(notif);
     setNotifOpen(false);
   }
 
   async function handleMarkAllRead() {
     const unread = notifications.filter((n) => !n.read && n.id);
-    if (!unread.length) return;
-    setNotifications((prev) => prev.map((x) => ({ ...x, read: true })));
-    await Promise.all(unread.map((n) => api.markNotificationRead(n.id)));
+    await Promise.all(unread.map((n) => dispatch(markNotificationRead(n.id))));
   }
 
   async function handleClearNotifications() {
     if (!notifications.length) return;
-    await api.clearNotifications(user?.id);
-    await loadNotifications();
+    await dispatch(clearNotifications());
+    loadNotifications();
   }
 
   async function handleDeleteSingleNotification(notifId) {
     if (!notifId) return;
-    setNotifications((prev) => prev.filter((n) => n.id !== notifId));
-    await api.deleteNotification(notifId);
+    await dispatch(deleteNotification(notifId));
   }
 
   const rolePath = user?.role ? `/${user.role.replaceAll('_', '-')}` : '/login';

@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { User, ShieldCheck, CheckCircle2 } from 'lucide-react';
-import { api } from '../../services/api';
+import { useAppDispatch } from '../../store/hooks';
+import { updateUser } from '../../features/users/usersSlice';
+import { currentUserUpdated } from '../../features/auth/authSlice';
 import { isValidPhone } from '../../services/utils';
 import Modal from './Modal';
 
-export default function UserSettings({ user, onUpdateUser }) {
+export default function UserSettings({ user }) {
+  const dispatch = useAppDispatch();
   const [firstName, setFirstName] = useState(user?.name ? user.name.split(' ')[0] : '');
   const [lastName, setLastName] = useState(user?.name ? user.name.split(' ').slice(1).join(' ') : '');
   const [phone, setPhone] = useState(user?.phone ? user.phone.replace(/[^0-9]/g, '').slice(-10) : '');
@@ -42,14 +45,13 @@ export default function UserSettings({ user, onUpdateUser }) {
     // The server stores phone numbers as exactly 10 digits.
     const changes = { name: updatedName, ...(phone ? { phone } : {}) };
 
-    const updateRes = await api.updateUser(user.id, changes);
-    if (updateRes && updateRes.error) {
-      setErrors({ firstName: Array.isArray(updateRes.message) ? updateRes.message.join(', ') : (updateRes.message || 'Failed to update profile.') });
+    try {
+      await dispatch(updateUser({ id: user.id, changes })).unwrap();
+    } catch (message) {
+      setErrors({ firstName: message || 'Failed to update profile.' });
       return;
     }
-    const updatedUser = { ...user, ...changes };
-    api.setCurrentUser(updatedUser);
-    if (onUpdateUser) onUpdateUser(updatedUser);
+    dispatch(currentUserUpdated(changes)); // header and every page show the new name at once
 
     setSuccessModal({
       open: true,
@@ -77,16 +79,12 @@ export default function UserSettings({ user, onUpdateUser }) {
     }
 
     // The server checks the current password before saving the new one.
-    const updateRes = await api.updateUser(user.id, { password: newPw, currentPassword: currentPw });
-    if (updateRes && updateRes.error) {
-      setPwError(Array.isArray(updateRes.message) ? updateRes.message.join(', ') : (updateRes.message || 'Failed to update password.'));
+    try {
+      await dispatch(updateUser({ id: user.id, changes: { password: newPw, currentPassword: currentPw } })).unwrap();
+    } catch (message) {
+      setPwError(message || 'Failed to update password.');
       return;
     }
-
-    const safeUser = { ...(user || {}) };
-    delete safeUser.password;
-    api.setCurrentUser(safeUser);
-    if (onUpdateUser) onUpdateUser(safeUser);
 
     setCurrentPw('');
     setNewPw('');

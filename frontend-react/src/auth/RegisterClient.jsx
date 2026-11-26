@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { api } from '../services/api';
-import { useAuth } from '../hooks/useAuth';
+import { useAppDispatch, errorText } from '../store/hooks';
+import { registerClient } from '../features/auth/authSlice';
 import { isValidEmail } from '../services/utils';
 import ConstructHubLogo from '../components/common/ConstructHubLogo';
 import commercialComplexImg from '../assets/signup-architecture.jpg';
 
 export default function RegisterClient() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const dispatch = useAppDispatch();
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,21 +25,20 @@ export default function RegisterClient() {
     if (form.password !== form.confirm) return setError('Passwords do not match.');
 
     setLoading(true);
-    const res = await api.registerClient({
-      name: form.name.trim(),
-      email: form.email.trim(),
-      password: form.password,
-      phone: form.phone || undefined
-    });
-    if (res && res.error) {
+    try {
+      // creates the account and signs the new client in (the store then holds their session)
+      await dispatch(registerClient({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        password: form.password,
+        phone: form.phone || undefined
+      })).unwrap();
+      navigate('/client/requirements', { replace: true });
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
       setLoading(false);
-      setError(res.message);
-      return;
     }
-    const loginRes = await login(form.email.trim().toLowerCase(), form.password);
-    setLoading(false);
-    if (loginRes && loginRes.success) navigate('/client/requirements', { replace: true });
-    else navigate('/login');
   }
 
   return (

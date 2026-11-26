@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../../services/api';
+import { useAppSelector, useLoad } from '../../store/hooks';
+import { fetchDashboard, selectDashboard } from '../../features/finance/financeSlice';
 import { inr } from '../procurement/procurementUiData';
 import { formatINRCompact, statusBadgeClass } from '../../services/utils';
 
@@ -291,20 +292,9 @@ function LinearPortfolio({ rows, mode }) {
 
 /** Real numbers from the server for every role's dashboard. Renders nothing for roles without a summary. */
 export default function LiveSummary({ refreshKey = 0 }) {
-  const [d, setD] = useState(null);
-  const [error, setError] = useState('');
+  const { data: d, error } = useAppSelector(selectDashboard);
   const [viewMode, setViewMode] = useState('overview'); // 'overview' | 'detailed'
-
-  useEffect(() => {
-    let alive = true;
-    api.getDashboard().then((res) => {
-      if (!alive) return;
-      if (res && res.error) return setError(res.status === 0 ? '' : res.message);
-      setError('');
-      setD(res);
-    });
-    return () => { alive = false; };
-  }, [refreshKey]);
+  useLoad([fetchDashboard], [refreshKey]);
 
   if (error) return <div className="error-msg" style={{ display: 'block', marginBottom: 12 }}>{error}</div>;
   if (!d || !d.role) return null;

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CreditCard, Landmark } from 'lucide-react';
-import { api } from '../../services/api';
+import { useAppDispatch, useAppSelector, errorText } from '../../store/hooks';
+import { fetchBillPayments, payBill, selectBillPayments } from '../../features/bills/billsSlice';
 import { formatDate, normalizeBillStatus, localDateISO } from '../../services/utils';
 import { useToast } from '../../hooks/useToast';
 import { inr } from '../procurement/procurementUiData';
@@ -14,9 +15,10 @@ const today = () => localDateISO();
  *  - client: demo "Pay now" (no real money moves; partial payments allowed)
  *  - finance manager: record money received offline (transfer, cheque, cash, UPI)
  */
-export default function BillPayments({ bill, role, onChanged }) {
+export default function BillPayments({ bill, role }) {
   const toast = useToast();
-  const [payments, setPayments] = useState([]);
+  const dispatch = useAppDispatch();
+  const payments = useAppSelector((state) => selectBillPayments(state, bill.id));
   const [loadError, setLoadError] = useState('');
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState(METHODS[0]);
@@ -26,16 +28,10 @@ export default function BillPayments({ bill, role, onChanged }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    const res = await api.getBillPayments(bill.id);
-    if (res && res.error) return setLoadError(res.message);
-    setLoadError('');
-    setPayments(res || []);
-  }, [bill.id]);
-
+  // Payment history of this bill; recording a payment adds to it (and refreshes the bill) through the store.
   useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load, bill.paidAmount]);
+    dispatch(fetchBillPayments(bill.id)).unwrap().then(() => setLoadError(''), (err) => setLoadError(errorText(err)));
+  }, [dispatch, bill.id]);
 
   const accepted = normalizeBillStatus(bill.status) === 'Accepted';
   const total = Number(bill.amount) || 0;
@@ -52,15 +48,17 @@ export default function BillPayments({ bill, role, onChanged }) {
     if (role === 'finance_manager' && method !== 'Cash' && reference.trim().length < 3) return setError('Enter the payment reference.');
     setBusy(true);
     const payload = role === 'client' ? { amount: n } : { amount: n, method, reference: reference.trim() || undefined, paidAt, note: note.trim() || undefined };
-    const res = await api.payBill(bill.id, payload);
-    setBusy(false);
-    if (res && res.error) return setError(res.message);
+    try {
+      await dispatch(payBill({ billId: bill.id, payment: payload })).unwrap();
+    } catch (err) {
+      return setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
     toast.success(`Payment of ${inr(n)} recorded.`);
     setAmount('');
     setReference('');
     setNote('');
-    await load();
-    onChanged && onChanged(res.bill);
   }
 
   return (
