@@ -1,24 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useAppSelector, useLoad } from '../../../store/hooks';
+import {
+  fetchMaterialRequests, fetchPurchaseOrders, fetchStock, selectAllMaterialRequests, selectAllPurchaseOrders, selectStock
+} from '../../../features/procurement/procurementSlice';
 import { Link } from 'react-router-dom';
-import { api } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import { Stat, RequestStatusBadge, PoStatusBadge } from '../../../components/procurement/ProcurementUi';
 import { inr } from '../../../components/procurement/procurementUiData';
 
 export default function ProcurementDashboard() {
-  const [requests, setRequests] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [stock, setStock] = useState([]);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    Promise.all([api.getMaterialRequests(), api.getPurchaseOrders(), api.getStock()]).then(([r, o, s]) => {
-      if (r && r.error) return setError(r.message);
-      setRequests(r || []);
-      setOrders(o && !o.error ? o : []);
-      setStock(s && !s.error ? s : []);
-    });
-  }, []);
+  const requests = useAppSelector(selectAllMaterialRequests);
+  const orders = useAppSelector(selectAllPurchaseOrders);
+  const stock = useAppSelector(selectStock);
+  const error = useAppSelector((state) => state.procurement.requests.error) || '';
+  useLoad([fetchMaterialRequests, fetchPurchaseOrders, fetchStock]);
 
   const toOrder = requests.filter((r) => r.status === 'approved');
   const awaitingApproval = orders.filter((o) => o.status === 'pending_approval');

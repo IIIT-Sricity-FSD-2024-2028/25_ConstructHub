@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import {
+  fetchExpenseClaims, fetchExpenseClaim, approveExpense, fmReturnExpense, fmRejectExpense, reimburseExpense,
+  selectAllExpenses, selectExpenseById
+} from '../../../features/expenses/expensesSlice';
 import { CheckCircle2, CornerUpLeft, XCircle, Banknote } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
@@ -13,43 +17,45 @@ const isWorkflow = (e) => !(e.history || []).some((h) => h.step === 'recorded');
 export default function FinanceManagerExpenses() {
   const toast = useToast();
   const [tab, setTab] = useState('approve');
-  const [claims, setClaims] = useState([]);
-  const [error, setError] = useState('');
-  const [detail, setDetail] = useState(null);
+  const dispatch = useAppDispatch();
+  const claims = useAppSelector(selectAllExpenses);
+  const error = useAppSelector((state) => state.expenses.error) || '';
+  // The open claim is kept as an id; the store holds the full record (with its budget check) once fetched.
+  const [detailId, setDetailId] = useState(null);
+  const detail = useAppSelector((state) => (detailId ? selectExpenseById(state, detailId) : null)) || null;
+  const setDetail = (e) => setDetailId(e ? e.id : null);
   const [note, setNote] = useState('');
   const [reference, setReference] = useState('');
   const [actionError, setActionError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    const res = await api.getExpenseClaims();
-    if (res && res.error) return setError(res.message);
-    setError('');
-    setClaims(res || []);
-  }, []);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+  useLoad([fetchExpenseClaims]);
 
   async function open(e) {
-    const full = await api.getExpenseClaim(e.id);
-    if (full && full.error) return toast.error(full.message);
+    try {
+      await dispatch(fetchExpenseClaim(e.id)).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    }
     setNote('');
     setReference('');
     setActionError('');
-    setDetail(full);
+    setDetail(e);
   }
 
+  /** Dispatches one decision; the store updates the claim, so the tabs re-sort themselves. */
   async function run(action, okMessage) {
     setActionError('');
     setBusy(true);
-    const res = await action();
-    setBusy(false);
-    if (res && res.error) return setActionError(res.message);
+    try {
+      await dispatch(action).unwrap();
+    } catch (err) {
+      return setActionError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
     toast.success(okMessage);
     setDetail(null);
-    load();
   }
 
   const toApprove = claims.filter((c) => c.status === 'pm_verified');
@@ -88,12 +94,12 @@ export default function FinanceManagerExpenses() {
         size="lg"
         footer={detail && detail.status === 'pm_verified' ? (
           <>
-            <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => run(() => api.fmReturnExpense(detail.id, note.trim()), `${detail.id} returned to the engineer.`)}><CornerUpLeft size={14} /> Return</button>
-            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => run(() => api.fmRejectExpense(detail.id, note.trim()), `${detail.id} rejected.`)}><XCircle size={14} /> Reject</button>
-            <button type="button" className="btn btn-success" disabled={busy} onClick={() => run(() => api.approveExpense(detail.id, note.trim() || undefined), `${detail.id} approved and added to project spend.`)}><CheckCircle2 size={14} /> Approve</button>
+            <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => run(fmReturnExpense({ id: detail.id, note: note.trim() }), `${detail.id} returned to the engineer.`)}><CornerUpLeft size={14} /> Return</button>
+            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => run(fmRejectExpense({ id: detail.id, note: note.trim() }), `${detail.id} rejected.`)}><XCircle size={14} /> Reject</button>
+            <button type="button" className="btn btn-success" disabled={busy} onClick={() => run(approveExpense({ id: detail.id, note: note.trim() || undefined }), `${detail.id} approved and added to project spend.`)}><CheckCircle2 size={14} /> Approve</button>
           </>
         ) : detail && detail.status === 'approved' && !detail.reimbursement && isWorkflow(detail) ? (
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => run(() => api.reimburseExpense(detail.id, reference.trim() || undefined), `${detail.id} marked as reimbursed.`)}><Banknote size={14} /> Mark as reimbursed</button>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => run(reimburseExpense({ id: detail.id, reference: reference.trim() || undefined }), `${detail.id} marked as reimbursed.`)}><Banknote size={14} /> Mark as reimbursed</button>
         ) : undefined}
       >
         {detail && (

@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import {
+  fetchSuppliers, createSupplier, updateSupplier, deleteSupplier, selectAllSuppliers
+} from '../../../features/procurement/procurementSlice';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { api } from '../../../services/api';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
 import Modal from '../../../components/common/Modal';
@@ -9,24 +12,30 @@ const blank = { name: '', contactPerson: '', phone: '', email: '', gstin: '', ad
 
 export default function ProcurementSuppliers() {
   const toast = useToast();
-  const [suppliers, setSuppliers] = useState([]);
-  const [error, setError] = useState('');
+  const dispatch = useAppDispatch();
+  const suppliers = useAppSelector(selectAllSuppliers);
+  const error = useAppSelector((state) => state.procurement.suppliers.error) || '';
   const [editing, setEditing] = useState(null); // 'new' | supplier
   const [form, setForm] = useState(blank);
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const load = useCallback(async () => {
-    const res = await api.getSuppliers();
-    if (res && res.error) return setError(res.message);
-    setError('');
-    setSuppliers(res || []);
-  }, []);
+  useLoad([fetchSuppliers]);
 
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+  /** Dispatches one supplier change; the list in the store updates itself. Returns false on failure. */
+  async function run(action, onError = (msg) => toast.error(msg)) {
+    setBusy(true);
+    try {
+      await dispatch(action).unwrap();
+      return true;
+    } catch (err) {
+      onError(errorText(err));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function open(s) {
     setForm(s === 'new' ? blank : { ...blank, ...Object.fromEntries(Object.entries(s).filter(([k]) => k in blank).map(([k, v]) => [k, v || ''])) });
@@ -41,28 +50,20 @@ export default function ProcurementSuppliers() {
     if (form.phone && !/^\d{10}$/.test(form.phone)) return setFormError('Phone number must be exactly 10 digits.');
     if (form.gstin && !/^[0-9A-Z]{15}$/.test(form.gstin)) return setFormError('GSTIN must be 15 characters (capital letters and digits).');
     const payload = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v]).filter(([k, v]) => k === 'name' || v !== ''));
-    setBusy(true);
-    const res = editing === 'new' ? await api.createSupplier(payload) : await api.updateSupplier(editing.id, payload);
-    setBusy(false);
-    if (res && res.error) return setFormError(res.message);
+    const ok = await run(editing === 'new' ? createSupplier(payload) : updateSupplier({ id: editing.id, changes: payload }), setFormError);
+    if (!ok) return;
     toast.success(editing === 'new' ? 'Supplier added.' : 'Supplier updated.');
     setEditing(null);
-    load();
   }
 
   async function toggle(s) {
-    const res = await api.updateSupplier(s.id, { status: s.status === 'active' ? 'inactive' : 'active' });
-    if (res && res.error) return toast.error(res.message);
-    load();
+    await run(updateSupplier({ id: s.id, changes: { status: s.status === 'active' ? 'inactive' : 'active' } }));
   }
 
   async function remove() {
     const target = deleteTarget;
     setDeleteTarget(null);
-    const res = await api.deleteSupplier(target.id);
-    if (res && res.error) return toast.error(res.message);
-    toast.success('Supplier deleted.');
-    load();
+    if (await run(deleteSupplier(target.id))) toast.success('Supplier deleted.');
   }
 
   const set = (k) => (e) => setForm({ ...form, [k]: k === 'gstin' ? e.target.value.toUpperCase() : e.target.value });

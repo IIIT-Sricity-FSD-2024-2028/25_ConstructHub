@@ -1,6 +1,14 @@
 import LiveSummary from '../../../components/dashboard/LiveSummary';
 import { useToast } from '../../../hooks/useToast';
 import { useState, useEffect } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import { fetchCompany, selectCompanyById } from '../../../features/platform/platformSlice';
+import { fetchUsers, createUser, updateUser, deleteUser, selectAllUsers } from '../../../features/users/usersSlice';
+import { fetchProjects, updateProject, deleteProject, selectAllProjects, projectDisplayStatus } from '../../../features/projects/projectsSlice';
+import { fetchTasks, selectAllTasks } from '../../../features/tasks/tasksSlice';
+import { fetchBills, selectAllBills } from '../../../features/bills/billsSlice';
+import { fetchReports, selectAllReports } from '../../../features/reports/reportsSlice';
+import { fetchExpenseClaims, selectAllExpenses } from '../../../features/expenses/expensesSlice';
 import { Link, useSearchParams, useOutletContext } from 'react-router-dom';
 import {
   ShieldCheck,
@@ -21,7 +29,7 @@ import {
   CheckCircle2,
   Clock
 } from 'lucide-react';
-import { api, API_ORIGIN } from '../../../services/api';
+import { API_ORIGIN } from '../../../services/api';
 import {
   formatCurrency,
   formatDate,
@@ -58,13 +66,17 @@ export default function CompanyAdminDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentTab = searchParams.get('tab') || 'users';
 
-  const [company, setCompany] = useState(null);
-  const [teamUsers, setTeamUsers] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [bills, setBills] = useState([]);
-  const [reports, setReports] = useState([]);
-  const [expenses, setExpenses] = useState([]);
+  const dispatch = useAppDispatch();
+  // Everything this panel shows comes from the store; the server already limits each list to this company.
+  const company = useAppSelector((state) => selectCompanyById(state, user?.companyId)) || null;
+  const teamUsers = useAppSelector(selectAllUsers);
+  const projects = useAppSelector(selectAllProjects);
+  const tasks = useAppSelector(selectAllTasks);
+  const bills = useAppSelector(selectAllBills);
+  const reports = useAppSelector(selectAllReports);
+  const expenses = useAppSelector(selectAllExpenses);
+  // Seats on the plan are the company's own staff; clients are not counted.
+  const staffCount = teamUsers.filter((u) => u.companyId === user?.companyId).length;
   const [setupWarning, setSetupWarning] = useState('');
 
   // Modals
@@ -115,32 +127,7 @@ export default function CompanyAdminDashboard() {
   const [userRoleFilter, setUserRoleFilter] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
 
-  useEffect(() => {
-    loadCompanyData();
-  }, [user]);
-
-  async function loadCompanyData() {
-    if (!user) return;
-    const compId = user.companyId;
-
-    const [comp, uList, pList, tList, bList, rList, eList] = await Promise.all([
-      api.getCompanyById(compId),
-      api.getUsers(compId),
-      api.getProjects(compId),
-      api.getTasks(compId),
-      api.getBills(compId),
-      api.getReports(compId),
-      api.getExpenses(compId)
-    ]);
-
-    setCompany(comp);
-    setTeamUsers(uList || []);
-    setProjects(pList || []);
-    setTasks(tList || []);
-    setBills(bList || []);
-    setReports(rList || []);
-    setExpenses(eList || []);
-  }
+  useLoad([[fetchCompany, user?.companyId], fetchUsers, fetchProjects, fetchTasks, fetchBills, fetchReports, fetchExpenseClaims], [user?.companyId]);
 
   // Core team onboarding check
   const hasPM = teamUsers.some((u) => u.role === 'project_manager');
@@ -174,7 +161,7 @@ export default function CompanyAdminDashboard() {
     if (teamUsers.length > 0 && !isCoreTeamComplete && currentTab !== 'users') {
       setSearchParams({ tab: 'users' });
     }
-  }, [isCoreTeamComplete, currentTab, teamUsers.length]);
+  }, [isCoreTeamComplete, currentTab, teamUsers.length, setSearchParams]);
 
   function handleTabChange(tabKey) {
     if (!isCoreTeamComplete && tabKey !== 'users') {
@@ -256,8 +243,8 @@ export default function CompanyAdminDashboard() {
     if (!isEditingUser && company) {
       const defaultUserLimits = { Basic: 10, Pro: 50, Enterprise: 500 };
       const userLimit = company.customUserLimit || defaultUserLimits[company.plan] || 10;
-      if (teamUsers.length >= userLimit && !company.overageEnabled) {
-        errors.email = `User quota reached (${teamUsers.length}/${userLimit}) for your plan. Upgrade or enable overage.`;
+      if (staffCount >= userLimit && !company.overageEnabled) {
+        errors.email = `User quota reached (${staffCount}/${userLimit}) for your plan. Upgrade or enable overage.`;
       }
     }
 
@@ -288,17 +275,13 @@ export default function CompanyAdminDashboard() {
       payload.phone = cleanPhone;
     }
 
-    const res = isEditingUser
-      ? await api.updateUser(userForm.id, payload)
-      : await api.createUser(payload);
-
-    if (res && res.error) {
-      setUserFormErrors({ email: res.message || 'Failed to save team member' });
+    try {
+      await dispatch(isEditingUser ? updateUser({ id: userForm.id, changes: payload }) : createUser(payload)).unwrap();
+    } catch (err) {
+      setUserFormErrors({ email: errorText(err, 'Failed to save team member') });
       return;
     }
-
     setUserModalOpen(false);
-    loadCompanyData();
   }
 
   async function handleToggleUserStatus(u) {
@@ -307,12 +290,11 @@ export default function CompanyAdminDashboard() {
       return;
     }
     const nextStatus = u.status === 'active' ? 'inactive' : 'active';
-    const res = await api.updateUser(u.id, { status: nextStatus });
-    if (res && res.error) {
-      toast.error(res.message || 'Could not update the user.');
-      return;
+    try {
+      await dispatch(updateUser({ id: u.id, changes: { status: nextStatus } })).unwrap();
+    } catch (err) {
+      toast.error(errorText(err, 'Could not update the user.'));
     }
-    loadCompanyData();
   }
 
   async function handleDeleteUser(id) {
@@ -321,12 +303,11 @@ export default function CompanyAdminDashboard() {
       return;
     }
     if (window.confirm('Are you sure you want to remove this team member?')) {
-      const res = await api.deleteUser(id);
-      if (res && res.error) {
-        toast.error(res.message || 'Could not remove the user.');
-        return;
+      try {
+        await dispatch(deleteUser(id)).unwrap();
+      } catch (err) {
+        toast.error(errorText(err, 'Could not remove the user.'));
       }
-      loadCompanyData();
     }
   }
 
@@ -381,8 +362,8 @@ export default function CompanyAdminDashboard() {
     const assignedPM =
       teamUsers.find((u) => u.id === projectForm.selectedManagerId && u.role === 'project_manager') ||
       teamUsers.find((u) => u.role === 'project_manager');
-    const managerId = assignedPM?.id || 'U002';
-    const managerName = assignedPM?.name || 'Rajesh Kumar';
+    const managerId = assignedPM?.id || '';
+    const managerName = assignedPM?.name || '';
 
     const assignedFM =
       teamUsers.find((u) => u.id === projectForm.selectedFinanceManagerId && u.role === 'finance_manager') ||
@@ -400,38 +381,30 @@ export default function CompanyAdminDashboard() {
       endDate: projectForm.endDate,
       description: projectForm.description.trim() || `Project ${projectForm.name.trim()} workspace`,
       status: projectForm.status || 'On Track',
-      managerId,
-      managerName,
+      ...(managerId ? { managerId, managerName } : {}),
       ...(financeManagerId ? { financeManagerId, financeManagerName } : {}),
       teamSize: 1,
       allocations: projects.find(p => p.id === projectForm.id)?.allocations || { Materials: 0, Labor: 0, Equipment: 0, Other: b },
       ...(clientId ? { clientId, clientName, clientEmail, clientPhone } : {})
     };
 
-    const updateRes = await api.updateProject(projectForm.id, payload);
-    if (updateRes && updateRes.error) {
-      setProjectFormErrors({
-        name: Array.isArray(updateRes.message) ? updateRes.message.join(', ') : (updateRes.message || 'Failed to update project')
-      });
+    try {
+      await dispatch(updateProject({ id: projectForm.id, changes: payload })).unwrap();
+    } catch (err) {
+      setProjectFormErrors({ name: errorText(err, 'Failed to update project') });
       return;
     }
-
     setProjectModalOpen(false);
-    loadCompanyData();
   }
 
   async function handleDeleteProject(id) {
     if (window.confirm('Are you sure you want to delete this project?')) {
-      const proj = projects.find((p) => p.id === id);
-      const delRes = await api.deleteProject(id);
-      if (delRes && delRes.error) {
-        toast.error(delRes.message || 'Could not delete the project.');
-        return;
+      // The server refuses projects that already have work or money on them, and decides about the client's account.
+      try {
+        await dispatch(deleteProject(id)).unwrap();
+      } catch (err) {
+        toast.error(errorText(err, 'Could not delete the project.'));
       }
-      if (proj && proj.clientId) {
-        await api.deleteUser(proj.clientId).catch(() => {});
-      }
-      loadCompanyData();
     }
   }
 
@@ -891,8 +864,8 @@ export default function CompanyAdminDashboard() {
                 key: 'status',
                 label: 'Status',
                 render: (p) => (
-                  <span className={`badge ${statusBadgeClass(p.status)}`}>
-                    {p.status}
+                  <span className={`badge ${statusBadgeClass(projectDisplayStatus(p))}`}>
+                    {projectDisplayStatus(p)}
                   </span>
                 )
               },
@@ -908,20 +881,26 @@ export default function CompanyAdminDashboard() {
                     >
                       <Eye size={13} /> View
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => openEditProjectModal(p)}
-                    >
-                      <Edit2 size={13} /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-danger btn-sm"
-                      onClick={() => handleDeleteProject(p.id)}
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    {p.allowed?.canEdit && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => openEditProjectModal(p)}
+                      >
+                        <Edit2 size={13} /> Edit
+                      </button>
+                    )}
+                    {p.allowed?.canDelete && (
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-sm"
+                        aria-label={`Delete ${p.name}`}
+                        title="Delete project (only possible before any work, bills or contract exist)"
+                        onClick={() => handleDeleteProject(p.id)}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
                 )
               }
@@ -1655,10 +1634,10 @@ export default function CompanyAdminDashboard() {
               (viewProjectModal.financeManagerId && u.id === viewProjectModal.financeManagerId) ||
               (viewProjectModal.financeManagerName && u.name === viewProjectModal.financeManagerName)
           );
-          const fmName = viewProjectModal.financeManagerName || fmUser?.name || 'Amit Verma';
+          const fmName = viewProjectModal.financeManagerName || fmUser?.name || 'Not assigned';
           const fmEmail = fmUser?.email || 'finance@apex.com';
 
-          // Option 2: Pool-based site engineers dynamically derived from tasks in this project
+          // Site engineers are not fixed on a project: they are whoever has tasks on it
           const projectTasks = tasks.filter((t) => t.projectId === viewProjectModal.id);
           const assignedEngineerIds = [...new Set(projectTasks.map((t) => t.assignedTo).filter(Boolean))];
           const projectEngineers = teamUsers.filter((u) => assignedEngineerIds.includes(u.id));
@@ -1716,13 +1695,13 @@ export default function CompanyAdminDashboard() {
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Status</span>
-                  <span className={`badge ${statusBadgeClass(viewProjectModal.status)}`} style={{ marginTop: 2 }}>
-                    {viewProjectModal.status}
+                  <span className={`badge ${statusBadgeClass(projectDisplayStatus(viewProjectModal))}`} style={{ marginTop: 2 }}>
+                    {projectDisplayStatus(viewProjectModal)}
                   </span>
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Location</span>
-                  <strong>{viewProjectModal.location || 'Mumbai, Maharashtra'}</strong>
+                  <strong>{viewProjectModal.location || '-'}</strong>
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Team Size</span>
@@ -1996,7 +1975,7 @@ export default function CompanyAdminDashboard() {
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Prepared By</span>
-                  <strong>{fm?.name || 'Amit Verma (Finance Manager)'}</strong>
+                  <strong>{fm?.name || 'Finance Manager'}</strong>
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Issue Date</span>
@@ -2096,7 +2075,7 @@ export default function CompanyAdminDashboard() {
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Recorded By</span>
-                  <strong>{recorder?.name || 'Amit Verma (Finance Manager)'}</strong>
+                  <strong>{recorder?.name || 'Finance Manager'}</strong>
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Transaction Date</span>

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
-import { api } from '../../../services/api';
+import { useAppDispatch, useAppSelector } from '../../../store/hooks';
+import { fetchRequirements, selectAllRequirements, selectRequirementsStatus } from '../../../features/marketplace/marketplaceSlice';
 import { formatDate } from '../../../services/utils';
 import DataTable from '../../../components/common/DataTable';
 import { RequirementStatusBadge, QuotationStatusBadge, EmptyState } from '../../../components/marketplace/marketplaceUi';
@@ -11,27 +12,16 @@ export default function CompanyMarketplace() {
   const navigate = useNavigate();
   const [scope, setScope] = useState('open'); // open | mine
   const [filters, setFilters] = useState({ q: '', location: '', projectType: '', minBudget: '', maxBudget: '' });
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const dispatch = useAppDispatch();
+  const items = useAppSelector(selectAllRequirements);
+  const loading = useAppSelector(selectRequirementsStatus) !== 'succeeded' && items.length === 0;
+  const error = useAppSelector((state) => state.marketplace.requirements.error) || '';
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await api.getRequirements({ scope, ...filters });
-    setLoading(false);
-    if (res && res.error) {
-      setError(res.message);
-      return;
-    }
-    setError('');
-    setItems(res || []);
-  }, [scope, filters]);
-
-  // Re-query shortly after the filters stop changing.
+  // The server filters the marketplace; re-query shortly after the filters stop changing.
   useEffect(() => {
-    const t = setTimeout(load, 250);
+    const t = setTimeout(() => dispatch(fetchRequirements({ scope, ...filters })), 250);
     return () => clearTimeout(t);
-  }, [load]);
+  }, [dispatch, scope, filters]);
 
   const set = (k) => (e) => setFilters((f) => ({ ...f, [k]: e.target.value }));
 

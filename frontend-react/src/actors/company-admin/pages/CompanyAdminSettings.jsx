@@ -1,35 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import { fetchProcurementSettings, updateProcurementSettings, selectProcurementSettings } from '../../../features/procurement/procurementSlice';
 import { useOutletContext } from 'react-router-dom';
 import UserSettings from '../../../components/common/UserSettings';
-import { api } from '../../../services/api';
 import { useToast } from '../../../hooks/useToast';
 import { inr } from '../../../components/procurement/procurementUiData';
 
 /** Purchase orders above this amount need the Finance Manager's approval. */
 function PurchaseLimitCard() {
   const toast = useToast();
-  const [limit, setLimit] = useState('');
-  const [saved, setSaved] = useState(null);
+  const dispatch = useAppDispatch();
+  const saved = useAppSelector(selectProcurementSettings)?.poApprovalLimit ?? null;
+  // The input shows the saved limit until the admin types a new one.
+  const [typed, setLimit] = useState(null);
+  const limit = typed ?? (saved !== null ? String(saved) : '');
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    api.getProcurementSettings().then((s) => {
-      if (s && !s.error) {
-        setSaved(s.poApprovalLimit);
-        setLimit(String(s.poApprovalLimit));
-      }
-    });
-  }, []);
+  useLoad([fetchProcurementSettings]);
 
   async function save(e) {
     e.preventDefault();
     const n = Number(limit);
     if (limit === '' || !Number.isInteger(n) || n < 0) return toast.error('Enter a whole number of rupees (0 or more).');
     setSaving(true);
-    const res = await api.updateProcurementSettings(n);
-    setSaving(false);
-    if (res && res.error) return toast.error(res.message);
-    setSaved(res.poApprovalLimit);
+    try {
+      await dispatch(updateProcurementSettings(n)).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    } finally {
+      setSaving(false);
+    }
+    setLimit(null);
     toast.success('Purchase approval limit updated.');
   }
 
@@ -52,11 +52,11 @@ function PurchaseLimitCard() {
 }
 
 export default function CompanyAdminSettings() {
-  const { user, setUser } = useOutletContext();
+  const { user } = useOutletContext();
   return (
     <>
       <PurchaseLimitCard />
-      <UserSettings user={user} onUpdateUser={setUser} />
+      <UserSettings user={user} />
     </>
   );
 }

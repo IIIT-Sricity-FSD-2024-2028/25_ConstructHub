@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import { fetchProjects, updateProject, selectProjectsFinancedBy } from '../../../features/projects/projectsSlice';
+import { fetchExpenseClaims, selectAllExpenses } from '../../../features/expenses/expensesSlice';
+import { fetchBudgetTopups, requestBudgetTopup, selectAllBudgetTopups } from '../../../features/finance/financeSlice';
 import { useOutletContext } from 'react-router-dom';
 import { HardHat, Wrench, Package, Edit2, PlusCircle } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatCurrency } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import Modal from '../../../components/common/Modal';
@@ -9,14 +12,21 @@ import Modal from '../../../components/common/Modal';
 export default function FinanceManagerBudget() {
   const { user } = useOutletContext();
   const toast = useToast();
-  const [projects, setProjects] = useState([]);
-  const [topups, setTopups] = useState([]);
+  const dispatch = useAppDispatch();
+  const projects = useAppSelector((state) => selectProjectsFinancedBy(state, user?.id));
+  const topups = useAppSelector(selectAllBudgetTopups);
+  const allExpenses = useAppSelector(selectAllExpenses);
+  useLoad([fetchProjects, fetchExpenseClaims, fetchBudgetTopups]);
+  // Only approved expenses count as project spend (older demo expenses without a status count as approved).
+  const expenses = useMemo(() => {
+    const ids = new Set(projects.map((p) => p.id));
+    return allExpenses.filter((e) => ids.has(e.projectId) && (!e.status || e.status === 'approved'));
+  }, [projects, allExpenses]);
   const [topupProj, setTopupProj] = useState(null);
   const [topupAmount, setTopupAmount] = useState('');
   const [topupReason, setTopupReason] = useState('');
   const [topupError, setTopupError] = useState('');
   const [topupBusy, setTopupBusy] = useState(false);
-  const [expenses, setExpenses] = useState([]);
 
   // Edit Budget Modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -26,29 +36,6 @@ export default function FinanceManagerBudget() {
   const [materials, setMaterials] = useState(0);
   const [equipment, setEquipment] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
-
-  useEffect(() => {
-    loadBudgets();
-  }, [user]);
-
-  async function loadBudgets() {
-    if (!user) return;
-    const [pList, eList, tList] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getExpenses(user.companyId),
-      api.getBudgetTopups()
-    ]);
-    setTopups(Array.isArray(tList) ? tList : []);
-    const myProjects = (pList || []).filter(
-      (p) => p.financeManagerId === user.id || (!p.financeManagerId && user.role === 'superuser')
-    );
-    const myProjectIds = new Set(myProjects.map((p) => p.id));
-    // Only approved expenses count as project spend (older demo expenses without a status count as approved).
-    const myExpenses = (eList || []).filter((e) => myProjectIds.has(e.projectId) && (!e.status || e.status === 'approved'));
-
-    setProjects(myProjects);
-    setExpenses(myExpenses);
-  }
 
   function openEditBudget(p) {
     setSelectedProj(p);
@@ -76,12 +63,15 @@ export default function FinanceManagerBudget() {
     if (!(Number(topupAmount) > 0)) return setTopupError('Enter the extra budget you need.');
     if (topupReason.trim().length < 10) return setTopupError('Explain why the budget is not enough (at least 10 characters).');
     setTopupBusy(true);
-    const res = await api.requestBudgetTopup({ projectId: topupProj.id, amount: Number(topupAmount), reason: topupReason.trim() });
-    setTopupBusy(false);
-    if (res && res.error) return setTopupError(res.message);
+    try {
+      await dispatch(requestBudgetTopup({ projectId: topupProj.id, amount: Number(topupAmount), reason: topupReason.trim() })).unwrap();
+    } catch (err) {
+      return setTopupError(errorText(err));
+    } finally {
+      setTopupBusy(false);
+    }
     toast.success('Top-up request sent to the Company Admin.');
     setTopupProj(null);
-    loadBudgets();
   }
 
   const otherAlloc = Math.max(0, Number(totalBudget) - (Number(labor) + Number(materials) + Number(equipment)));
@@ -112,14 +102,16 @@ export default function FinanceManagerBudget() {
     };
 
     // An awarded project's total site budget is fixed (changes go through a top-up request); only the split can change.
-    const res = await api.updateProject(selectedProj.id, isFixed(selectedProj) ? { allocations: newAlloc } : { budget: t, allocations: newAlloc });
-    if (res && res.error) {
-      setErrorMsg(res.message);
+    try {
+      await dispatch(updateProject({
+        id: selectedProj.id,
+        changes: isFixed(selectedProj) ? { allocations: newAlloc } : { budget: t, allocations: newAlloc }
+      })).unwrap();
+    } catch (err) {
+      setErrorMsg(errorText(err));
       return;
     }
-
     setModalOpen(false);
-    loadBudgets();
   }
 
   return (

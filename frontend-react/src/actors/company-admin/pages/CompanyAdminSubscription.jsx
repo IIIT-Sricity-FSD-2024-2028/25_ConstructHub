@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { usePlans, formatINR } from '../../../hooks/usePlans';
 import { useOutletContext } from 'react-router-dom';
 import { ShieldCheck, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { api } from '../../../services/api';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import { fetchCompanySubscription, toggleOverage, updateCompany, selectSubscription } from '../../../features/platform/platformSlice';
+import { fetchUsers, selectAllUsers } from '../../../features/users/usersSlice';
+import { fetchProjects, selectAllProjects } from '../../../features/projects/projectsSlice';
 import { useToast } from '../../../hooks/useToast';
 import { formatCurrency } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
@@ -14,27 +17,28 @@ export default function CompanyAdminSubscription() {
   const { user } = useOutletContext();
   // Live plan prices/limits set by the platform admin (shadow the module-level defaults above).
   const { planPrices, planLimits, projLimits } = usePlans();
-  const [subData, setSubData] = useState(null);
-  const [userCount, setUserCount] = useState(0);
-  const [projectCount, setProjectCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const companyId = user?.companyId;
+  const subData = useAppSelector((state) => selectSubscription(state, companyId));
+  // Seats are the company's own staff (clients are not counted), projects are the company's projects.
+  const userCount = useAppSelector(selectAllUsers).filter((u) => u.companyId === companyId).length;
+  const projectCount = useAppSelector(selectAllProjects).filter((p) => p.companyId === companyId).length;
+  const loading = !subData;
+  useLoad([[fetchCompanySubscription, companyId], fetchUsers, fetchProjects], [companyId]);
+  const loadSubscription = () => dispatch(fetchCompanySubscription(companyId));
 
-  useEffect(() => {
-    loadSubscription();
-  }, [user]);
-
-  async function loadSubscription() {
-    if (!user) return;
-    setLoading(true);
-    const data = await api.getCompanySubscription(user.companyId);
-    const [uList, pList] = await Promise.all([
-      api.getUsers(user.companyId),
-      api.getProjects(user.companyId)
-    ]);
-    setSubData(data);
-    setUserCount(uList?.length || 0);
-    setProjectCount(pList?.length || 0);
-    setLoading(false);
+  /** Saves the overage switch and the plan figures on the company. Shows the server's message if it refuses. */
+  async function saveCompany(overagePayload, companyChanges, planFirst = false) {
+    const overageStep = () => dispatch(toggleOverage({ id: companyId, payload: overagePayload })).unwrap();
+    const companyStep = () => dispatch(updateCompany({ id: companyId, changes: companyChanges })).unwrap();
+    try {
+      // a plan change saves the new plan first, so the overage figures are checked against the new limits
+      if (planFirst) { await companyStep(); await overageStep(); } else { await overageStep(); await companyStep(); }
+      return true;
+    } catch (err) {
+      toast.error(errorText(err, 'Could not change the subscription.'));
+      return false;
+    }
   }
 
   // Downgrade confirmation modal state
@@ -51,19 +55,8 @@ export default function CompanyAdminSubscription() {
     if (!user) return;
     const extraProj = enabled ? Math.max(0, projectCount - projectLimit) : 0;
     const extraUsr = enabled ? Math.max(0, userCount - userLimit) : 0;
-    const r1 = await api.toggleOverage(user.companyId, {
-      overageEnabled: enabled,
-      extraProjects: extraProj,
-      extraUsers: extraUsr
-    });
-    const r2 = r1 && r1.error ? r1 : await api.updateCompany(user.companyId, {
-      overageEnabled: enabled,
-      extraProjects: extraProj,
-      extraUsers: extraUsr
-    });
-    if (r2 && r2.error) {
-      toast.error(r2.message || 'Could not change the overage setting.');
-    }
+    const usage = { overageEnabled: enabled, extraProjects: extraProj, extraUsers: extraUsr };
+    await saveCompany(usage, usage);
     await loadSubscription();
   }
 
@@ -86,15 +79,7 @@ export default function CompanyAdminSubscription() {
       extraUsers: extraUsr
     };
 
-    const planRes = await api.updateCompany(user.companyId, updatePayload);
-    const ovRes = planRes && planRes.error ? planRes : await api.toggleOverage(user.companyId, {
-      overageEnabled: willHaveOverage,
-      extraProjects: extraProj,
-      extraUsers: extraUsr
-    });
-    if (ovRes && ovRes.error) {
-      toast.error(ovRes.message || 'Could not change the plan.');
-    }
+    await saveCompany({ overageEnabled: willHaveOverage, extraProjects: extraProj, extraUsers: extraUsr }, updatePayload, true);
 
     setSubmittingDowngrade(false);
     setDowngradeModalOpen(false);

@@ -1,5 +1,9 @@
 import LiveSummary from '../../../components/dashboard/LiveSummary';
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
+import { useAppSelector, useLoad } from '../../../store/hooks';
+import { fetchProjects, selectProjectsFinancedBy } from '../../../features/projects/projectsSlice';
+import { fetchBills, selectAllBills } from '../../../features/bills/billsSlice';
+import { fetchExpenseClaims, selectAllExpenses } from '../../../features/expenses/expensesSlice';
 import { useOutletContext, Link } from 'react-router-dom';
 import {
   DollarSign,
@@ -7,41 +11,23 @@ import {
   Receipt,
   AlertTriangle
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatCurrency, formatDate, normalizeBillStatus } from '../../../services/utils';
 
 export default function FinanceManagerDashboard() {
   const { user } = useOutletContext();
-  const [projects, setProjects] = useState([]);
-  const [bills, setBills] = useState([]);
-  const [expenses, setExpenses] = useState([]);
+  const projects = useAppSelector((state) => selectProjectsFinancedBy(state, user?.id));
+  const allBills = useAppSelector(selectAllBills);
+  const allExpenses = useAppSelector(selectAllExpenses);
+  useLoad([fetchProjects, fetchBills, fetchExpenseClaims]);
 
-
-
-  async function loadDashboardData() {
-    if (!user) return;
-    const [pList, bList, eList] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getBills(user.companyId),
-      api.getExpenses(user.companyId)
-    ]);
-
-    const myProjects = (pList || []).filter(
-      (p) => p.financeManagerId === user.id || (!p.financeManagerId && user.role === 'superuser')
-    );
-    const myProjectIds = new Set(myProjects.map((p) => p.id));
-    const myBills = (bList || []).filter((b) => myProjectIds.has(b.projectId));
-    // Only approved expenses count as project spend (older demo expenses without a status count as approved).
-    const myExpenses = (eList || []).filter((e) => myProjectIds.has(e.projectId) && (!e.status || e.status === 'approved'));
-
-    setProjects(myProjects);
-    setBills(myBills);
-    setExpenses(myExpenses);
-  }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadDashboardData());
-  }, [user]);
+  // Bills and approved spend of this finance manager's projects (older demo expenses without a status count as approved).
+  const { bills, expenses } = useMemo(() => {
+    const ids = new Set(projects.map((p) => p.id));
+    return {
+      bills: allBills.filter((b) => ids.has(b.projectId)),
+      expenses: allExpenses.filter((e) => ids.has(e.projectId) && (!e.status || e.status === 'approved')),
+    };
+  }, [projects, allBills, allExpenses]);
 
   const totalBudget = projects.reduce((sum, p) => sum + (Number(p.budget) || 0), 0);
   const totalUtilized = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);

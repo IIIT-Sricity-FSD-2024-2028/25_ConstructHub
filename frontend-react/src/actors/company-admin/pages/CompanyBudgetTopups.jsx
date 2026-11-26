@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, isFirstLoad, errorText } from '../../../store/hooks';
+import {
+  fetchBudgetTopups, approveBudgetTopup, rejectBudgetTopup, selectAllBudgetTopups, selectBudgetTopupsStatus
+} from '../../../features/finance/financeSlice';
+import { fetchProjects } from '../../../features/projects/projectsSlice';
 import { Check, X } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import { formatINR } from '../../../hooks/usePlans';
 import { useToast } from '../../../hooks/useToast';
@@ -12,38 +16,34 @@ const BADGE = { pending: 'badge-orange', approved: 'badge-green', rejected: 'bad
 /** Contingency top-ups: the Finance Manager asks, the Company Admin releases money from the project's profit margin. */
 export default function CompanyBudgetTopups() {
   const toast = useToast();
-  const [rows, setRows] = useState(null);
-  const [error, setError] = useState('');
+  const dispatch = useAppDispatch();
+  const list = useAppSelector(selectAllBudgetTopups);
+  const status = useAppSelector(selectBudgetTopupsStatus);
+  const rows = isFirstLoad(status, list.length > 0) ? null : list;
+  const error = useAppSelector((state) => state.finance.topups.error) || '';
   const [target, setTarget] = useState(null); // { topup, action: 'approve' | 'reject' }
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    const res = await api.getBudgetTopups();
-    if (res && res.error) {
-      setError(res.message);
-      setRows([]);
-      return;
-    }
-    setError('');
-    setRows(res || []);
-  }, []);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+  useLoad([fetchBudgetTopups]);
 
   async function decide() {
     const reject = target.action === 'reject';
     if (reject && note.trim().length < 3) return toast.error('Give a short reason for rejecting.');
     setBusy(true);
-    const res = reject ? await api.rejectBudgetTopup(target.topup.id, note.trim()) : await api.approveBudgetTopup(target.topup.id, note.trim() || undefined);
-    setBusy(false);
-    if (res && res.error) return toast.error(res.message);
+    try {
+      await dispatch(reject
+        ? rejectBudgetTopup({ id: target.topup.id, note: note.trim() })
+        : approveBudgetTopup({ id: target.topup.id, note: note.trim() || undefined })).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+    if (!reject) dispatch(fetchProjects()); // the project's site budget went up
     toast.success(reject ? 'Request rejected.' : `${formatINR(target.topup.amount)} moved from profit to the site budget.`);
     setTarget(null);
     setNote('');
-    load();
   }
 
   const pending = (rows || []).filter((r) => r.status === 'pending').length;

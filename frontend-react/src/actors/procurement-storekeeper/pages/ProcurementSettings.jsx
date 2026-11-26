@@ -2,7 +2,7 @@ import { useOutletContext } from 'react-router-dom';
 import UserSettings from '../../../components/common/UserSettings';
 
 export default function ProcurementSettings() {
-  const { user, setUser } = useOutletContext();
+  const { user } = useOutletContext();
   return (
     <div className="page-container">
       <div className="page-header" style={{ marginBottom: '1.25rem' }}>
@@ -11,7 +11,7 @@ export default function ProcurementSettings() {
           <p className="page-subtitle">Manage your personal profile and security preferences</p>
         </div>
       </div>
-      <UserSettings user={user} onUpdateUser={setUser} />
+      <UserSettings user={user} />
     </div>
   );
 }

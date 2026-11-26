@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
-import { api } from '../../../services/api';
+import { useAppDispatch, errorText } from '../../../store/hooks';
+import { setCompanyApproval } from '../../../features/platform/platformSlice';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
 import Modal from '../../../components/common/Modal';
@@ -12,6 +13,7 @@ import { formatDate } from '../../../services/utils';
  */
 export default function PendingApprovals({ companies, onChanged }) {
   const toast = useToast();
+  const dispatch = useAppDispatch();
   const [busyId, setBusyId] = useState(null);
   const [rejecting, setRejecting] = useState(null); // company being rejected
   const [reason, setReason] = useState('');
@@ -21,11 +23,13 @@ export default function PendingApprovals({ companies, onChanged }) {
 
   async function decide(company, decision, why) {
     setBusyId(company.id);
-    const res = await api.setCompanyApproval(company.id, decision, why);
-    setBusyId(null);
-    if (res && res.error) {
-      toast.error(res.message || 'Could not save the decision.');
+    try {
+      await dispatch(setCompanyApproval({ id: company.id, decision, reason: why })).unwrap(); // the company row updates in the store
+    } catch (err) {
+      toast.error(errorText(err, 'Could not save the decision.'));
       return false;
+    } finally {
+      setBusyId(null);
     }
     toast.success(`${company.name} ${decision}.`);
     onChanged && onChanged();

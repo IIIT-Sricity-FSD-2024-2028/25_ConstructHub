@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import {
+  fetchMaterialRequests, fetchSuppliers, fetchProcurementSettings, fetchStock, createPurchaseOrder, createMaterialIssue,
+  selectAllMaterialRequests, selectActiveSuppliers, selectProcurementSettings, selectStock
+} from '../../../features/procurement/procurementSlice';
 import { ShoppingCart, PackageCheck } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
@@ -12,11 +16,12 @@ const matKey = (desc, unit) => `${String(desc || '').trim().toLowerCase()}::${St
 
 export default function ProcurementRequests() {
   const toast = useToast();
-  const [requests, setRequests] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
-  const [stock, setStock] = useState([]);
-  const [limit, setLimit] = useState(null);
-  const [error, setError] = useState('');
+  const dispatch = useAppDispatch();
+  const requests = useAppSelector(selectAllMaterialRequests);
+  const suppliers = useAppSelector(selectActiveSuppliers);
+  const stock = useAppSelector(selectStock);
+  const limit = useAppSelector(selectProcurementSettings)?.poApprovalLimit ?? null;
+  const error = useAppSelector((state) => state.procurement.requests.error) || '';
 
   // Create PO modal state
   const [target, setTarget] = useState(null);
@@ -34,24 +39,7 @@ export default function ProcurementRequests() {
   const [issueError, setIssueError] = useState('');
   const [issuing, setIssuing] = useState(false);
 
-  const load = useCallback(async () => {
-    const [r, s, st, stk] = await Promise.all([
-      api.getMaterialRequests(),
-      api.getSuppliers(),
-      api.getProcurementSettings(),
-      api.getStock()
-    ]);
-    if (r && r.error) return setError(r.message);
-    setError('');
-    setRequests(r || []);
-    setSuppliers((s && !s.error ? s : []).filter((x) => x.status === 'active'));
-    setLimit(st && !st.error ? st.poApprovalLimit : null);
-    setStock(Array.isArray(stk) ? stk : []);
-  }, []);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+  useLoad([fetchMaterialRequests, fetchSuppliers, fetchProcurementSettings, fetchStock]);
 
   function findStockMatch(projectId, item) {
     const k = matKey(item.description, item.unit);
@@ -129,12 +117,17 @@ export default function ProcurementRequests() {
     }
     if (items.length === 0) return setFormError('Enter a quantity and rate for at least one item.');
     setSaving(true);
-    const res = await api.createPurchaseOrder({ requestId: target.id, supplierId, items, expectedDelivery: delivery || undefined, notes: notes.trim() || undefined });
-    setSaving(false);
-    if (res && res.error) return setFormError(res.message);
+    let res;
+    try {
+      // the thunk also reloads the requests (this one becomes ordered / partly ordered)
+      res = await dispatch(createPurchaseOrder({ requestId: target.id, supplierId, items, expectedDelivery: delivery || undefined, notes: notes.trim() || undefined })).unwrap();
+    } catch (err) {
+      return setFormError(errorText(err));
+    } finally {
+      setSaving(false);
+    }
     toast.success(res.status === 'pending_approval' ? `${res.id} created and sent for Finance Manager approval.` : `${res.id} created and approved.`);
     setTarget(null);
-    load();
   }
 
   async function submitIssue(e) {
@@ -152,17 +145,22 @@ export default function ProcurementRequests() {
     }
     if (items.length === 0) return setIssueError('Enter a quantity to issue for at least one item.');
     setIssuing(true);
-    const res = await api.createMaterialIssue({
-      requestId: issueTarget.request.id,
-      issuedTo: issueTarget.request.requestedBy,
-      items,
-      notes: issueNotes.trim() || undefined
-    });
-    setIssuing(false);
-    if (res && res.error) return setIssueError(res.message);
+    let res;
+    try {
+      res = await dispatch(createMaterialIssue({
+        requestId: issueTarget.request.id,
+        issuedTo: issueTarget.request.requestedBy,
+        items,
+        notes: issueNotes.trim() || undefined
+      })).unwrap();
+    } catch (err) {
+      return setIssueError(errorText(err));
+    } finally {
+      setIssuing(false);
+    }
     toast.success(`${res.id} issued from site stock to ${issueTarget.request.requestedByName}.`);
     setIssueTarget(null);
-    load();
+    dispatch(fetchMaterialRequests()); // the request's remaining quantities went down
   }
 
   const columns = [
@@ -333,7 +331,7 @@ export default function ProcurementRequests() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                {limit !== null && total > limit ? `Total is above the company approval limit (${inr(limit)}): the Finance Manager will approve it.` : 'Within auto-approval limit.'}
+                {limit !== null && total > limit ? `Total is above the company approval limit (${inr(limit)}): the Finance Manager will approve it.` : 'Within the auto-approval limit (earlier orders on this request also count towards it).'}
               </span>
               <strong style={{ fontSize: 16 }}>Total: {inr(total)}</strong>
             </div>

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, isFirstLoad, errorText } from '../../../store/hooks';
+import { fetchEstimates, submitFmEstimate, selectAllEstimates, selectEstimatesStatus } from '../../../features/marketplace/marketplaceSlice';
 import { Send } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import { formatINR } from '../../../hooks/usePlans';
 import { useToast } from '../../../hooks/useToast';
@@ -9,6 +10,7 @@ import { round2 } from '../../../components/marketplace/estimationMath';
 
 function CostEditor({ estimate, onSaved }) {
   const toast = useToast();
+  const dispatch = useAppDispatch();
   const stages = estimate.milestoneStages || [];
   const [costs, setCosts] = useState(stages.map((s) => (s.internalCost !== undefined && s.internalCost !== null ? String(s.internalCost) : '')));
   const [advance, setAdvance] = useState(estimate.mobilizationAdvancePercent !== undefined && estimate.mobilizationAdvancePercent !== null ? String(estimate.mobilizationAdvancePercent) : '15');
@@ -27,12 +29,16 @@ function CostEditor({ estimate, onSaved }) {
     const pct = Number(advance);
     if (advance === '' || !Number.isFinite(pct) || pct < 0 || pct > 50) return setError('Mobilization advance must be between 0 and 50 percent.');
     setSaving(true);
-    const res = await api.submitFmEstimate(estimate.id, {
-      stages: costs.map((c) => ({ internalCost: Number(c) })),
-      mobilizationAdvancePercent: pct,
-    });
-    setSaving(false);
-    if (res && res.error) return setError(res.message);
+    try {
+      await dispatch(submitFmEstimate({ id: estimate.id, data: {
+        stages: costs.map((c) => ({ internalCost: Number(c) })),
+        mobilizationAdvancePercent: pct,
+      } })).unwrap();
+    } catch (err) {
+      return setError(errorText(err));
+    } finally {
+      setSaving(false);
+    }
     toast.success('Costs submitted to the Company Admin.');
     onSaved();
   }
@@ -76,23 +82,14 @@ function CostEditor({ estimate, onSaved }) {
 }
 
 export default function FinanceManagerBidEstimates() {
-  const [estimates, setEstimates] = useState(null);
-  const [error, setError] = useState('');
-
-  const load = useCallback(async () => {
-    const res = await api.getEstimates();
-    if (res && res.error) {
-      setError(res.message);
-      setEstimates([]);
-      return;
-    }
-    setError('');
-    setEstimates(res || []);
-  }, []);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+  const dispatch = useAppDispatch();
+  const list = useAppSelector(selectAllEstimates);
+  const status = useAppSelector(selectEstimatesStatus);
+  const error = useAppSelector((state) => state.marketplace.estimates.error) || '';
+  const estimates = isFirstLoad(status, list.length > 0) ? null : list;
+  useLoad([fetchEstimates]);
+  // After saving, reload the list: the estimate moves to its next stage (and may leave this list).
+  const load = () => dispatch(fetchEstimates());
 
   return (
     <div>

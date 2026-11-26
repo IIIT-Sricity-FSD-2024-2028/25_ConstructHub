@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import {
+  fetchPurchaseOrders, fetchPurchaseOrder, approvePurchaseOrder, rejectPurchaseOrder, selectAllPurchaseOrders, selectPurchaseOrderById
+} from '../../../features/procurement/procurementSlice';
 import { CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
@@ -73,39 +76,41 @@ export function PurchaseOrderDetail({ po }) {
 export default function FinanceManagerPurchaseOrders() {
   const toast = useToast();
   const [tab, setTab] = useState('pending');
-  const [orders, setOrders] = useState([]);
-  const [detail, setDetail] = useState(null);
-  const [error, setError] = useState('');
+  const dispatch = useAppDispatch();
+  const orders = useAppSelector(selectAllPurchaseOrders);
+  const error = useAppSelector((state) => state.procurement.orders.error) || '';
+  const [detailId, setDetailId] = useState(null);
+  const detail = useAppSelector((state) => (detailId ? selectPurchaseOrderById(state, detailId) : null)) || null;
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
 
-  const load = useCallback(async () => {
-    const res = await api.getPurchaseOrders();
-    if (res && res.error) return setError(res.message);
-    setError('');
-    setOrders(res || []);
-  }, []);
+  useLoad([fetchPurchaseOrders]);
 
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
-
+  // Opening an order fetches its full record (budget position, deliveries) into the store.
   async function open(po) {
-    const full = await api.getPurchaseOrder(po.id);
-    if (full && full.error) return toast.error(full.message);
+    try {
+      await dispatch(fetchPurchaseOrder(po.id)).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    }
     setNote('');
-    setDetail(full);
+    setDetailId(po.id);
   }
 
   async function decide(approve) {
     if (!approve && note.trim().length < 3) return toast.error('Please give a reason for rejecting.');
     setBusy(true);
-    const res = approve ? await api.approvePurchaseOrder(detail.id, note.trim() || undefined) : await api.rejectPurchaseOrder(detail.id, note.trim());
-    setBusy(false);
-    if (res && res.error) return toast.error(res.message);
+    try {
+      await dispatch(approve
+        ? approvePurchaseOrder({ id: detail.id, note: note.trim() || undefined })
+        : rejectPurchaseOrder({ id: detail.id, note: note.trim() })).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    } finally {
+      setBusy(false);
+    }
     toast.success(`${detail.id} ${approve ? 'approved' : 'rejected'}.`);
-    setDetail(null);
-    load();
+    setDetailId(null);
   }
 
   const pending = orders.filter((o) => o.status === 'pending_approval');
@@ -140,12 +145,12 @@ export default function FinanceManagerPurchaseOrders() {
 
       <Modal
         isOpen={!!detail}
-        onClose={() => setDetail(null)}
+        onClose={() => setDetailId(null)}
         title={detail ? `Purchase order ${detail.id}` : ''}
         size="lg"
         footer={detail && detail.status === 'pending_approval' ? (
           <>
-            <button type="button" className="btn btn-secondary" onClick={() => setDetail(null)}>Close</button>
+            <button type="button" className="btn btn-secondary" onClick={() => setDetailId(null)}>Close</button>
             <button type="button" className="btn btn-danger" disabled={busy} onClick={() => decide(false)}><XCircle size={14} /> Reject</button>
             <button type="button" className="btn btn-success" disabled={busy} onClick={() => decide(true)}><CheckCircle2 size={14} /> Approve</button>
           </>

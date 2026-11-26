@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, Link, useOutletContext } from 'react-router-dom';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import {
+  fetchRequirement, fetchQuotations, fetchContracts, assignEstimateTeam, releaseQuotation, updateQuotation, withdrawQuotation,
+  selectRequirementById, selectAllQuotations, selectAllContracts
+} from '../../../features/marketplace/marketplaceSlice';
+import { fetchUsers, selectAllUsers } from '../../../features/users/usersSlice';
 import { ArrowLeft, Pencil, Undo2, UserPlus } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import { formatINR } from '../../../hooks/usePlans';
 import { useToast } from '../../../hooks/useToast';
@@ -17,46 +22,54 @@ export default function CompanyMarketplaceDetail() {
   const { user } = useOutletContext();
   const toast = useToast();
 
-  const [req, setReq] = useState(null);
-  const [quote, setQuote] = useState(null); // this company's quotation (if any)
-  const [contract, setContract] = useState(null);
+  const dispatch = useAppDispatch();
+  const req = useAppSelector((state) => selectRequirementById(state, id)) || null;
+  const quotes = useAppSelector(selectAllQuotations);
+  const contracts = useAppSelector(selectAllContracts);
+  const quote = (req?.myQuotationId && quotes.find((q) => q.id === req.myQuotationId)) || null; // this company's quotation (if any)
+  const contract = req?.awardedToMe ? contracts.find((c) => c.requirementId === id) || null : null;
+  const allUsers = useAppSelector(selectAllUsers);
+  const staff = allUsers.filter((u) => u.companyId === user?.companyId && u.status !== 'inactive');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
-  const [staff, setStaff] = useState([]);
   const [teamOpen, setTeamOpen] = useState(false);
   const [pmId, setPmId] = useState('');
   const [fmId, setFmId] = useState('');
 
+  // The requirement, then this company's quotation on it and (when won) the contract.
   const load = useCallback(async () => {
-    const r = await api.getRequirement(id);
-    if (r && r.error) {
-      setError(r.message);
-      return;
+    try {
+      const r = await dispatch(fetchRequirement(id)).unwrap();
+      setError('');
+      if (r.myQuotationId) dispatch(fetchQuotations());
+      if (r.awardedToMe) dispatch(fetchContracts());
+    } catch (err) {
+      setError(errorText(err));
     }
-    setError('');
-    setReq(r);
-    if (r.myQuotationId) {
-      const all = await api.getQuotations();
-      setQuote((all && !all.error ? all : []).find((q) => q.id === r.myQuotationId) || null);
-    } else {
-      setQuote(null);
-    }
-    if (r.awardedToMe) {
-      const contracts = await api.getContracts();
-      setContract((contracts && !contracts.error ? contracts : []).find((c) => c.requirementId === id) || null);
-    }
-  }, [id]);
+  }, [dispatch, id]);
 
   useEffect(() => {
     void Promise.resolve().then(load);
   }, [load]);
+  useLoad([fetchUsers]);
 
-  useEffect(() => {
-    if (!user) return;
-    api.getUsers(user.companyId).then((all) => setStaff((all || []).filter((u) => u.companyId === user.companyId && u.status !== 'inactive')));
-  }, [user]);
+  /** Runs one quotation step, then reloads the page data. Returns true when it worked. */
+  async function run(action, okMessage) {
+    setSaving(true);
+    try {
+      await dispatch(action).unwrap();
+    } catch (err) {
+      toast.error(errorText(err));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+    toast.success(okMessage);
+    await load();
+    return true;
+  }
 
   const pms = staff.filter((u) => u.role === 'project_manager');
   const fms = staff.filter((u) => u.role === 'finance_manager');
@@ -69,52 +82,21 @@ export default function CompanyMarketplaceDetail() {
   }
 
   async function assignTeam() {
-    setSaving(true);
-    const res = await api.assignEstimateTeam(id, { pmId, fmId });
-    setSaving(false);
-    if (res && res.error) {
-      toast.error(res.message);
-      return;
-    }
-    toast.success('Estimate opened. The PM and FM have been notified.');
-    setTeamOpen(false);
-    await load();
+    if (await run(assignEstimateTeam({ requirementId: id, pmId, fmId }), 'Estimate opened. The PM and FM have been notified.')) setTeamOpen(false);
   }
 
   async function release(payload) {
-    setSaving(true);
-    const res = await api.releaseQuotation(quote.id, payload);
-    setSaving(false);
-    if (res && res.error) {
-      toast.error(res.message);
-      return;
-    }
-    toast.success('Quotation sent to the client.');
-    await load();
+    await run(releaseQuotation({ id: quote.id, data: payload }), 'Quotation sent to the client.');
   }
 
-  async function save(payload, isEdit) {
-    setSaving(true);
-    const res = isEdit ? await api.updateQuotation(quote.id, payload) : await api.submitQuotation(id, payload);
-    setSaving(false);
-    if (res && res.error) {
-      toast.error(res.message);
-      return;
-    }
-    toast.success(isEdit ? 'Quotation updated.' : 'Quotation submitted to the client.');
-    setEditing(false);
-    await load();
+  // Only an older single-screen quotation (no PM/FM stages) can be edited directly; new ones go through estimation.
+  async function save(payload) {
+    if (await run(updateQuotation({ id: quote.id, changes: payload }), 'Quotation updated.')) setEditing(false);
   }
 
   async function withdraw() {
     setConfirmWithdraw(false);
-    const res = await api.withdrawQuotation(quote.id);
-    if (res && res.error) {
-      toast.error(res.message);
-      return;
-    }
-    toast.success(quote.status === 'estimating' ? 'Estimate cancelled.' : 'Quotation withdrawn.');
-    await load();
+    await run(withdrawQuotation(quote.id), quote.status === 'estimating' ? 'Estimate cancelled.' : 'Quotation withdrawn.');
   }
 
   if (error) {
@@ -255,7 +237,7 @@ export default function CompanyMarketplaceDetail() {
       </div>
 
       <Modal isOpen={editing} onClose={() => setEditing(false)} title="Edit your quotation" size="lg">
-        {quote && <QuotationForm initial={quote} submitting={saving} submitLabel="Save changes" onSubmit={(p) => save(p, true)} onCancel={() => setEditing(false)} />}
+        {quote && <QuotationForm initial={quote} submitting={saving} submitLabel="Save changes" onSubmit={save} onCancel={() => setEditing(false)} />}
       </Modal>
 
       <Modal

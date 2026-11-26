@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import { fetchProjects, selectProjectsFinancedBy } from '../../../features/projects/projectsSlice';
+import { fetchBills, updateBill, selectAllBills } from '../../../features/bills/billsSlice';
 import { useToast } from '../../../hooks/useToast';
 import { useOutletContext, Link } from 'react-router-dom';
 import { Edit2, Eye, Plus } from 'lucide-react';
-import { api } from '../../../services/api';
 import {
   formatCurrency,
   formatDate,
@@ -15,7 +17,15 @@ import DataTable from '../../../components/common/DataTable';
 export default function FinanceManagerBillDecisions() {
   const toast = useToast();
   const { user } = useOutletContext();
-  const [bills, setBills] = useState([]);
+  const dispatch = useAppDispatch();
+  const myProjects = useAppSelector((state) => selectProjectsFinancedBy(state, user?.id));
+  const allBills = useAppSelector(selectAllBills);
+  useLoad([fetchProjects, fetchBills]);
+  // Bills of the projects this finance manager looks after.
+  const bills = useMemo(() => {
+    const ids = new Set(myProjects.map((p) => p.id));
+    return allBills.filter((b) => ids.has(b.projectId));
+  }, [myProjects, allBills]);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
@@ -30,24 +40,6 @@ export default function FinanceManagerBillDecisions() {
     description: '',
     locked: false
   });
-
-  useEffect(() => {
-    loadBills();
-  }, [user]);
-
-  async function loadBills() {
-    if (!user) return;
-    const [pList, bList] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getBills(user.companyId)
-    ]);
-    const myProjects = (pList || []).filter(
-      (p) => p.financeManagerId === user.id || (!p.financeManagerId && user.role === 'superuser')
-    );
-    const myProjectIds = new Set(myProjects.map((p) => p.id));
-    const myBills = (bList || []).filter((b) => myProjectIds.has(b.projectId));
-    setBills(myBills);
-  }
 
   function openEdit(b) {
     const norm = normalizeBillStatus(b.status);
@@ -80,18 +72,17 @@ export default function FinanceManagerBillDecisions() {
       }
     }
 
-    const saved = await api.updateBill(editForm.id, {
-      ...(editForm.locked ? {} : { milestone: editForm.milestone, amount: Number(editForm.amount) }),
-      dueDate: editForm.dueDate,
-      description: editForm.description
-    });
-    if (saved && saved.error) {
-      toast.error(saved.message || 'Could not update the bill.');
+    try {
+      await dispatch(updateBill({ id: editForm.id, changes: {
+        ...(editForm.locked ? {} : { milestone: editForm.milestone, amount: Number(editForm.amount) }),
+        dueDate: editForm.dueDate,
+        description: editForm.description
+      } })).unwrap();
+    } catch (err) {
+      toast.error(errorText(err, 'Could not update the bill.'));
       return;
     }
-
     setEditModal(null);
-    loadBills();
   }
 
   const pendingCount = bills.filter((b) => normalizeBillStatus(b.status) === 'Pending Decision').length;
@@ -261,7 +252,7 @@ export default function FinanceManagerBillDecisions() {
       >
         <div style={{ display: 'grid', gap: 14 }}>
           <div className="grid-2" style={{ background: 'var(--bg)', padding: 14, borderRadius: 8, fontSize: 13 }}>
-            <div><strong>Client:</strong> {detailModal?.clientName || 'Vikram Patel'}</div>
+            <div><strong>Client:</strong> {detailModal?.clientName || 'Client'}</div>
             <div><strong>Milestone:</strong> {detailModal?.milestone || (detailModal?.description ? detailModal.description.replace(/\.?$/, '') : 'Milestone 1 - Foundation & Groundwork')}</div>
             <div><strong>Amount:</strong> <span style={{ color: 'var(--primary)', fontWeight: 700 }}>{formatCurrency(detailModal?.amount)}</span></div>
             <div><strong>Status:</strong> <span className={`badge ${statusBadgeClass(normalizeBillStatus(detailModal?.status))}`}>{normalizeBillStatus(detailModal?.status)}</span></div>

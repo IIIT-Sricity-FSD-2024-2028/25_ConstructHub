@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Save } from 'lucide-react';
-import { api } from '../../../services/api';
+import { useAppDispatch, errorText } from '../../../store/hooks';
+import { fetchPlans, updatePlan, updateOverageRates } from '../../../features/platform/platformSlice';
 import { useToast } from '../../../hooks/useToast';
 
 const numberOrEmpty = (v) => (v === '' || v === null || v === undefined ? '' : String(v));
@@ -11,6 +12,7 @@ const numberOrEmpty = (v) => (v === '' || v === null || v === undefined ? '' : S
  */
 export default function PlanEditor({ plansData, onChanged }) {
   const toast = useToast();
+  const dispatch = useAppDispatch();
   const [forms, setForms] = useState({});
   const [overage, setOverage] = useState({ extraUserMonthly: '', extraProjectMonthly: '' });
   const [saving, setSaving] = useState('');
@@ -51,28 +53,32 @@ export default function PlanEditor({ plansData, onChanged }) {
     return out;
   }
 
-  async function savePlan(name) {
-    setSaving(name);
-    const res = await api.updatePlan(name, toNumbers(forms[name]));
-    setSaving('');
-    if (res && res.error) {
-      toast.error(res.message || 'Could not save the plan.');
-      return;
+  /** Saves one change, then re-reads the plans so every screen (usePlans) shows the new prices and limits. */
+  async function save(action, key, failText) {
+    setSaving(key);
+    try {
+      await dispatch(action).unwrap();
+    } catch (err) {
+      toast.error(errorText(err, failText));
+      return false;
+    } finally {
+      setSaving('');
     }
-    toast.success(`${name} plan updated.`);
-    onChanged && onChanged();
+    dispatch(fetchPlans());
+    if (onChanged) onChanged();
+    return true;
+  }
+
+  async function savePlan(name) {
+    if (await save(updatePlan({ name, changes: toNumbers(forms[name]) }), name, 'Could not save the plan.')) {
+      toast.success(`${name} plan updated.`);
+    }
   }
 
   async function saveOverage() {
-    setSaving('overage');
-    const res = await api.updateOverageRates(toNumbers(overage));
-    setSaving('');
-    if (res && res.error) {
-      toast.error(res.message || 'Could not save the overage rates.');
-      return;
+    if (await save(updateOverageRates(toNumbers(overage)), 'overage', 'Could not save the overage rates.')) {
+      toast.success('Overage rates updated.');
     }
-    toast.success('Overage rates updated.');
-    onChanged && onChanged();
   }
 
   const field = (label, value, onChange, step = 1) => (

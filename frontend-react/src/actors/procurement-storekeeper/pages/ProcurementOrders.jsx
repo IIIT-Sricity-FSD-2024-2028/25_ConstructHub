@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import {
+  fetchPurchaseOrders, fetchPurchaseOrder, fetchGoodsReceipts, createGoodsReceipt, uploadGrnInvoice, cancelPurchaseOrder,
+  selectAllPurchaseOrders, selectPurchaseOrderById, selectReceiptsOfOrder
+} from '../../../features/procurement/procurementSlice';
+import { fetchProjectProgress, selectProjectProgress } from '../../../features/milestones/milestonesSlice';
 import { PackageCheck, Ban, Paperclip, Download } from 'lucide-react';
 import { api } from '../../../services/api';
 import { formatDate, localDateISO } from '../../../services/utils';
@@ -13,51 +19,51 @@ const today = () => localDateISO();
 
 export default function ProcurementOrders() {
   const toast = useToast();
-  const [orders, setOrders] = useState([]);
+  const dispatch = useAppDispatch();
+  const orders = useAppSelector(selectAllPurchaseOrders);
+  const error = useAppSelector((state) => state.procurement.orders.error) || '';
   const [filter, setFilter] = useState('');
-  const [error, setError] = useState('');
-  const [detail, setDetail] = useState(null);
+  const [detailId, setDetailId] = useState(null);
+  const detail = useAppSelector((state) => (detailId ? selectPurchaseOrderById(state, detailId) : null)) || null;
+  const setDetail = (po) => setDetailId(po ? po.id : null);
+  const receipts = useAppSelector((state) => selectReceiptsOfOrder(state, detailId));
 
   const [receiving, setReceiving] = useState(false);
   const [recv, setRecv] = useState({});
   const [deliveryNote, setDeliveryNote] = useState('');
   const [receivedDate, setReceivedDate] = useState(today());
   const [recvError, setRecvError] = useState('');
-  const [milestones, setMilestones] = useState([]);
   const [milestoneId, setMilestoneId] = useState('');
   const [invoiceFile, setInvoiceFile] = useState(null);
-  const [receipts, setReceipts] = useState([]);
+  // Open milestones of the order's project: a delivery can be booked against one of them.
+  const progress = useAppSelector((state) => (detail ? selectProjectProgress(state, detail.projectId) : null));
+  const milestones = useMemo(() => (progress?.milestones || []).filter((m) => m.status !== 'Completed'), [progress]);
 
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    const res = await api.getPurchaseOrders();
-    if (res && res.error) return setError(res.message);
-    setError('');
-    setOrders(res || []);
-  }, []);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+  useLoad([fetchPurchaseOrders]);
 
   async function open(po) {
-    const full = await api.getPurchaseOrder(po.id);
-    if (full && full.error) return toast.error(full.message);
-    setDetail(full);
-    const rs = await api.getGoodsReceipts(po.id);
-    setReceipts(Array.isArray(rs) ? rs : []);
+    try {
+      await dispatch(fetchPurchaseOrder(po.id)).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    }
+    setDetail(po);
+    dispatch(fetchGoodsReceipts(po.id));
   }
 
   async function attachInvoice(grnId, file) {
     if (!file) return;
-    const res = await api.uploadGrnInvoice(grnId, file);
-    if (res && res.error) return toast.error(res.message);
+    try {
+      await dispatch(uploadGrnInvoice({ grnId, file })).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    }
     toast.success('Vendor invoice attached.');
-    const rs = await api.getGoodsReceipts(detail.id);
-    setReceipts(Array.isArray(rs) ? rs : []);
+    dispatch(fetchGoodsReceipts(detail.id));
   }
 
   async function downloadInvoice(r) {
@@ -72,8 +78,7 @@ export default function ProcurementOrders() {
     setRecvError('');
     setMilestoneId('');
     setInvoiceFile(null);
-    setMilestones([]);
-    api.getProjectProgress(detail.projectId).then((p) => setMilestones(p && !p.error ? (p.milestones || []).filter((m) => m.status !== 'Completed') : []));
+    dispatch(fetchProjectProgress(detail.projectId));
     setReceiving(true);
   }
 
@@ -91,36 +96,38 @@ export default function ProcurementOrders() {
     }
     if (items.length === 0) return setRecvError('Enter the quantity received for at least one item.');
     setBusy(true);
-    const res = await api.createGoodsReceipt({ poId: detail.id, items, deliveryNote: deliveryNote.trim() || undefined, receivedDate, milestoneId: milestoneId || undefined });
-    if (res && res.error) {
+    let res;
+    try {
+      res = await dispatch(createGoodsReceipt({ poId: detail.id, items, deliveryNote: deliveryNote.trim() || undefined, receivedDate, milestoneId: milestoneId || undefined })).unwrap();
+      // The delivery is saved first; the vendor's paper invoice is attached right after (it can be added later too).
+      if (invoiceFile) {
+        await dispatch(uploadGrnInvoice({ grnId: res.receipt.id, file: invoiceFile })).unwrap()
+          .catch((err) => toast.error(`${res.receipt.id} was saved, but the invoice could not be attached: ${errorText(err)}`));
+      }
+    } catch (err) {
+      return setRecvError(errorText(err));
+    } finally {
       setBusy(false);
-      return setRecvError(res.message);
     }
-    // The delivery is saved first; the vendor's paper invoice is attached right after (it can be added later too).
-    if (invoiceFile) {
-      const up = await api.uploadGrnInvoice(res.receipt.id, invoiceFile);
-      if (up && up.error) toast.error(`${res.receipt.id} was saved, but the invoice could not be attached: ${up.message}`);
-    }
-    setBusy(false);
     toast.success(`${res.receipt.id} recorded. Site stock updated.`);
     setReceiving(false);
-    setDetail(res.order);
-    const rs = await api.getGoodsReceipts(res.order.id);
-    setReceipts(Array.isArray(rs) ? rs : []);
-    load();
+    dispatch(fetchGoodsReceipts(detail.id));
   }
 
   async function cancelOrder() {
     if (reason.trim().length < 3) return toast.error('Please enter a reason.');
     setBusy(true);
-    const res = await api.cancelPurchaseOrder(detail.id, reason.trim());
-    setBusy(false);
-    if (res && res.error) return toast.error(res.message);
+    try {
+      await dispatch(cancelPurchaseOrder({ id: detail.id, reason: reason.trim() })).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    } finally {
+      setBusy(false);
+    }
     toast.success(`${detail.id} cancelled.`);
     setCancelling(false);
     setReason('');
     setDetail(null);
-    load();
   }
 
   const shown = orders.filter((o) => !filter || o.status === filter);

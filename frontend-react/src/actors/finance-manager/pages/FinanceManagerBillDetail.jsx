@@ -1,8 +1,9 @@
 import BillPayments from '../../../components/billing/BillPayments';
-import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { useState } from 'react';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useAppSelector, useLoad, isFirstLoad } from '../../../store/hooks';
+import { fetchBills, selectBillById, selectBillsStatus } from '../../../features/bills/billsSlice';
 import { ArrowLeft } from 'lucide-react';
-import { api } from '../../../services/api';
 import ReportPreviewModal from '../../../components/common/ReportPreviewModal';
 import { formatCurrency, formatDate, statusBadgeClass, normalizeBillStatus } from '../../../services/utils';
 export default function FinanceManagerBillDetail() {
@@ -10,24 +11,11 @@ export default function FinanceManagerBillDetail() {
   const [searchParams] = useSearchParams();
   const id = paramId || searchParams.get('id');
   const navigate = useNavigate();
-  const { user } = useOutletContext();
-
-  const [bill, setBill] = useState(null);
+  const bill = useAppSelector((state) => (id ? selectBillById(state, id) : null)) || null;
+  const billsStatus = useAppSelector(selectBillsStatus);
+  const loading = isFirstLoad(billsStatus, Boolean(bill));
   const [previewId, setPreviewId] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadBill();
-  }, [id, user]);
-
-  async function loadBill() {
-    if (!id || !user) return;
-    setLoading(true);
-    const allBills = await api.getBills(user.companyId);
-    const found = (allBills || []).find((b) => b.id === id);
-    setBill(found || null);
-    setLoading(false);
-  }
+  useLoad([fetchBills], [id]);
 
   if (loading) {
     return (
@@ -116,7 +104,7 @@ export default function FinanceManagerBillDetail() {
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Client</span>
-              <strong>{bill.clientName || 'Vikram Patel'}</strong>
+              <strong>{bill.clientName || 'Client'}</strong>
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '12px' }}>Milestone</span>
@@ -186,7 +174,7 @@ export default function FinanceManagerBillDetail() {
 
       <ReportPreviewModal reportId={previewId} onClose={() => setPreviewId(null)} />
 
-      <BillPayments bill={bill} role="finance_manager" onChanged={loadBill} />
+      <BillPayments bill={bill} role="finance_manager" />
     </div>
   );
 }

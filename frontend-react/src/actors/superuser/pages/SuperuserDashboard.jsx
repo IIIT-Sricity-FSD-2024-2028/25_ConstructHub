@@ -1,5 +1,12 @@
 import LiveSummary from '../../../components/dashboard/LiveSummary';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import {
+  fetchCompanies, fetchInquiries, fetchPlans, updateCompany, onboardCompany, updateInquiry, deleteInquiry,
+  selectAllCompanies, selectAllInquiries, selectPlansData
+} from '../../../features/platform/platformSlice';
+import { fetchUsers, selectAllUsers } from '../../../features/users/usersSlice';
+import { fetchProjects, selectAllProjects, projectDisplayStatus } from '../../../features/projects/projectsSlice';
 import { useSearchParams } from 'react-router-dom';
 import {
   ShieldCheck,
@@ -16,7 +23,6 @@ import {
   ClipboardCheck,
   Tag
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import {
   formatCurrency,
   roleLabel,
@@ -47,11 +53,12 @@ export default function SuperuserDashboard() {
 
   const toast = useToast();
   const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
-  const [companies, setCompanies] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [inquiries, setInquiries] = useState([]);
-  const [plansData, setPlansData] = useState(null);
+  const dispatch = useAppDispatch();
+  const companies = useAppSelector(selectAllCompanies);
+  const users = useAppSelector(selectAllUsers);
+  const projects = useAppSelector(selectAllProjects);
+  const inquiries = useAppSelector(selectAllInquiries);
+  const plansData = useAppSelector(selectPlansData);
 
   // Modals
   const [compModalOpen, setCompModalOpen] = useState(false);
@@ -80,24 +87,10 @@ export default function SuperuserDashboard() {
   const [projectSearch, setProjectSearch] = useState('');
   const [projectStatusFilter, setProjectStatusFilter] = useState('');
 
-  useEffect(() => {
-    loadAllData();
-  }, []);
-
-  async function loadAllData() {
-    const [c, u, p, inq, pl] = await Promise.all([
-      api.getCompanies(),
-      api.getUsers(),
-      api.getProjects(),
-      api.getInquiries(),
-      api.getPlans()
-    ]);
-    setPlansData(pl);
-    setCompanies(c || []);
-    setUsers(u || []);
-    setProjects(p || []);
-    setInquiries(inq || []);
-  }
+  const LOADERS = [fetchCompanies, fetchUsers, fetchProjects, fetchInquiries, fetchPlans];
+  useLoad(LOADERS);
+  /** Re-reads every platform list (after a change that touches several of them, e.g. onboarding a firm). */
+  const loadAllData = () => LOADERS.forEach((thunk) => dispatch(thunk()));
 
   function handleTabChange(tabKey) {
     setSearchParams({ tab: tabKey });
@@ -232,7 +225,7 @@ export default function SuperuserDashboard() {
     const totalProjectLimit = baseQuota.projects + extraProjects;
 
     if (isEditingComp) {
-      const updateRes = await api.updateCompany(compForm.id, {
+      const updateRes = await dispatch(updateCompany({ id: compForm.id, changes: {
         name: compForm.name.trim(),
         code: compForm.code.trim().toLowerCase(),
         domain: compForm.domain.trim().toLowerCase(),
@@ -245,16 +238,15 @@ export default function SuperuserDashboard() {
         customUserLimit: totalUserLimit,
         customProjectLimit: totalProjectLimit,
         overageEnabled: compForm.overageEnabled
-      });
+      } }));
 
-      if (updateRes && updateRes.error) {
-        const msg = Array.isArray(updateRes.message) ? updateRes.message.join(', ') : (updateRes.message || 'Failed to update company.');
-        setCompFormErrors({ ownerEmail: msg });
+      if (updateCompany.rejected.match(updateRes)) {
+        setCompFormErrors({ ownerEmail: updateRes.payload || 'Failed to update company.' });
         return;
       }
     } else {
       const initialPassword = (compForm.adminPassword || '').trim() || 'password123';
-      const regRes = await api.onboardCompany({
+      const regRes = await dispatch(onboardCompany({
         company: {
           name: compForm.name.trim(),
           code: compForm.code.trim().toLowerCase(),
@@ -275,10 +267,10 @@ export default function SuperuserDashboard() {
           password: initialPassword,
           phone: compForm.phone ? `+91 ${compForm.phone}` : ''
         }
-      });
+      }));
 
-      if (regRes && regRes.error) {
-        const msg = Array.isArray(regRes.message) ? regRes.message.join(', ') : (regRes.message || 'Failed to register company.');
+      if (onboardCompany.rejected.match(regRes)) {
+        const msg = String(regRes.payload || 'Failed to register company.');
         if (msg.toLowerCase().includes('domain')) {
           setCompFormErrors({ domain: msg });
         } else if (msg.toLowerCase().includes('code')) {
@@ -299,7 +291,7 @@ export default function SuperuserDashboard() {
       );
       if (matchingInquiry) idsToRemove.add(matchingInquiry.id);
       for (const rmId of idsToRemove) {
-        await api.deleteInquiry(rmId).catch(() => {});
+        await dispatch(deleteInquiry(rmId));
       }
     }
 
@@ -317,9 +309,10 @@ export default function SuperuserDashboard() {
 
   async function handleToggleCompanyStatus(c) {
     const newStatus = c.status === 'active' ? 'inactive' : 'active';
-    const res = await api.updateCompany(c.id, { status: newStatus });
-    if (res && res.error) {
-      toast.error(res.message || 'Could not update the company.');
+    try {
+      await dispatch(updateCompany({ id: c.id, changes: { status: newStatus } })).unwrap();
+    } catch (err) {
+      toast.error(errorText(err, 'Could not update the company.'));
       return;
     }
     setSummaryRefreshKey((k) => k + 1);
@@ -328,9 +321,10 @@ export default function SuperuserDashboard() {
 
   async function handleToggleInquiryStatus(inq) {
     const nextStatus = inq.status === 'Resolved' ? 'New' : 'Resolved';
-    const res = await api.updateInquiry(inq.id, { status: nextStatus });
-    if (res && res.error) {
-      toast.error(res.message || 'Could not update the inquiry.');
+    try {
+      await dispatch(updateInquiry({ id: inq.id, changes: { status: nextStatus } })).unwrap();
+    } catch (err) {
+      toast.error(errorText(err, 'Could not update the inquiry.'));
       return;
     }
     setSummaryRefreshKey((k) => k + 1);
@@ -959,8 +953,8 @@ export default function SuperuserDashboard() {
                 key: 'status',
                 label: 'Status',
                 render: (p) => (
-                  <span className={`badge ${statusBadgeClass(p.status)}`}>
-                    {p.status}
+                  <span className={`badge ${statusBadgeClass(projectDisplayStatus(p))}`}>
+                    {projectDisplayStatus(p)}
                   </span>
                 )
               }

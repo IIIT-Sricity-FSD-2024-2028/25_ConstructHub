@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import {
+  fetchStock, fetchStockLedger, fetchMaterialIssues, createMaterialIssue, selectStock, selectStockLedger, selectMaterialIssues
+} from '../../../features/procurement/procurementSlice';
+import { fetchProjects, selectAllProjects } from '../../../features/projects/projectsSlice';
+import { fetchUsers, selectUsersByRole } from '../../../features/users/usersSlice';
+import { fetchTasks, selectAllTasks } from '../../../features/tasks/tasksSlice';
 import { ArrowUpRight, Plus, Trash2 } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import Modal from '../../../components/common/Modal';
@@ -9,17 +14,24 @@ import { StockTable, LedgerTable } from '../../../components/procurement/Procure
 import { qtyText } from '../../../components/procurement/procurementUiData';
 
 export default function ProcurementStock() {
-  const { user } = useOutletContext();
   const toast = useToast();
+  const dispatch = useAppDispatch();
   const [tab, setTab] = useState('stock');
   const [projectId, setProjectId] = useState('');
-  const [projects, setProjects] = useState([]);
-  const [stock, setStock] = useState([]);
-  const [ledger, setLedger] = useState([]);
-  const [issues, setIssues] = useState([]);
-  const [engineers, setEngineers] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [error, setError] = useState('');
+  const projects = useAppSelector(selectAllProjects);
+  const allStock = useAppSelector(selectStock);
+  const allLedger = useAppSelector(selectStockLedger);
+  const allIssues = useAppSelector(selectMaterialIssues);
+  const engineers = useAppSelector((state) => selectUsersByRole(state, 'site_engineer'));
+  const tasks = useAppSelector(selectAllTasks);
+  const error = useAppSelector((state) => state.procurement.stockError) || '';
+  useLoad([fetchStock, fetchStockLedger, fetchMaterialIssues, fetchProjects, fetchUsers, fetchTasks]);
+
+  // Everything is loaded once for all projects; the project filter works on what is already in the store.
+  const byProject = (rows) => (projectId ? rows.filter((r) => r.projectId === projectId) : rows);
+  const stock = byProject(allStock);
+  const ledger = byProject(allLedger);
+  const issues = byProject(allIssues);
 
   const [issuing, setIssuing] = useState(false);
   const [issueProject, setIssueProject] = useState('');
@@ -30,29 +42,7 @@ export default function ProcurementStock() {
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    const [s, l, i] = await Promise.all([api.getStock(projectId), api.getStockLedger(projectId), api.getMaterialIssues(projectId)]);
-    if (s && s.error) return setError(s.message);
-    setError('');
-    setStock(s || []);
-    setLedger(l && !l.error ? l : []);
-    setIssues(i && !i.error ? i : []);
-  }, [projectId]);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
-
-  useEffect(() => {
-    if (!user) return;
-    Promise.all([api.getProjects(user.companyId), api.getUsers(user.companyId), api.getTasks(user.companyId)]).then(([ps, us, ts]) => {
-      setProjects(ps || []);
-      setEngineers((us || []).filter((u) => u.role === 'site_engineer'));
-      setTasks(ts || []);
-    });
-  }, [user]);
-
-  const issuable = stock.filter((s) => s.quantity > 0);
+  const issuable = allStock.filter((s) => s.quantity > 0);
   const issueProjects = [...new Map(issuable.map((s) => [s.projectId, s.projectName])).entries()];
   const projectStock = issuable.filter((s) => s.projectId === issueProject);
 
@@ -77,12 +67,18 @@ export default function ProcurementStock() {
       items.push({ stockId: l.stockId, quantity: Number(l.quantity) });
     }
     setBusy(true);
-    const res = await api.createMaterialIssue({ items, issuedTo: issuedTo || undefined, taskId: taskId || undefined, notes: notes.trim() || undefined });
-    setBusy(false);
-    if (res && res.error) return setFormError(res.message);
+    let res;
+    try {
+      // the thunk re-reads the stock; the movement ledger is read again here
+      res = await dispatch(createMaterialIssue({ items, issuedTo: issuedTo || undefined, taskId: taskId || undefined, notes: notes.trim() || undefined })).unwrap();
+    } catch (err) {
+      return setFormError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
     toast.success(`${res.id} issued. Site stock updated.`);
     setIssuing(false);
-    load();
+    dispatch(fetchStockLedger());
   }
 
   return (

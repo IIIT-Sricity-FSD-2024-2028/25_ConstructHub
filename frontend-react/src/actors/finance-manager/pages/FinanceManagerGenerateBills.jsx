@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import { fetchProjects, selectProjectsFinancedBy } from '../../../features/projects/projectsSlice';
+import { fetchBillableSheet, createBill, selectBillableSheet } from '../../../features/bills/billsSlice';
 import { CheckCircle2, ArrowLeft, Lock } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatCurrency, localDateISO } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import Modal from '../../../components/common/Modal';
@@ -22,10 +24,13 @@ export default function FinanceManagerGenerateBills() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
   const toast = useToast();
-  const [projects, setProjects] = useState([]);
-  const [projectId, setProjectId] = useState('');
-  const [sheet, setSheet] = useState(null);
+  const dispatch = useAppDispatch();
+  const projects = useAppSelector((state) => selectProjectsFinancedBy(state, user?.id));
+  const [pickedProjectId, setProjectId] = useState('');
+  const projectId = pickedProjectId || projects[0]?.id || '';
+  const sheet = useAppSelector((state) => selectBillableSheet(state, projectId));
   const [loadError, setLoadError] = useState('');
+  useLoad([fetchProjects]);
 
   const [milestoneId, setMilestoneId] = useState('');
   const [dueDate, setDueDate] = useState(plusDays(15));
@@ -39,27 +44,15 @@ export default function FinanceManagerGenerateBills() {
   const [created, setCreated] = useState(null);
   const [previewId, setPreviewId] = useState(null);
 
-  useEffect(() => {
-    if (!user) return;
-    void Promise.resolve().then(async () => {
-      const all = await api.getProjects(user.companyId);
-      const mine = (all || []).filter((p) => p.financeManagerId === user.id || (!p.financeManagerId && user.role === 'superuser'));
-      setProjects(mine);
-      setProjectId((cur) => cur || mine[0]?.id || '');
-    });
-  }, [user]);
-
   const loadSheet = useCallback(async () => {
     if (!projectId) return;
-    const res = await api.getBillableSheet(projectId);
-    if (res && res.error) {
-      setLoadError(res.message);
-      setSheet(null);
-      return;
+    try {
+      await dispatch(fetchBillableSheet(projectId)).unwrap();
+      setLoadError('');
+    } catch (err) {
+      setLoadError(errorText(err));
     }
-    setLoadError('');
-    setSheet(res);
-  }, [projectId]);
+  }, [dispatch, projectId]);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -70,6 +63,8 @@ export default function FinanceManagerGenerateBills() {
   }, [loadSheet]);
 
   const project = projects.find((p) => p.id === projectId);
+  // Nothing can be billed before the client pays the mobilization advance (the API refuses it too).
+  const awaitingAdvance = Boolean(project?.allowed?.awaitingAdvance || project?.status === 'Awaiting Advance');
   const rows = sheet?.milestones || [];
   const legacy = !!sheet && rows.length === 0;
   const billable = rows.filter((m) => m.billable);
@@ -86,19 +81,19 @@ export default function FinanceManagerGenerateBills() {
       payload = { projectId, milestone: legacyMilestone.trim(), amount: Number(legacyAmount), description: description.trim(), dueDate };
     } else {
       if (!picked) return setError('Choose an approved milestone to bill.');
-      payload = { projectId, milestoneId: picked.id, description: description.trim() || undefined, dueDate };
+      const manual = picked.clientStageAmount === null;
+      if (manual && !(Number(legacyAmount) > 0)) return setError('Enter the amount to bill for this milestone.');
+      payload = { projectId, milestoneId: picked.id, description: description.trim() || undefined, dueDate, ...(manual ? { amount: Number(legacyAmount) } : {}) };
     }
     if (!dueDate || dueDate < plusDays(0)) return setError('Due date cannot be in the past.');
     setBusy(true);
-    const saved = await api.createBill(payload);
-    setBusy(false);
-    if (saved && saved.error) return setError(saved.message);
-    if (project?.clientId) {
-      await api.createNotification({
-        userId: project.clientId, title: 'New Bill Pending',
-        body: `Invoice ${saved.billNumber} for ${project.name} (${formatCurrency(saved.amount)}) requires your decision.`,
-        time: 'just now', read: false,
-      });
+    let saved;
+    try {
+      saved = await dispatch(createBill(payload)).unwrap(); // the server notifies the client
+    } catch (err) {
+      return setError(errorText(err));
+    } finally {
+      setBusy(false);
     }
     toast.success(`${saved.billNumber} sent to the client.`);
     setCreated(saved);
@@ -135,6 +130,12 @@ export default function FinanceManagerGenerateBills() {
           </div>
         )}
       </div>
+
+      {awaitingAdvance && (
+        <div className="notice-warn" data-testid="awaiting-advance-note">
+          <Lock size={14} /> The client has not paid the mobilization advance for this project yet. Stage bills can be raised once it is paid.
+        </div>
+      )}
 
       {sheet && !legacy && (
         <div className="card" style={{ marginBottom: 16, overflowX: 'auto' }}>
@@ -212,7 +213,11 @@ export default function FinanceManagerGenerateBills() {
                   </div>
                 )}
                 {picked && picked.clientStageAmount === null && (
-                  <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 10 }}>This milestone has no quoted price (it was created by hand), so the amount cannot be filled in automatically.</p>
+                  <div className="form-group" style={{ maxWidth: 320 }}>
+                    <label className="form-label">Amount (₹) <span className="req">*</span></label>
+                    <input className="form-input" type="number" min="1" value={legacyAmount} onChange={(e) => setLegacyAmount(e.target.value)} />
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>This milestone has no quoted price (it was added by hand), so enter the amount to bill.</span>
+                  </div>
                 )}
               </div>
             )}
@@ -227,7 +232,7 @@ export default function FinanceManagerGenerateBills() {
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button type="submit" className="btn btn-primary" disabled={busy || (!legacy && !picked)}>{busy ? 'Generating...' : 'Generate bill'}</button>
+              <button type="submit" className="btn btn-primary" disabled={busy || awaitingAdvance || (!legacy && !picked)}>{busy ? 'Generating...' : 'Generate bill'}</button>
             </div>
           </form>
         </div>
