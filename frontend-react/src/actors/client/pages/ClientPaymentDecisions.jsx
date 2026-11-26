@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { useAppSelector, useLoad } from '../../../store/hooks';
+import { selectCurrentUser } from '../../../features/auth/authSlice';
+import { fetchBills, selectAllBills } from '../../../features/bills/billsSlice';
 import {
   CheckCircle2,
   X
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import {
   formatCurrency,
   formatDate,
@@ -15,27 +17,17 @@ import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 
 export default function ClientPaymentDecisions() {
-  const { user } = useOutletContext();
-  const [decisions, setDecisions] = useState([]);
+  const user = useAppSelector(selectCurrentUser);
+  const allBills = useAppSelector(selectAllBills);
   const [selectedBill, setSelectedBill] = useState(null);
+  useLoad([fetchBills]);
 
-
-
-  async function loadDecisions() {
-    if (!user) return;
-    const allBills = await api.getBills(user.companyId);
-    const clientBills = (allBills || []).filter(
-      (b) =>
-        (b.clientId === user.id || b.clientEmail === user.email || b.clientName === user.name) &&
-        (normalizeBillStatus(b.status) === 'Accepted' || normalizeBillStatus(b.status) === 'Declined')
-    );
-    clientBills.sort((a, b) => new Date(b.decisionDate || 0) - new Date(a.decisionDate || 0));
-    setDecisions(clientBills);
-  }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadDecisions());
-  }, [user]);
+  // Bills this client has already accepted or declined, latest decision first.
+  const decisions = useMemo(() => allBills
+    .filter((b) =>
+      (b.clientId === user?.id || b.clientEmail === user?.email) &&
+      (normalizeBillStatus(b.status) === 'Accepted' || normalizeBillStatus(b.status) === 'Declined'))
+    .sort((a, b) => new Date(b.decisionDate || 0) - new Date(a.decisionDate || 0)), [allBills, user]);
 
   const acceptedBills = decisions.filter((b) => normalizeBillStatus(b.status) === 'Accepted');
   const declinedBills = decisions.filter((b) => normalizeBillStatus(b.status) === 'Declined');

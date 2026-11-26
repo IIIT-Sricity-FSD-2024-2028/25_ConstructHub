@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useParams, useNavigate, useOutletContext, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useAppDispatch, useAppSelector, errorText } from '../../../store/hooks';
+import {
+  fetchRequirement, fetchRequirementQuotations, fetchContracts, uploadRequirementDocuments, acceptQuotation,
+  rejectQuotation, closeRequirement, updateRequirement, selectRequirementById, selectQuotationsOfRequirement, selectAllContracts
+} from '../../../features/marketplace/marketplaceSlice';
+import { fetchProjects } from '../../../features/projects/projectsSlice';
+import { fetchBills } from '../../../features/bills/billsSlice';
 import { ArrowLeft, Upload, CheckCircle2, XCircle, Pencil, Lock } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import { formatINR } from '../../../hooks/usePlans';
 import { StageScheduleTable } from '../../../components/marketplace/EstimationUi';
@@ -15,13 +21,14 @@ import {
 export default function ClientRequirementDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const outletCtx = useOutletContext() || {};
+  const dispatch = useAppDispatch();
   const toast = useToast();
   const fileInput = useRef(null);
 
-  const [req, setReq] = useState(null);
-  const [quotes, setQuotes] = useState([]);
-  const [contract, setContract] = useState(null);
+  const req = useAppSelector((state) => selectRequirementById(state, id)) || null;
+  const quotes = useAppSelector((state) => selectQuotationsOfRequirement(state, id));
+  const contracts = useAppSelector(selectAllContracts);
+  const contract = req?.status === 'awarded' ? contracts.find((c) => c.requirementId === id) || null : null;
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -31,35 +38,32 @@ export default function ClientRequirementDetail() {
   const [confirmClose, setConfirmClose] = useState(false);
   const [editing, setEditing] = useState(false);
 
+  // The requirement, the quotations received on it and (once awarded) its contract.
   const load = useCallback(async () => {
-    const r = await api.getRequirement(id);
-    if (r && r.error) {
-      setError(r.message);
-      return;
+    try {
+      const r = await dispatch(fetchRequirement(id)).unwrap();
+      setError('');
+      dispatch(fetchRequirementQuotations(id));
+      if (r.status === 'awarded') dispatch(fetchContracts());
+    } catch (err) {
+      setError(errorText(err));
     }
-    setError('');
-    setReq(r);
-    const q = await api.getRequirementQuotations(id);
-    setQuotes(q && !q.error ? q : []);
-    if (r.status === 'awarded') {
-      const contracts = await api.getContracts();
-      setContract((contracts && !contracts.error ? contracts : []).find((c) => c.requirementId === id) || null);
-    } else {
-      setContract(null);
-    }
-  }, [id]);
+  }, [dispatch, id]);
 
   useEffect(() => {
     void Promise.resolve().then(load);
   }, [load]);
 
+  /** Runs one action (a thunk), shows the outcome, and reloads the page's data on success. */
   async function run(action, okMessage) {
     setBusy(true);
-    const res = await action();
-    setBusy(false);
-    if (res && res.error) {
-      toast.error(res.message);
+    try {
+      await dispatch(action).unwrap();
+    } catch (err) {
+      toast.error(errorText(err));
       return false;
+    } finally {
+      setBusy(false);
     }
     if (okMessage) toast.success(okMessage);
     await load();
@@ -69,7 +73,7 @@ export default function ClientRequirementDetail() {
   async function onFiles(e) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    await run(() => api.uploadRequirementDocuments(id, files), 'Document(s) uploaded.');
+    await run(uploadRequirementDocuments({ id, files }), 'Document(s) uploaded.');
     e.target.value = '';
   }
 
@@ -77,20 +81,25 @@ export default function ClientRequirementDetail() {
     const target = acceptTarget;
     setAcceptTarget(null);
     setBusy(true);
-    const res = await api.acceptQuotation(target.id);
-    setBusy(false);
-    if (res && res.error) {
-      toast.error(res.message || 'Could not accept quotation.');
+    let res;
+    try {
+      res = await dispatch(acceptQuotation(target.id)).unwrap();
+    } catch (err) {
+      toast.error(errorText(err, 'Could not accept quotation.'));
       return;
+    } finally {
+      setBusy(false);
     }
-    if (outletCtx.refreshProjects) await outletCtx.refreshProjects();
-    if (res?.project?.id) {
+    // Awarding creates a project (and usually an advance bill): refresh those lists, then open the new project.
+    dispatch(fetchProjects());
+    dispatch(fetchBills());
+    if (res?.projectId) {
       toast.success(
-        res.advanceBill
-          ? `Awarded to ${target.companyName}. Pay the mobilization advance below to start site work.`
+        res.advanceBillId
+          ? `Awarded to ${target.companyName}. Pay the mobilization advance to start site work.`
           : `Awarded to ${target.companyName}. Your project is now active.`
       );
-      navigate(`/client/projects/${res.project.id}`);
+      navigate(`/client/projects/${res.projectId}`);
       return;
     }
     toast.success(`Awarded to ${target.companyName}. Your contract and project are ready.`);
@@ -100,17 +109,17 @@ export default function ClientRequirementDetail() {
   async function reject() {
     const target = rejectTarget;
     setRejectTarget(null);
-    await run(() => api.rejectQuotation(target.id, rejectReason.trim() || undefined), 'Quotation rejected.');
+    await run(rejectQuotation({ id: target.id, reason: rejectReason.trim() || undefined }), 'Quotation rejected.');
     setRejectReason('');
   }
 
   async function close() {
     setConfirmClose(false);
-    await run(() => api.closeRequirement(id), 'Requirement closed.');
+    await run(closeRequirement(id), 'Requirement closed.');
   }
 
   async function saveEdit(payload) {
-    const ok = await run(() => api.updateRequirement(id, payload), 'Requirement updated.');
+    const ok = await run(updateRequirement({ id, changes: payload }), 'Requirement updated.');
     if (ok) setEditing(false);
   }
 

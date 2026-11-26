@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useAppDispatch, useAppSelector, useLoad, isFirstLoad, errorText } from '../../../store/hooks';
+import { fetchBills, payBill, selectBillById, selectBillsStatus } from '../../../features/bills/billsSlice';
+import { fetchProjects } from '../../../features/projects/projectsSlice';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -10,7 +13,6 @@ import {
   Building2,
   Receipt,
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatCurrency, formatDate, normalizeBillStatus } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 
@@ -24,14 +26,17 @@ const METHODS = [
 export default function ClientPaymentPortal() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const outletCtx = useOutletContext() || {};
-  const { user } = outletCtx;
   const toast = useToast();
+  const dispatch = useAppDispatch();
+  const bill = useAppSelector((state) => selectBillById(state, id)) || null;
+  const loading = isFirstLoad(useAppSelector(selectBillsStatus), Boolean(bill));
+  useLoad([fetchBills], [id]);
 
-  const [bill, setBill] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [method, setMethod] = useState('upi');
-  const [amount, setAmount] = useState('');
+  // The amount box starts at the full outstanding balance until the client types something else.
+  const [typedAmount, setAmount] = useState(null);
+  const due = bill ? Math.max(0, Number(bill.outstanding ?? (Number(bill.amount || 0) - Number(bill.paidAmount || 0)))) : 0;
+  const amount = typedAmount ?? (due > 0 ? String(due) : '');
   const [upiId, setUpiId] = useState('client@okaxis');
   const [cardNumber, setCardNumber] = useState('4532 •••• •••• 8841');
   const [cardExpiry, setCardExpiry] = useState('08/29');
@@ -40,25 +45,6 @@ export default function ClientPaymentPortal() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [receipt, setReceipt] = useState(null);
-
-  useEffect(() => {
-    let alive = true;
-    async function load() {
-      if (!id || !user?.id) return;
-      setLoading(true);
-      const allBills = await api.getBills();
-      if (!alive) return;
-      const found = (Array.isArray(allBills) ? allBills : []).find((b) => b.id === id) || null;
-      setBill(found);
-      if (found) {
-        const due = Math.max(0, Number(found.outstanding ?? (Number(found.amount || 0) - Number(found.paidAmount || 0))));
-        setAmount(due > 0 ? String(due) : '');
-      }
-      setLoading(false);
-    }
-    load();
-    return () => { alive = false; };
-  }, [id, user?.id]);
 
   if (loading) {
     return (
@@ -113,17 +99,18 @@ export default function ClientPaymentPortal() {
       : method === 'neft' && utrRef.trim() ? utrRef.trim()
       : method === 'netbanking' ? `${bankName} NetBanking`
       : `CH-${Date.now().toString(36).toUpperCase()}`;
-    const res = await api.payBill(bill.id, { amount: num, method: methodLabel, reference: paymentRef });
-    setProcessing(false);
-
-    if (res && res.error) {
-      setError(res.message || 'Payment could not be completed.');
+    let res;
+    try {
+      res = await dispatch(payBill({ billId: bill.id, payment: { amount: num, method: methodLabel, reference: paymentRef } })).unwrap();
+    } catch (err) {
+      setError(errorText(err, 'Payment could not be completed.'));
       return;
+    } finally {
+      setProcessing(false);
     }
 
-    if (outletCtx.refreshProjects) {
-      await outletCtx.refreshProjects();
-    }
+    // Paying the advance unlocks the project, so its status (and the sidebar's project count) changes.
+    if (res.projectStarted) dispatch(fetchProjects());
 
     setReceipt({
       payment: res.payment,

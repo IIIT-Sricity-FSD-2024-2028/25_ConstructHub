@@ -1,14 +1,15 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { api } from '../services/api';
+import { useAppDispatch, useAppSelector, useLoad } from '../store/hooks';
+import { fetchProjects, selectProjectsOfClient, selectProjectsStatus } from '../features/projects/projectsSlice';
 import { navigationConfig, filterClientNav } from '../routes/navigationConfig';
 import SharedHeader from '../components/layout/SharedHeader';
 import Sidebar from '../components/layout/Sidebar';
 
 export default function DashboardLayout() {
-  const { user: authUser, setUser, logout } = useAuth();
-  const user = authUser || api.getCurrentUser();
+  const { user, setUser, logout } = useAuth();
+  const dispatch = useAppDispatch();
   const location = useLocation();
   // The mobile menu belongs to the page it was opened on, so it closes by itself when the route changes.
   const routeKey = `${location.pathname}${location.search}`;
@@ -20,25 +21,13 @@ export default function DashboardLayout() {
     return open ? routeKey : null;
   });
 
-  // Clients: null while loading, then how many projects they own (drives the two-stage portal).
-  const [projectCount, setProjectCount] = useState(null);
+  // Clients: how many projects they own drives the two-stage portal (null until the first load finishes).
   const isClient = user?.role === 'client';
-
-  const userId = user?.id;
-  const refreshProjects = useCallback(async () => {
-    if (!isClient || !userId) return;
-    const all = await api.getProjects();
-    setProjectCount((all || []).filter((p) => p.clientId === userId).length);
-  }, [isClient, userId]);
-
-  useEffect(() => {
-    if (!isClient) return;
-    let live = true;
-    api.getProjects().then((all) => {
-      if (live) setProjectCount((all || []).filter((p) => p.clientId === user.id).length);
-    });
-    return () => { live = false; };
-  }, [isClient, user?.id, location.pathname]);
+  useLoad(isClient ? [fetchProjects] : [], [isClient, user?.id, location.pathname]);
+  const clientProjects = useAppSelector((state) => selectProjectsOfClient(state, user?.id));
+  const projectsStatus = useAppSelector(selectProjectsStatus);
+  const projectCount = projectsStatus === 'succeeded' || clientProjects.length > 0 ? clientProjects.length : null;
+  const refreshProjects = useCallback(() => dispatch(fetchProjects()), [dispatch]);
 
   const baseNav = user?.role ? (navigationConfig[user.role] || []) : [];
   const navItems = isClient ? filterClientNav(baseNav, projectCount ?? 0) : baseNav;

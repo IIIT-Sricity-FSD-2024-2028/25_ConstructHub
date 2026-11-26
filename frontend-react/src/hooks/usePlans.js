@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { api } from '../services/api';
+import { useEffect } from 'react';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { fetchPlans, selectPlansData } from '../features/platform/platformSlice';
 
 // Used until the live plans arrive from the server (or if the server is unreachable).
 const DEFAULT_PLANS = [
@@ -16,17 +17,15 @@ export const formatINR = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
  * Returns lookup objects keyed by plan name: plans, planPrices, planLimits (users), projLimits.
  */
 export function usePlans() {
-  const [data, setData] = useState(null);
+  const dispatch = useAppDispatch();
+  const stored = useAppSelector(selectPlansData);
+  const data = stored && Array.isArray(stored.plans) ? stored : null;
 
+  // Read once per session; after the platform admin edits a plan the store is refreshed (see PlanEditor).
+  const loaded = Boolean(stored);
   useEffect(() => {
-    let alive = true;
-    api.getPlans().then((d) => {
-      if (alive && d && Array.isArray(d.plans)) setData(d);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
+    if (!loaded) dispatch(fetchPlans());
+  }, [dispatch, loaded]);
 
   const list = data?.plans || DEFAULT_PLANS;
   const plans = Object.fromEntries(list.map((p) => [p.name, p]));

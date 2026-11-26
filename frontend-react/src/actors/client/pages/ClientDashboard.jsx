@@ -1,11 +1,15 @@
 import LiveSummary from '../../../components/dashboard/LiveSummary';
-import { useState, useEffect } from 'react';
-import { useOutletContext, Link } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { useAppDispatch, useAppSelector, useLoad } from '../../../store/hooks';
+import { selectCurrentUser } from '../../../features/auth/authSlice';
+import { fetchProjects, selectProjectsOfClient } from '../../../features/projects/projectsSlice';
+import { fetchBills, selectAllBills } from '../../../features/bills/billsSlice';
+import { submitFeedback } from '../../../features/finance/financeSlice';
 import {
   Send,
   CheckCircle2
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import {
   formatCurrency,
   formatDate,
@@ -14,9 +18,18 @@ import {
 import Button from '../../../components/common/Button';
 
 export default function ClientDashboard() {
-  const { user } = useOutletContext();
-  const [project, setProject] = useState(null);
-  const [pendingBills, setPendingBills] = useState([]);
+  const user = useAppSelector(selectCurrentUser);
+  const dispatch = useAppDispatch();
+  const myProjects = useAppSelector((state) => selectProjectsOfClient(state, user?.id));
+  const allBills = useAppSelector(selectAllBills);
+  useLoad([fetchProjects, fetchBills]);
+  const [pickedProjectId, setPickedProjectId] = useState('');
+  const project = myProjects.find((p) => p.id === pickedProjectId) || myProjects[0] || null;
+
+  // Bills of all the client's projects that are waiting for the client's decision.
+  const pendingBills = useMemo(() => allBills.filter((b) =>
+    (b.clientId === user?.id || b.clientEmail === user?.email) &&
+    normalizeBillStatus(b.status) === 'Pending Decision'), [allBills, user]);
 
   // Quick feedback form
   const [category, setCategory] = useState('Quality of Work');
@@ -27,33 +40,6 @@ export default function ClientDashboard() {
   const [feedbackError, setFeedbackError] = useState('');
 
 
-
-  async function loadData() {
-    if (!user) return;
-    const [allProjects, allBills] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getBills(user.companyId)
-    ]);
-
-    const myProj = (allProjects || []).find(
-      (p) => p.clientId === user.id || p.clientEmail === user.email || p.clientName === user.name
-    );
-    setProject(myProj || null);
-
-    const clientBills = (allBills || []).filter(
-      (b) => b.clientId === user.id || b.clientEmail === user.email || b.clientName === user.name
-    );
-    const pending = clientBills.filter(
-      (b) => normalizeBillStatus(b.status) === 'Pending Decision'
-    );
-    setPendingBills(pending);
-  }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadData());
-  }, [user]);
-
-  // Days remaining calculation
 
   async function handleQuickFeedback(e) {
     e.preventDefault();
@@ -67,27 +53,22 @@ export default function ClientDashboard() {
     }
 
     try {
-      await api.createNotification({
-        userId: project.managerId || user.companyId,
-        type: 'feedback',
-        title: 'Client Feedback',
-        body: message.trim(),
-        clientId: user.id,
-        clientName: user.name,
+      // Saved as a real feedback record (same as the Feedback page), so the PM sees it and it shows in history.
+      await dispatch(submitFeedback({
         projectId: project.id,
-        projectName: project.name,
         category,
         subject: subject.trim(),
-        priority,
-        createdAt: new Date().toISOString()
-      });
+        message: message.trim(),
+        priority
+      })).unwrap();
 
       setSubject('');
       setMessage('');
       setFeedbackError('');
       setFeedbackSuccess(true);
     } catch (err) {
-      setFeedbackError(err.message || 'Failed to submit feedback.');
+      setFeedbackSuccess(false);
+      setFeedbackError((typeof err === 'string' ? err : err?.message) || 'Failed to submit feedback.');
     }
   }
 
@@ -154,6 +135,15 @@ export default function ClientDashboard() {
             {feedbackSuccess && (
               <div style={{ background: 'var(--emerald-50, #ecfdf5)', color: 'var(--emerald-700, #047857)', padding: '10px', borderRadius: '6px', marginBottom: '10px', fontSize: '13px' }}>
                 Thank you! Your feedback has been sent to the project team.
+              </div>
+            )}
+
+            {myProjects.length > 1 && (
+              <div className="form-group">
+                <label className="form-label">Project</label>
+                <select className="form-select" value={project?.id || ''} onChange={(e) => setPickedProjectId(e.target.value)}>
+                  {myProjects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </div>
             )}
 

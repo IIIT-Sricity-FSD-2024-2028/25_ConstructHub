@@ -9,12 +9,18 @@ import {
 import "./index.css";
 import "./App.css";
 
+import { Provider } from "react-redux";
 import App from "./App.jsx";
+import { makeStore } from "./store";
+
+const store = makeStore();
 
 createRoot(
   document.getElementById("root")
 ).render(
   <StrictMode>
-    <App />
+    <Provider store={store}>
+      <App />
+    </Provider>
   </StrictMode>
 );

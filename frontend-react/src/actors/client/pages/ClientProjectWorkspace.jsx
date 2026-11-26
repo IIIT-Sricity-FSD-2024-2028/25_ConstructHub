@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useAppSelector, useLoad, isFirstLoad } from '../../../store/hooks';
+import { selectCurrentUser } from '../../../features/auth/authSlice';
+import { fetchProjects, selectProjectById, selectProjectsStatus, projectDisplayStatus } from '../../../features/projects/projectsSlice';
+import { fetchProjectProgress, selectProjectProgress } from '../../../features/milestones/milestonesSlice';
+import { fetchReports, selectReportsByProject } from '../../../features/reports/reportsSlice';
+import { fetchBills, selectBillsOfProject } from '../../../features/bills/billsSlice';
+import { fetchProjectTeam, selectProjectTeamIds } from '../../../features/tasks/tasksSlice';
 import { ArrowLeft } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate, statusBadgeClass } from '../../../services/utils';
 import { formatINR } from '../../../hooks/usePlans';
 import MessagesChat from '../../../components/common/MessagesChat';
@@ -16,36 +21,20 @@ const TABS = [
 /** Everything about one awarded project, scoped to that project only. */
 export default function ClientProjectWorkspace() {
   const { projectId } = useParams();
-  const { user } = useOutletContext();
+  const user = useAppSelector(selectCurrentUser);
   const [params, setParams] = useSearchParams();
   const tab = TABS.some(([k]) => k === params.get('tab')) ? params.get('tab') : 'overview';
 
-  const [project, setProject] = useState(null);
-  const [notFound, setNotFound] = useState(false);
-  const [progress, setProgress] = useState(null);
-  const [reports, setReports] = useState([]);
-  const [bills, setBills] = useState([]);
-  const [contactIds, setContactIds] = useState(null); // people on this project: its PM, FM and engineers with tasks on it
+  const found = useAppSelector((state) => selectProjectById(state, projectId));
+  const project = found && found.clientId === user?.id ? found : null;
+  const projectsStatus = useAppSelector(selectProjectsStatus);
+  const notFound = !project && !isFirstLoad(projectsStatus, false);
+  const progress = useAppSelector((state) => selectProjectProgress(state, projectId));
+  const reports = useAppSelector((state) => selectReportsByProject(state, projectId));
+  const bills = useAppSelector((state) => selectBillsOfProject(state, projectId));
+  const contactIds = useAppSelector((state) => selectProjectTeamIds(state, projectId)); // its PM, FM and engineers with tasks on it
 
-  const load = useCallback(async () => {
-    if (!user) return;
-    const all = await api.getProjects(user.companyId);
-    const p = (all || []).find((x) => x.id === projectId && x.clientId === user.id);
-    if (!p) {
-      setNotFound(true);
-      return;
-    }
-    setProject(p);
-    const [prog, reps, bls, team] = await Promise.all([api.getProjectProgress(projectId), api.getReports(), api.getBills(), api.getProjectTeam(projectId)]);
-    setContactIds(Array.isArray(team) ? team.map((m) => m.id).sort() : []);
-    setProgress(prog && !prog.error ? prog : null);
-    setReports((reps || []).filter((r) => r.projectId === projectId));
-    setBills((bls || []).filter((b) => b.projectId === projectId));
-  }, [user, projectId]);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+  useLoad([fetchProjects, fetchReports, fetchBills, [fetchProjectProgress, projectId], [fetchProjectTeam, projectId]], [projectId]);
 
   if (notFound) {
     return (
@@ -64,7 +53,7 @@ export default function ClientProjectWorkspace() {
     <div>
       <Link to="/client/projects" className="back-link" style={{ marginBottom: 8 }}><ArrowLeft size={14} /> Back to projects</Link>
       <div className="page-header" style={{ marginTop: 10 }}>
-        <h1>{project.name} <span className={`badge ${statusBadgeClass(project.status)}`}>{project.status}</span></h1>
+        <h1>{project.name} <span className={`badge ${statusBadgeClass(projectDisplayStatus(project))}`}>{projectDisplayStatus(project)}</span></h1>
         <p>{project.location} · {formatDate(project.startDate)} to {formatDate(project.endDate)}</p>
       </div>
 

@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, isFirstLoad, errorText } from '../../../store/hooks';
+import { fetchBills, updateBill, selectBillById, selectBillsStatus } from '../../../features/bills/billsSlice';
+import { selectCurrentUser } from '../../../features/auth/authSlice';
 import { useToast } from '../../../hooks/useToast';
 import BillPayments from '../../../components/billing/BillPayments';
-import { Link, useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { Link, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, X } from 'lucide-react';
-import { api, unwrap } from '../../../services/api';
 import { formatCurrency, formatDate, statusBadge, normalizeBillStatus, localDateISO } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
@@ -15,11 +17,12 @@ export default function ClientBillDetail() {
   const [searchParams] = useSearchParams();
   const id = paramId || searchParams.get('id');
   const navigate = useNavigate();
-  const { user } = useOutletContext();
-
-  const [bill, setBill] = useState(null);
+  const dispatch = useAppDispatch();
+  const user = useAppSelector(selectCurrentUser);
+  const bill = useAppSelector((state) => (id ? selectBillById(state, id) : null)) || null;
+  const loading = isFirstLoad(useAppSelector(selectBillsStatus), Boolean(bill));
   const [previewId, setPreviewId] = useState(null);
-  const [loading, setLoading] = useState(true);
+  useLoad([fetchBills], [id]);
 
   // Modals
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
@@ -29,30 +32,15 @@ export default function ClientBillDetail() {
   const [approvedModalOpen, setApprovedModalOpen] = useState(false);
   const [rejectedModalOpen, setRejectedModalOpen] = useState(false);
 
-  useEffect(() => {
-    loadBill();
-  }, [id, user]);
-
-  async function loadBill() {
-    if (!id || !user) return;
-    setLoading(true);
-    const allBills = await api.getBills(user.companyId);
-    const found = (allBills || []).find((b) => b.id === id);
-    setBill(found || null);
-    setLoading(false);
-  }
-
   async function handleApprove() {
     try {
-      unwrap(await api.updateBill(bill.id, {
+      await dispatch(updateBill({ id: bill.id, changes: {
         status: 'Accepted',
         decisionDate: localDateISO()
-      }));
-
-      await loadBill();
+      } })).unwrap();
       setApprovedModalOpen(true);
     } catch (err) {
-      toast.error('Error accepting bill: ' + err.message);
+      toast.error('Error accepting bill: ' + errorText(err));
     }
   }
 
@@ -73,17 +61,15 @@ export default function ClientBillDetail() {
     }
 
     try {
-      unwrap(await api.updateBill(bill.id, {
+      await dispatch(updateBill({ id: bill.id, changes: {
         status: 'Declined',
         decisionDate: localDateISO(),
         rejectionReason: rejectReason.trim()
-      }));
-
+      } })).unwrap();
       setRejectModalOpen(false);
-      await loadBill();
       setRejectedModalOpen(true);
     } catch (err) {
-      toast.error('Error declining bill: ' + err.message);
+      toast.error('Error declining bill: ' + errorText(err));
     }
   }
 
@@ -285,7 +271,7 @@ export default function ClientBillDetail() {
       )}
 
       {/* Decline Modal */}
-      {bill && <BillPayments bill={bill} role="client" onChanged={loadBill} />}
+      {bill && <BillPayments bill={bill} role="client" />}
 
       <Modal isOpen={rejectModalOpen} onClose={() => setRejectModalOpen(false)} title="Decline Bill" maxWidth="440px">
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '-8px', marginBottom: '16px' }}>

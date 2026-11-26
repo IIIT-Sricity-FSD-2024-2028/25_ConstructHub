@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useAppSelector, useLoad, isFirstLoad } from '../../../store/hooks';
+import { fetchReports, selectReportById, selectReportsStatus } from '../../../features/reports/reportsSlice';
 import { ArrowLeft, Camera, AlertTriangle } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate, statusBadge, priorityBadge } from '../../../services/utils';
 
 export default function ClientReportDetail() {
@@ -9,25 +9,10 @@ export default function ClientReportDetail() {
   const [searchParams] = useSearchParams();
   const id = paramId || searchParams.get('id');
   const navigate = useNavigate();
-  const { user } = useOutletContext();
-
-  const [report, setReport] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-
-
-  async function loadReport() {
-    if (!id || !user) return;
-    setLoading(true);
-    const allReports = await api.getReports(user.companyId);
-    const found = (allReports || []).find((r) => r.id === id);
-    setReport(found || null);
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadReport());
-  }, [id, user]);
+  const report = useAppSelector((state) => (id ? selectReportById(state, id) : null)) || null;
+  const reportsStatus = useAppSelector(selectReportsStatus);
+  const loading = isFirstLoad(reportsStatus, Boolean(report));
+  useLoad([fetchReports], [id]);
 
   if (loading) {
     return (

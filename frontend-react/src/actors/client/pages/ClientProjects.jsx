@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
-import { api } from '../../../services/api';
+import { Link } from 'react-router-dom';
+import { useAppSelector, useLoad, isFirstLoad } from '../../../store/hooks';
+import { selectCurrentUser } from '../../../features/auth/authSlice';
+import { fetchProjects, selectProjectsOfClient, selectProjectsStatus, projectDisplayStatus } from '../../../features/projects/projectsSlice';
 import { formatDate, statusBadgeClass } from '../../../services/utils';
 import { formatINR } from '../../../hooks/usePlans';
 import { EmptyState } from '../../../components/marketplace/marketplaceUi';
@@ -8,16 +9,11 @@ import { Bar } from '../../../components/milestones/MilestoneUi';
 
 /** Card list of the client's awarded / active projects. A card opens the single-project workspace. */
 export default function ClientProjects() {
-  const { user } = useOutletContext();
-  const [projects, setProjects] = useState(null);
-
-  useEffect(() => {
-    if (!user) return;
-    void Promise.resolve().then(async () => {
-      const all = await api.getProjects(user.companyId);
-      setProjects((all || []).filter((p) => p.clientId === user.id));
-    });
-  }, [user]);
+  const user = useAppSelector(selectCurrentUser);
+  const mine = useAppSelector((state) => selectProjectsOfClient(state, user?.id));
+  const status = useAppSelector(selectProjectsStatus);
+  useLoad([fetchProjects]);
+  const projects = isFirstLoad(status, mine.length > 0) ? null : mine;
 
   return (
     <div>
@@ -35,7 +31,7 @@ export default function ClientProjects() {
             <Link key={p.id} to={`/client/projects/${p.id}`} className="card" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
                 <strong style={{ fontSize: 16 }}>{p.name}</strong>
-                <span className={`badge ${statusBadgeClass(p.status)}`}>{p.status}</span>
+                <span className={`badge ${statusBadgeClass(projectDisplayStatus(p))}`}>{projectDisplayStatus(p)}</span>
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>{p.location}</div>
               {p.status === 'Awaiting Advance' && (

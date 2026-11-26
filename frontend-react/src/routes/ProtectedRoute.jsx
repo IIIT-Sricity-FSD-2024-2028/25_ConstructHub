@@ -1,9 +1,8 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { api } from '../services/api';
 
 export default function ProtectedRoute({ allowedRoles = [] }) {
-  const { user: authUser, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -14,11 +13,7 @@ export default function ProtectedRoute({ allowedRoles = [] }) {
     );
   }
 
-  // Check context user first, with fallback to synchronous storage
-  const user = authUser || api.getCurrentUser();
-  const token = api.getToken();
-
-  if (!user || !token) {
+  if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

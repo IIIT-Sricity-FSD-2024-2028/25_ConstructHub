@@ -1,8 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Providers
-import { AuthProvider } from './context/AuthContext';
-import { ToastProvider } from './context/ToastContext';
+import ToastHost from './components/common/ToastHost';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 // Public / Auth
@@ -105,8 +104,8 @@ function QueryPreservingRedirect({ to }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
+      <>
+        <ToastHost />
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingHome />} />
@@ -303,8 +302,7 @@ export default function App() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </ToastProvider>
-      </AuthProvider>
+      </>
     </BrowserRouter>
   );
 }

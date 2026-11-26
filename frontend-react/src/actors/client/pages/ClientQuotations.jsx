@@ -1,31 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../../../services/api';
+import { useAppSelector, useLoad, isFirstLoad } from '../../../store/hooks';
+import {
+  fetchQuotations, fetchRequirements, selectAllQuotations, selectAllRequirements, selectQuotationsStatus
+} from '../../../features/marketplace/marketplaceSlice';
 import { formatDate } from '../../../services/utils';
 import { formatINR } from '../../../hooks/usePlans';
 import { QuotationStatusBadge, EmptyState } from '../../../components/marketplace/marketplaceUi';
 
 /** Every quotation received across all of the client's requirements, newest first. */
 export default function ClientQuotations() {
-  const [rows, setRows] = useState(null);
-  const [error, setError] = useState('');
+  const quotes = useAppSelector(selectAllQuotations);
+  const reqs = useAppSelector(selectAllRequirements);
+  const status = useAppSelector(selectQuotationsStatus);
+  const error = useAppSelector((state) => state.marketplace.quotations.error) || '';
+  useLoad([fetchQuotations, fetchRequirements]);
 
-  useEffect(() => {
-    void Promise.resolve().then(async () => {
-      const [quotes, reqs] = await Promise.all([api.getQuotations(), api.getRequirements()]);
-      if (quotes && quotes.error) {
-        setError(quotes.message);
-        setRows([]);
-        return;
-      }
-      const title = Object.fromEntries((Array.isArray(reqs) ? reqs : []).map((r) => [r.id, r.title]));
-      setRows(
-        (quotes || [])
-          .map((q) => ({ ...q, requirementTitle: title[q.requirementId] || q.requirementId }))
-          .sort((a, b) => (b.createdAt + b.id).localeCompare(a.createdAt + a.id))
-      );
-    });
-  }, []);
+  const rows = useMemo(() => {
+    if (isFirstLoad(status, quotes.length > 0)) return null;
+    const title = Object.fromEntries(reqs.map((r) => [r.id, r.title]));
+    return quotes
+      .map((q) => ({ ...q, requirementTitle: title[q.requirementId] || q.requirementId }))
+      .sort((a, b) => (b.createdAt + b.id).localeCompare(a.createdAt + a.id));
+  }, [quotes, reqs, status]);
 
   return (
     <div>

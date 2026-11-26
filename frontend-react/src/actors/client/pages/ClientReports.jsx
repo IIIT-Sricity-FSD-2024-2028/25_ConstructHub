@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { useAppSelector, useLoad } from '../../../store/hooks';
+import { selectCurrentUser } from '../../../features/auth/authSlice';
+import { fetchProjects, selectProjectsOfClient } from '../../../features/projects/projectsSlice';
+import { fetchReports, selectAllReports } from '../../../features/reports/reportsSlice';
 import {
   FileText,
   Eye
 } from 'lucide-react';
-import { api, API_ORIGIN } from '../../../services/api';
+import { API_ORIGIN } from '../../../services/api';
 import {
   formatDate,
   statusBadge
@@ -13,33 +16,19 @@ import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 
 export default function ClientReports() {
-  const { user } = useOutletContext();
-  const [reports, setReports] = useState([]);
+  const user = useAppSelector(selectCurrentUser);
+  const myProjects = useAppSelector((state) => selectProjectsOfClient(state, user?.id));
+  const allReports = useAppSelector(selectAllReports);
   const [selectedReport, setSelectedReport] = useState(null);
+  useLoad([fetchProjects, fetchReports]);
 
-
-
-  async function loadReports() {
-    if (!user) return;
-    const [allProjects, allReports] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getReports(user.companyId)
-    ]);
-
-    const myProj = (allProjects || []).find(
-      (p) => p.clientId === user.id || p.clientEmail === user.email || p.clientName === user.name
-    );
-
-    if (myProj) {
-      const projReports = (allReports || []).filter((r) => r.projectId === myProj.id);
-      projReports.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-      setReports(projReports);
-    }
-  }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadReports());
-  }, [user]);
+  // Reports of every project the client owns (not just the first one), newest first.
+  const reports = useMemo(() => {
+    const ids = new Set(myProjects.map((p) => p.id));
+    return allReports
+      .filter((r) => ids.has(r.projectId))
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }, [myProjects, allReports]);
 
   return (
     <div className="page-container">

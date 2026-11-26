@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useOutletContext, useNavigate, Link } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import { selectCurrentUser } from '../../../features/auth/authSlice';
+import { fetchBills, updateBill, selectAllBills } from '../../../features/bills/billsSlice';
 import {
   CheckCircle2,
   X
 } from 'lucide-react';
-import { api, unwrap } from '../../../services/api';
 import {
   formatCurrency,
   formatDate,
@@ -16,14 +18,23 @@ import ReportPreviewModal from '../../../components/common/ReportPreviewModal';
 import { useToast } from '../../../hooks/useToast';
 
 export default function ClientPendingBills() {
-  const { user } = useOutletContext();
+  const user = useAppSelector(selectCurrentUser);
   const navigate = useNavigate();
-
+  const dispatch = useAppDispatch();
   const toast = useToast();
-  const [bills, setBills] = useState([]);
-  const [payableBills, setPayableBills] = useState([]);
+  const allBills = useAppSelector(selectAllBills);
   const [actingId, setActingId] = useState('');
-  const [users, setUsers] = useState([]);
+  useLoad([fetchBills]);
+
+  // The client's bills split into "waiting for my decision" and "accepted, still to pay".
+  const { bills, payableBills } = useMemo(() => {
+    const mine = allBills.filter((b) => b.clientId === user?.id || b.clientEmail === user?.email);
+    return {
+      bills: mine.filter((b) => normalizeBillStatus(b.status) === 'Pending Decision'),
+      payableBills: mine.filter((b) => normalizeBillStatus(b.status) === 'Accepted'
+        && Number(b.outstanding ?? b.amount ?? 0) > 0 && b.paymentStatus !== 'Paid'),
+    };
+  }, [allBills, user]);
 
   // Modals
   const [detailBill, setDetailBill] = useState(null);
@@ -35,43 +46,18 @@ export default function ClientPendingBills() {
   const [approvedBillNotice, setApprovedBillNotice] = useState(null);
   const [isRejectedSuccessOpen, setIsRejectedSuccessOpen] = useState(false);
 
-  useEffect(() => {
-    loadBills();
-  }, [user]);
-
-  async function loadBills() {
-    if (!user) return;
-    const [allBills, allUsers] = await Promise.all([
-      api.getBills(user.companyId),
-      api.getUsers(user.companyId)
-    ]);
-
-    const mine = (allBills || []).filter(
-      (b) => b.clientId === user.id || b.clientEmail === user.email || b.clientName === user.name
-    );
-    setBills(mine.filter((b) => normalizeBillStatus(b.status) === 'Pending Decision'));
-    setPayableBills(
-      mine.filter((b) => normalizeBillStatus(b.status) === 'Accepted' && Number(b.outstanding ?? b.amount ?? 0) > 0 && b.paymentStatus !== 'Paid')
-    );
-    setUsers(allUsers || []);
-  }
-
   async function handleApprove(bill) {
     if (actingId) return;
     setActingId(bill.id);
     try {
-      unwrap(await api.updateBill(bill.id, {
+      await dispatch(updateBill({ id: bill.id, changes: {
         status: 'Accepted',
         decisionDate: localDateISO()
-      }));
-
-
-
+      } })).unwrap();
       setDetailBill(null);
       setApprovedBillNotice(bill);
-      loadBills();
     } catch (err) {
-      toast.error('Error accepting bill: ' + err.message);
+      toast.error('Error accepting bill: ' + errorText(err));
     } finally {
       setActingId('');
     }
@@ -97,29 +83,16 @@ export default function ClientPendingBills() {
     if (actingId) return;
     setActingId(rejectBillId);
     try {
-      const b = bills.find((item) => item.id === rejectBillId);
-      unwrap(await api.updateBill(rejectBillId, {
+      // The server tells the project's finance manager about the decline.
+      await dispatch(updateBill({ id: rejectBillId, changes: {
         status: 'Declined',
         decisionDate: localDateISO(),
         rejectionReason: rejectReason.trim()
-      }));
-
-      // Notify Finance Managers
-      const financeManagers = users.filter((u) => u.role === 'finance_manager');
-      for (const fm of financeManagers) {
-        await api.createNotification({
-          userId: fm.id,
-          type: 'bill',
-          title: 'Bill Declined',
-          body: `Client has declined bill ${rejectBillId} for project ${b ? b.projectName : ''}. Reason: ${rejectReason.trim()}`
-        });
-      }
-
+      } })).unwrap();
       setRejectBillId(null);
       setIsRejectedSuccessOpen(true);
-      loadBills();
     } catch (err) {
-      setRejectError(err.message || 'Error declining bill');
+      setRejectError(errorText(err, 'Error declining bill'));
     } finally {
       setActingId('');
     }

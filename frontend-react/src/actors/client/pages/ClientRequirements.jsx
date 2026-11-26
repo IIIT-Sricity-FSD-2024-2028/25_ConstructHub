@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
-import { api } from '../../../services/api';
+import { useAppDispatch, useAppSelector, useLoad, isFirstLoad } from '../../../store/hooks';
+import {
+  createRequirement, fetchRequirements, selectAllRequirements, selectRequirementsStatus
+} from '../../../features/marketplace/marketplaceSlice';
 import { formatDate } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
@@ -13,34 +16,25 @@ import { budgetRange } from '../../../components/marketplace/marketplaceUiData';
 export default function ClientRequirements() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [requirements, setRequirements] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
+  const dispatch = useAppDispatch();
+  const requirements = useAppSelector(selectAllRequirements);
+  const status = useAppSelector(selectRequirementsStatus);
+  const loadError = useAppSelector((state) => state.marketplace.requirements.error) || '';
+  const loading = isFirstLoad(status, requirements.length > 0);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  async function load() {
-    const res = await api.getRequirements();
-    setLoading(false);
-    if (res && res.error) {
-      setLoadError(res.message);
-      return;
-    }
-    setLoadError('');
-    setRequirements(res || []);
-  }
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, []);
+  useLoad([fetchRequirements]);
 
   async function create(payload) {
     setSaving(true);
-    const res = await api.createRequirement(payload);
-    setSaving(false);
-    if (res && res.error) {
-      toast.error(res.message);
+    let res;
+    try {
+      res = await dispatch(createRequirement(payload)).unwrap();
+    } catch (message) {
+      toast.error(message);
       return;
+    } finally {
+      setSaving(false);
     }
     toast.success('Requirement published. Companies can now send quotations.');
     setShowForm(false);

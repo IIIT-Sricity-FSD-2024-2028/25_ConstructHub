@@ -1,19 +1,28 @@
-import { useState, useEffect } from 'react';
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAppDispatch, useAppSelector, useLoad } from '../../../store/hooks';
+import { selectCurrentUser } from '../../../features/auth/authSlice';
+import { fetchProjects, selectProjectsOfClient } from '../../../features/projects/projectsSlice';
+import { fetchFeedback, submitFeedback, selectAllFeedback } from '../../../features/finance/financeSlice';
 import {
   Send,
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 
 export default function ClientFeedback({ projectId } = {}) {
-  const { user } = useOutletContext();
+  const user = useAppSelector(selectCurrentUser);
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const myProjects = useAppSelector((state) => selectProjectsOfClient(state, user?.id));
+  const allFeedback = useAppSelector(selectAllFeedback);
+  useLoad([fetchProjects, fetchFeedback]);
 
-  const [project, setProject] = useState(null);
+  // Inside a project workspace the project is fixed; on the general page the client picks one of theirs.
+  const [pickedProjectId, setPickedProjectId] = useState('');
+  const project = myProjects.find((p) => p.id === (projectId || pickedProjectId)) || (projectId ? null : myProjects[0]) || null;
   const [category, setCategory] = useState('Quality of Work');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -21,34 +30,10 @@ export default function ClientFeedback({ projectId } = {}) {
 
   const [errors, setErrors] = useState({});
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
-  const [history, setHistory] = useState([]);
-
-  async function loadHistory() {
-    const res = await api.getFeedback();
-    const all = Array.isArray(res) ? res : [];
-    setHistory(projectId ? all.filter((f) => f.projectId === projectId) : all);
-  }
-
-  useEffect(() => {
-    void Promise.resolve().then(loadHistory);
-  }, [projectId]);
-
-
-
-  async function loadProject() {
-    if (!user) return;
-    const allProjects = await api.getProjects(user.companyId);
-    const myProj = (allProjects || []).find((p) =>
-      projectId
-        ? p.id === projectId
-        : p.clientId === user.id || p.clientEmail === user.email || p.clientName === user.name
-    );
-    setProject(myProj || (allProjects && allProjects[0]) || null);
-  }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadProject());
-  }, [user]);
+  const history = useMemo(
+    () => (projectId ? allFeedback.filter((f) => f.projectId === projectId) : allFeedback),
+    [allFeedback, projectId]
+  );
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -75,25 +60,20 @@ export default function ClientFeedback({ projectId } = {}) {
     if (Object.keys(errs).length > 0) return;
 
     try {
-      const saved = await api.submitFeedback({
+      await dispatch(submitFeedback({
         projectId: project.id,
         category,
         subject: subject.trim(),
         message: message.trim(),
         priority
-      });
-      if (saved && saved.error) {
-        setErrors({ form: saved.message });
-        return;
-      }
-      loadHistory();
+      })).unwrap(); // the new entry appears in the history list from the store
 
       setSubject('');
       setMessage('');
       setPriority('Low');
       setIsSuccessOpen(true);
     } catch (err) {
-      setErrors({ form: err.message || 'Failed to submit feedback' });
+      setErrors({ form: (typeof err === 'string' ? err : err?.message) || 'Failed to submit feedback' });
     }
   }
 
@@ -110,6 +90,15 @@ export default function ClientFeedback({ projectId } = {}) {
             {errors.form && (
               <div className="error-alert" style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <AlertCircle size={16} /> {errors.form}
+              </div>
+            )}
+
+            {!projectId && myProjects.length > 1 && (
+              <div className="form-group">
+                <label className="form-label">Project <span className="req">*</span></label>
+                <select className="form-select" value={project?.id || ''} onChange={(e) => setPickedProjectId(e.target.value)}>
+                  {myProjects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </div>
             )}
 

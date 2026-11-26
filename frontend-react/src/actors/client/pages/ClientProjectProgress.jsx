@@ -1,10 +1,17 @@
-import { useState, useEffect } from 'react';
-import { useOutletContext, Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAppSelector, useLoad } from '../../../store/hooks';
+import { selectCurrentUser } from '../../../features/auth/authSlice';
+import { fetchProjects, selectProjectsOfClient, projectDisplayStatus } from '../../../features/projects/projectsSlice';
+import { fetchTasks, selectTasksByProject } from '../../../features/tasks/tasksSlice';
+import { fetchReports, selectReportsByProject } from '../../../features/reports/reportsSlice';
+import { fetchBills, selectBilledToDate } from '../../../features/bills/billsSlice';
+import { fetchProjectProgress, selectProjectProgress } from '../../../features/milestones/milestonesSlice';
 import {
   Package,
   Camera
 } from 'lucide-react';
-import { api, API_ORIGIN } from '../../../services/api';
+import { API_ORIGIN } from '../../../services/api';
 import { ProgressSummary, MilestoneList } from '../../../components/milestones/MilestoneUi';
 import {
   formatCurrency,
@@ -13,53 +20,21 @@ import {
 } from '../../../services/utils';
 
 export default function ClientProjectProgress() {
-  const { user } = useOutletContext();
-  const [project, setProject] = useState(null);
-  const [tasks, setTasks] = useState([]);
-  const [reports, setReports] = useState([]);
-  const [myProjects, setMyProjects] = useState([]);
+  const user = useAppSelector(selectCurrentUser);
+  // A client can have several projects (one per awarded requirement); they pick which one to look at.
+  const myProjects = useAppSelector((state) => selectProjectsOfClient(state, user?.id));
   const [selectedId, setSelectedId] = useState('');
-  const [progress, setProgress] = useState(null);
-  const [billedToDate, setBilledToDate] = useState(0);
+  const project = myProjects.find((p) => p.id === selectedId) || myProjects[0] || null;
+  const projectId = project?.id;
 
+  const tasks = useAppSelector((state) => selectTasksByProject(state, projectId));
+  const reports = useAppSelector((state) => selectReportsByProject(state, projectId));
+  // What the client has been invoiced so far (declined bills do not count). The contractor's internal spend is never shown here.
+  const billedToDate = useAppSelector((state) => selectBilledToDate(state, projectId));
+  const progress = useAppSelector((state) => selectProjectProgress(state, projectId));
 
-
-  async function loadData() {
-    if (!user) return;
-    const [allProjects, allTasks, allReports, allBills] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getTasks(user.companyId),
-      api.getReports(user.companyId),
-      api.getBills()
-    ]);
-
-    // A client can have several projects (one per awarded requirement).
-    const mine = (allProjects || []).filter(
-      (p) => p.clientId === user.id || p.clientEmail === user.email || p.clientName === user.name
-    );
-    setMyProjects(mine);
-    const activeProject = mine.find((p) => p.id === selectedId) || mine[0] || (allProjects && allProjects[0]) || null;
-    setProject(activeProject);
-
-    // What the client has been invoiced so far (declined bills do not count). The contractor's internal spend is never shown here.
-    setBilledToDate((allBills || [])
-      .filter((b) => activeProject && b.projectId === activeProject.id && !['declined', 'rejected'].includes(String(b.status || '').toLowerCase()))
-      .reduce((sum, b) => sum + (Number(b.amount) || 0), 0));
-
-    if (activeProject) {
-      const prog = await api.getProjectProgress(activeProject.id);
-      setProgress(prog && !prog.error ? prog : null);
-      const projTasks = (allTasks || []).filter((t) => t.projectId === activeProject.id);
-      setTasks(projTasks);
-
-      const projReports = (allReports || []).filter((r) => r.projectId === activeProject.id);
-      setReports(projReports);
-    }
-  }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadData());
-  }, [user, selectedId]);
+  useLoad([fetchProjects, fetchTasks, fetchReports, fetchBills]);
+  useLoad([projectId && [fetchProjectProgress, projectId]], [projectId]);
 
   if (!project) {
     return (
@@ -89,7 +64,7 @@ export default function ClientProjectProgress() {
             <span style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Package size={14} /> {project.location}
             </span>
-            <span className={`badge ${statusBadge(project.status)}`}>{project.status}</span>
+            <span className={`badge ${statusBadge(projectDisplayStatus(project))}`}>{projectDisplayStatus(project)}</span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
