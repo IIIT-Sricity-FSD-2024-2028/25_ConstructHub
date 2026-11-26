@@ -59,7 +59,7 @@ export class MilestonesRepository {
       materialScope: 'Excavation, footing and foundation concrete.', internalBudget: 4000000, clientStageAmount: 5000000,
       status: 'Completed', progress: 100, taskCount: 1, completedTasks: 1, approvedBy: 'U002', approvedAt: '2026-03-12T10:30:00.000Z',
     }),
-    this.seed('MS002', 'COMP001', 'P001', 'Structure', '2026-06-30', 60, 'U002', {
+    this.seed('MS002', 'COMP001', 'P001', 'Structure', '2027-03-15', 60, 'U002', {
       description: 'Steel framework and RCC structure.', stageIndex: 1, durationDays: 107,
       materialScope: 'Steel framework and RCC structure.', internalBudget: 21000000, clientStageAmount: 26250000,
     }),
@@ -69,7 +69,7 @@ export class MilestonesRepository {
     
       status: 'Completed', progress: 100, approvedBy: 'U002', approvedAt: '2026-03-08T11:00:00.000Z',
     }),
-    this.seed('MS004', 'COMP001', 'P002', 'Finishing', '2026-06-01', 50, 'U002', {
+    this.seed('MS004', 'COMP001', 'P002', 'Finishing', '2027-02-20', 50, 'U002', {
       description: 'Flooring, glazing, false ceiling and commercial interior finishing.', stageIndex: 1, durationDays: 75,
       materialScope: 'Vitrified tiles, toughened glass, gypsum boards and primer/paint.', internalBudget: 21000000, clientStageAmount: 25200000,
     }),
@@ -79,7 +79,7 @@ export class MilestonesRepository {
     
       status: 'Completed', progress: 100, approvedBy: 'U007', approvedAt: '2026-02-27T10:00:00.000Z',
     }),
-    this.seed('MS006', 'COMP002', 'P003', 'Superstructure', '2026-09-15', 50, 'U007', {
+    this.seed('MS006', 'COMP002', 'P003', 'Superstructure', '2027-04-15', 50, 'U007', {
       description: 'Precast U-girder launching, deck slab and parapet walls.', stageIndex: 1, durationDays: 120,
       materialScope: 'Precast segments, prestressing tendons, epoxy grout and expansion joints.', internalBudget: 32500000, clientStageAmount: 39000000,
     }),
@@ -89,7 +89,7 @@ export class MilestonesRepository {
     
       status: 'Completed', progress: 100, approvedBy: 'U007', approvedAt: '2026-02-26T09:30:00.000Z',
     }),
-    this.seed('MS008', 'COMP002', 'P004', 'Drainage works', '2026-11-20', 70, 'U007', {
+    this.seed('MS008', 'COMP002', 'P004', 'Drainage works', '2027-05-15', 70, 'U007', {
       description: 'Storm water RCC box culverts, underground utilities and retention basin.', stageIndex: 1, durationDays: 200,
       materialScope: 'NP4 RCC pipes, sulphate-resistant cement, waterproofing and inspection chambers.', internalBudget: 21700000, clientStageAmount: 26040000,
     }),

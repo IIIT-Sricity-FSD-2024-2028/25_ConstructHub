@@ -3,15 +3,14 @@
  * End-to-end UI flow test for the marketplace screens, run against the REAL backend.
  *
  *   1. start the backend on http://localhost:3000 with a fresh data/db
- *   2. cd frontend-react && npm i --no-save vitest jsdom @testing-library/react @testing-library/dom
+ *   2. cd frontend-react && npm install (vitest and testing-library are dev dependencies)
  *   3. npx vitest run tests/marketplace.flow.test.jsx
  */
 import { describe, test, expect, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, Outlet } from 'react-router-dom';
-import { AuthProvider } from '../src/context/AuthContext';
-import { ToastProvider } from '../src/context/ToastContext';
-import { api } from '../src/services/api';
+import TestProviders from './TestProviders';
+import { api } from './testApi';
 import RegisterClient from '../src/auth/RegisterClient';
 import ClientRequirements from '../src/actors/client/pages/ClientRequirements';
 import ClientRequirementDetail from '../src/actors/client/pages/ClientRequirementDetail';
@@ -28,8 +27,7 @@ function Shell() {
 function App({ at }) {
   return (
     <MemoryRouter initialEntries={[at]}>
-      <AuthProvider>
-        <ToastProvider>
+      <TestProviders>
           <Routes>
             <Route path="/register-client" element={<RegisterClient />} />
             <Route path="/login" element={<div>LOGIN PAGE</div>} />
@@ -37,12 +35,12 @@ function App({ at }) {
               <Route path="/client/requirements" element={<ClientRequirements />} />
               <Route path="/client/requirements/:id" element={<ClientRequirementDetail />} />
               <Route path="/client/project-progress" element={<div>PROJECT PROGRESS</div>} />
+              <Route path="/client/projects/:projectId" element={<div>PROJECT WORKSPACE</div>} />
               <Route path="/company-admin/marketplace" element={<CompanyMarketplace />} />
               <Route path="/company-admin/marketplace/:id" element={<CompanyMarketplaceDetail />} />
             </Route>
           </Routes>
-        </ToastProvider>
-      </AuthProvider>
+      </TestProviders>
     </MemoryRouter>
   );
 }
@@ -165,14 +163,20 @@ describe('marketplace UI flow', () => {
       return d;
     });
     fireEvent.click(within(dialog).getByRole('button', { name: /Accept & award/ }));
+    // awarding opens the new project's workspace
+    await text(/PROJECT WORKSPACE/);
+    compare.unmount();
+
+    // back on the requirement: it now shows the work order and contract, and no more actions
+    const awarded = render(<App at={`/client/requirements/${req.id}`} />);
     await text(/Work order WO-/);
     expect(screen.getByText(/Contract CON/)).toBeTruthy();
     expect(screen.getByRole('button', { name: /View project progress/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Close requirement/ })).toBeNull(); // awarded: no more actions
-    compare.unmount();
+    awarded.unmount();
 
     // the awarded project now exists for the client
     const projects = await api.getProjects();
-    expect(projects.some((p) => p.requirementId === req.id && p.companyId === 'COMP001')).toBe(true);
+    expect(projects.some((p) => p.requirementId === req.id && p.companyId === 'COMP001'), JSON.stringify(projects.map((p) => [p.id, p.requirementId, p.companyId]))).toBe(true);
   }, 60000);
 });

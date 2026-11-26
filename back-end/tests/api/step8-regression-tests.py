@@ -3,7 +3,7 @@ Regression tests for the bugs found in the logic review (B1-B14) and the extra o
 Each check tries the attack that used to work and expects it to be refused now; a few also confirm the legitimate path still works.
 Fresh data/db first, then:   API=http://localhost:3000 python3 tests/api/step8-regression-tests.py
 """
-import json, os, sys, urllib.request, urllib.error, datetime
+import json, os, sys, urllib.request, urllib.error, datetime, uuid
 B = os.environ.get('API', 'http://localhost:3000')
 TODAY = datetime.date.today()
 
@@ -191,6 +191,74 @@ check('B22 after finishing: expense refused', call('POST', 'expenses', exp('P001
 check('B22 after finishing: material request refused', call('POST', 'material-requests', mreq('P001'), SE)[0] == 403)
 check('B22 after finishing: proof report for the milestone awaiting approval is still accepted', call('POST', 'reports', rep('P001', 'MS002'), SE)[0] == 201)
 check('B22 once the PM approves the milestone, no more reports', call('POST', 'milestones/MS002/approve', token=PM)[0] == 201 and call('POST', 'reports', rep('P001', 'MS002'), SE)[0] in (403, 409))
+
+# ---------------- B23  stages of an accepted quotation are part of the contract
+check('B23 no milestone can be added to a contract project', call('POST', 'milestones', {'projectId': 'P001', 'name': 'Extra stage', 'deadline': (TODAY + datetime.timedelta(days=30)).isoformat(), 'weight': 1}, PM)[0] == 409)
+check('B23 a contract stage cannot be re-weighted, renamed or deleted', call('PATCH', 'milestones/MS004', {'weight': 10}, PM)[0] == 409 and call('PATCH', 'milestones/MS004', {'name': 'Renamed'}, PM)[0] == 409 and call('DELETE', 'milestones/MS004', token=PM)[0] == 409)
+pa = call('GET', 'projects/P001', token=PM)[1].get('allowed', {})
+check('B23 the project tells the screens what is allowed', pa.get('contractProject') is True and pa.get('canAddMilestones') is False and pa.get('canDelete') is False and pa.get('canManageTasks') is True, pa)
+
+# ---------------- B24  uploads keep only real file types
+def upload(path, field, name, mime, content, token):
+    boundary = uuid.uuid4().hex
+    body = (f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"; filename="{name}"\r\nContent-Type: {mime}\r\n\r\n'.encode() + content + f'\r\n--{boundary}--\r\n'.encode())
+    req = urllib.request.Request(B + '/' + path, method='POST', data=body)
+    req.add_header('Content-Type', f'multipart/form-data; boundary={boundary}'); req.add_header('Authorization', 'Bearer ' + token)
+    try:
+        r = urllib.request.urlopen(req); return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+s, d = upload('reports/upload', 'photos', 'evil.html', 'image/png', b'<script>alert(1)</script>', SE)
+url = (d.get('photoUrls') or [''])[0] if isinstance(d, dict) else ''
+check('B24 an .html file sent as an image is stored as an image, not a web page', s in (200, 201) and url.endswith('.png'), (s, d))
+if url:
+    r = urllib.request.urlopen(B + url if url.startswith('/') else url)
+    check('B24 and it is served as an image', 'html' not in r.headers.get('Content-Type', ''), r.headers.get('Content-Type'))
+
+# ---------------- B25  password guessing
+call('POST', 'users', {'name': 'Lock Test', 'email': 'locktest@apex.com', 'password': 'right1234', 'role': 'site_engineer'}, AD)
+codes = [call('POST', 'auth/login', {'email': 'locktest@apex.com', 'password': f'wrong{i}'})[0] for i in range(5)]
+s, d = call('POST', 'auth/login', {'email': 'locktest@apex.com', 'password': 'right1234'})
+check('B25 after 5 wrong passwords the account is locked, even for the right password', codes == [401] * 5 and s == 429, (codes, s, d))
+check('B25 other accounts are not affected', call('POST', 'auth/login', {'email': 'pm@apex.com', 'password': '123456'})[0] == 200)
+
+# ---------------- B26  dates must make sense
+call('POST', 'tasks', {'title': 'Lobby glazing', 'projectId': 'P002', 'assignedTo': 'U003', 'priority': 'Low', 'status': 'Pending', 'progress': 0, 'startDate': TODAY.isoformat(), 'deadline': (TODAY + datetime.timedelta(days=20)).isoformat(), 'description': 'Glazing', 'milestoneId': 'MS004'}, PM)
+s, d = call('POST', 'expenses', {'projectId': 'P002', 'milestoneId': 'MS004', 'category': 'Transport', 'amount': 200, 'date': '2019-01-01', 'description': 'Very old taxi bill'}, SE)
+check('B26 an expense dated before the project started is refused', s == 400 and 'before the project started' in str(d), (s, d))
+check('B26 a payment dated before its bill is refused', call('POST', 'bills/B002/payments', {'amount': 1000, 'method': 'Bank transfer', 'reference': 'NEFT-OLD', 'paidAt': '2001-01-01'}, FM)[0] == 400)
+check('B26 a task long after the project end is refused', call('POST', 'tasks', {'title': 'Far future', 'projectId': 'P001', 'assignedTo': 'U003', 'priority': 'Low', 'status': 'Pending', 'progress': 0, 'startDate': '2035-01-01', 'deadline': '2035-02-01', 'description': 'x', 'milestoneId': 'MS002'}, PM)[0] == 400)
+
+# ---------------- B27  a company with projects cannot be deleted
+s, d = call('DELETE', 'companies/COMP002', token=SU)
+check('B27 deleting a company that still has projects is refused', s == 409, (s, d))
+check('B27 its bills and staff are untouched', any(b['companyId'] == 'COMP002' for b in call('GET', 'bills', token=SU)[1]) and call('POST', 'auth/login', {'email': 'pm@ltinfra.com', 'password': '123456'})[0] == 200)
+
+# ---------------- B28  material reported as used must have been issued, on every project
+s, nm = call('POST', 'projects', {'name': 'REG plain project', 'companyId': 'COMP001', 'location': 'Pune', 'clientId': 'U005', 'clientName': 'Vikram Patel', 'managerId': 'U002', 'financeManagerId': 'U004', 'budget': 500000, 'progress': 0, 'status': 'On Track', 'startDate': TODAY.isoformat(), 'endDate': (TODAY + datetime.timedelta(days=60)).isoformat(), 'teamSize': 2, 'allocations': {'Other': 500000}, 'description': 'No milestones'}, SU)
+call('POST', 'tasks', {'title': 'Painting', 'projectId': nm['id'], 'assignedTo': 'U003', 'priority': 'Low', 'status': 'Pending', 'progress': 0, 'startDate': TODAY.isoformat(), 'deadline': (TODAY + datetime.timedelta(days=10)).isoformat(), 'description': 'Paint walls'}, PM)
+r = {'title': 'Daily log', 'projectId': nm['id'], 'date': TODAY.isoformat(), 'progress': 10, 'status': 'In Progress', 'workDone': 'Primer coat', 'priority': 'Low', 'photos': 0, 'submittedBy': 'U003'}
+s, d = call('POST', 'reports', {**r, 'materials': [{'name': 'Paint', 'qty': 20, 'unit': 'litre'}]}, SE)
+check('B28 a project without milestones also refuses material that was never issued', s == 400 and 'not issued' in str(d), (s, d))
+check('B28 a report without materials is fine', call('POST', 'reports', {**r, 'materials': []}, SE)[0] == 201)
+
+# ---------------- B29  the client is told about a new bill by the server (no screen has to remember it)
+before = len([n for n in call('GET', 'notifications', token=C1)[1] if n.get('title') == 'New Bill Pending'])
+s, bill = call('POST', 'bills', {'projectId': nm['id'], 'milestone': 'Painting advance', 'amount': 25000, 'description': 'First painting bill', 'dueDate': (TODAY + datetime.timedelta(days=10)).isoformat()}, FM)
+after = [n for n in call('GET', 'notifications', token=C1)[1] if n.get('title') == 'New Bill Pending']
+check('B29 raising a bill notifies the client once', s == 201 and len(after) == before + 1 and '25,000' in after[0].get('body', '') + after[-1].get('body', ''), (s, bill, after[-1:] if after else None))
+
+# ---------------- B30  every screen gets the same "Delayed" status for a project with an overdue milestone
+rows = call('GET', 'projects', token=PM)[1]
+def expected(p):
+    late = prog_late(p['id'])
+    return 'Delayed' if late > 0 and p['status'] in ('On Track', 'In Progress') else p['status'], late
+prog_late = lambda pid: call('GET', f'milestones/progress/{pid}', token=PM)[1].get('delayedMilestones', 0)
+bad = [(p['id'], p.get('displayStatus'), p.get('delayedMilestones'), expected(p)) for p in rows if (p.get('displayStatus'), p.get('delayedMilestones')) != expected(p)]
+check('B30 every project carries the same display status and overdue count as its milestone plan', not bad and any(p.get('displayStatus') == 'Delayed' for p in rows), bad or [(p['id'], p.get('displayStatus')) for p in rows])
+s, cp = call('GET', 'projects/P002', token=C3)
+check('B30 the client sees the same status as the PM', s == 200 and cp.get('displayStatus') == [p for p in rows if p['id'] == 'P002'][0].get('displayStatus'), cp.get('displayStatus'))
+check('B30 a project without overdue milestones keeps its own status', call('GET', f"projects/{nm['id']}", token=PM)[1].get('displayStatus') == 'On Track')
 
 print('ALL PASS' if ok else 'SOME FAILED')
 sys.exit(0 if ok else 1)

@@ -5,7 +5,7 @@
  *   engineer submits (receipt missing) -> PM returns -> engineer corrects with receipt -> PM verifies ->
  *   finance approves (counts as spend) -> reimbursed;  client accepts a bill and pays it in two demo payments,
  *   finance records an offline payment on another bill;  dashboards show the real numbers.
- *   cd frontend-react && npm i --no-save vitest jsdom @testing-library/react @testing-library/dom
+ *   cd frontend-react && npm install (vitest and testing-library are dev dependencies)
  *   npx vitest run tests/expenses-payments.flow.test.jsx
  */
 import { describe, test, expect, afterEach } from 'vitest';
@@ -13,9 +13,8 @@ import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-li
 import { MemoryRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { FormData as NodeFormData } from 'undici';
 import { File as NodeFile } from 'node:buffer';
-import { AuthProvider } from '../src/context/AuthContext';
-import { ToastProvider } from '../src/context/ToastContext';
-import { api } from '../src/services/api';
+import TestProviders from './TestProviders';
+import { api } from './testApi';
 import SiteEngineerExpenses from '../src/actors/site-engineer/pages/SiteEngineerExpenses';
 import ProjectManagerExpenses from '../src/actors/project-manager/pages/ProjectManagerExpenses';
 import FinanceManagerExpenses from '../src/actors/finance-manager/pages/FinanceManagerExpenses';
@@ -30,8 +29,7 @@ function WithUser() {
 function App({ at }) {
   return (
     <MemoryRouter initialEntries={[at]}>
-      <AuthProvider>
-        <ToastProvider>
+      <TestProviders>
           <Routes>
             <Route element={<WithUser />}>
               <Route path="/se/expenses" element={<SiteEngineerExpenses />} />
@@ -44,8 +42,7 @@ function App({ at }) {
               <Route path="/summary" element={<LiveSummary />} />
             </Route>
           </Routes>
-        </ToastProvider>
-      </AuthProvider>
+      </TestProviders>
     </MemoryRouter>
   );
 }

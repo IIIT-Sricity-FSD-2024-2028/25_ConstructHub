@@ -78,11 +78,49 @@ Business rules are enforced by the API, never only in the browser. The main ones
 - Records with money attached (projects with bills, payments, expenses, POs) cannot be deleted.
 - All dates are business dates in India time (`APP_TIMEZONE`, default `Asia/Kolkata`).
 
+## State management (Redux Toolkit)
+
+The web app keeps all shared and server data in one Redux store (`@reduxjs/toolkit` + `react-redux`).
+Pages never call the API themselves: they **dispatch thunks** and **read selectors**.
+
+```
+ page / component                     Redux store (src/store)                          NestJS API
+ ────────────────                     ───────────────────────                          ──────────
+ useLoad([fetchProjects])  ─dispatch─▶ thunk  projects/fetchAll  ──apiRequest()────▶  GET /projects
+                                       │ pending   → status 'loading'
+                                       │ fulfilled → projectsAdapter.setAll(...)  ◀──  [ ...projects ]
+                                       │ rejected  → error = server message
+ useAppSelector(selectProjectsManagedBy) ◀── memoised selector (createSelector) ◀── state.projects
+ dispatch(updateProject(...)).unwrap() ─▶ thunk → PATCH → upsertOne → every page showing it re-renders
+```
+
+| Where | What |
+| --- | --- |
+| `src/store/index.js` | `makeStore()` with `configureStore`; `rootReducer` (signing out empties every slice); listener middleware that saves profile edits to the session |
+| `src/store/helpers.js` | `apiThunk` (createAsyncThunk that turns `{error}` answers into rejected actions with the server's message), list/upsert/remove reducer helpers |
+| `src/store/hooks.js` | `useAppDispatch`, `useAppSelector`, `useLoad` (dispatch thunks when a page opens), `isFirstLoad`, `errorText` |
+| `src/features/<area>/<area>Slice.js` | one slice per business area: `auth`, `ui` (toasts), `projects`, `users`, `tasks`, `milestones`, `reports`, `bills`, `expenses`, `procurement`, `marketplace`, `notifications`, `messages`, `platform`, `finance` |
+
+Rules followed throughout:
+
+- Server records are normalised with `createEntityAdapter` (`ids` + `entities`), each list has a request
+  `status` and `error`, and records changed by an action are upserted, so a change shows on every screen at once.
+- Derived data comes from memoised selectors (`createSelector`): for example `selectProjectsManagedBy`,
+  `selectOpenWorkProjectIds`, `selectBilledToDate`, `selectQuotationsOfRequirement`, `selectUnreadCount`.
+- What a user may do with a project comes from the API (`project.allowed`), so a button is only offered when the
+  API would accept the action (no "Add milestone" on contract stages, no tasks or stage bills before the advance
+  is paid, "Delete" only on a project with no work or money on it).
+- Form inputs, open dialogs and filters stay in component state (`useState`): they belong to one screen only.
+- `src/services/api.js` is the only file that talks HTTP; besides `apiRequest` it keeps the session
+  (login / logout) and file downloads, which produce a file and not state.
+- The Redux DevTools browser extension shows every action and the state after it (development builds).
+
 ## Tests
 
 ```bash
-cd frontend-react && npm i --no-save vitest jsdom @testing-library/react @testing-library/dom   # once
+cd frontend-react && npm install      # once (vitest and testing-library are dev dependencies)
 cd ../back-end && npm run check
+cd ../frontend-react && npm run test:store   # Redux unit tests only, no server needed
 ```
 
 `npm run check` builds the API and runs, each against fresh demo data:
@@ -93,6 +131,7 @@ cd ../back-end && npm run check
 | `tests/api/step8-regression-tests.py` | one check per bug fixed in the logic review (see `CHANGES.md`) |
 | `scripts/audit-routes.js` | every route is either authenticated or intentionally public, and refuses roles it does not list |
 | Jest unit tests | users and companies services |
+| `frontend-react/tests/store/store.test.js` | Redux layer: reducers, selectors, thunks with a mocked API, the sign-out reset and the session listener |
 | `frontend-react/tests/*.flow.test.jsx` | four UI flows driven through the real pages against the real API |
 | `frontend-react/tests/pages.smoke.test.jsx` | signs in as every role and renders all 70 pages, failing on any crash or React error |
 
@@ -123,8 +162,10 @@ back-end/
 frontend-react/
   src/actors/<role>/   pages of each role
   src/components/      shared UI (billing, milestones, procurement, marketplace, layout)
-  src/services/api.js  the only place that talks to the API
-  tests/               UI flow tests and the page smoke test
+  src/store/           Redux store, thunk helper, typed hooks
+  src/features/        one Redux slice per business area (thunks, reducers, selectors)
+  src/services/api.js  the only place that talks HTTP (used by the thunks)
+  tests/               UI flow tests, the page smoke test and the Redux unit tests (tests/store)
 ```
 
 ## Known limitations
@@ -132,6 +173,4 @@ frontend-react/
 - Data lives in JSON files, which is fine for a demo but has no transactions or concurrent-writer safety. A real
   deployment would use a database such as PostgreSQL with foreign keys.
 - Payments are a demo gateway: nothing is charged, and card or bank details are never sent anywhere.
-- `eslint` reports 30 `react-hooks/exhaustive-deps` warnings (no errors). They are left as they are on purpose:
-  adding those dependencies mechanically would make several pages reload in a loop.
 - The web app ships as one 1 MB JavaScript bundle; splitting it per role with `React.lazy` would speed up the first load.

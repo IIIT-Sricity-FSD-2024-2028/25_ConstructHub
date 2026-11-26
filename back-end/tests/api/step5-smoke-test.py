@@ -118,7 +118,9 @@ check('supplier of another company rejected', call('POST','purchase-orders',{**p
 check('inactive supplier rejected', call('POST','purchase-orders',{**po_ok,'supplierId':inactive['id']},PR1)[0] == 400)
 check('other company cannot order our request', call('POST','purchase-orders',po_ok,PR2)[0] == 404)
 s, po3 = call('POST','purchase-orders',po_ok,PR1)
-check('below the limit and within budget -> auto-approved', s==201 and po3['status']=='approved' and po3['totalAmount']==90000 and po3['requiresApproval'] is False, (s,po3)); PO3 = po3['id']
+# 90,000 is below the 1,00,000 limit on its own, but MR001 already has a 76,000 order: splitting cannot dodge the limit
+check('order below the limit but over it together with earlier orders of the same request -> needs the FM', s==201 and po3['status']=='pending_approval' and po3['totalAmount']==90000 and 'already ordered' in po3['approvalReason'], (s,po3)); PO3 = po3['id']
+s, d = call('POST',f'purchase-orders/{PO3}/approve',{'note':'Steel for slab 2'},FM1); check('FM approves it', s==201 and d['status']=='approved', (s,d))
 check('request becomes "ordered" once fully covered', call('GET','material-requests/MR001',token=PR1)[1]['status']=='ordered')
 check('fully ordered request cannot be ordered again', call('POST','purchase-orders',po_ok,PR1)[0] == 400)
 

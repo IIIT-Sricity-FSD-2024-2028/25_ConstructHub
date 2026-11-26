@@ -37,7 +37,7 @@ export class ProjectsRepository {
       progress: 40,
       status: 'On Track',
       startDate: '2026-01-01',
-      endDate: '2026-06-30',
+      endDate: '2027-03-31',
       teamSize: 24,
       allocations: {
         Materials: 12000000,
@@ -74,7 +74,7 @@ export class ProjectsRepository {
       progress: 40,
       status: 'On Track',
       startDate: '2026-01-15',
-      endDate: '2026-06-15',
+      endDate: '2027-02-28',
       teamSize: 32,
       allocations: {
         Materials: 20000000,
@@ -110,7 +110,7 @@ export class ProjectsRepository {
       progress: 25,
       status: 'On Track',
       startDate: '2026-02-01',
-      endDate: '2026-09-30',
+      endDate: '2027-04-30',
       teamSize: 50,
       allocations: {
         Materials: 30000000,
@@ -146,7 +146,7 @@ export class ProjectsRepository {
       progress: 30,
       status: 'At Risk',
       startDate: '2026-02-15',
-      endDate: '2026-11-30',
+      endDate: '2027-05-31',
       teamSize: 22,
       allocations: {
         Materials: 15000000,

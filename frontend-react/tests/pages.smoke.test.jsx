@@ -7,6 +7,7 @@
 import { test, expect, vi } from 'vitest';
 import { render, cleanup, act } from '@testing-library/react';
 import App from '../src/App';
+import TestProviders from './TestProviders';
 import { api } from '../src/services/api';
 
 const ROUTES = {
@@ -29,7 +30,7 @@ test('every page renders without crashing', async () => {
     window.history.pushState({}, '', path);
     let ui;
     try {
-      await act(async () => { ui = render(<App />); });
+      await act(async () => { ui = render(<TestProviders><App /></TestProviders>); });
       await act(async () => { await new Promise((r) => setTimeout(r, 900)); });
       const text = document.body.textContent || '';
       if (/Something went wrong|Cannot read properties|is not a function|undefined is not/i.test(text)) problems.push(`${who} ${path}: error text on page`);

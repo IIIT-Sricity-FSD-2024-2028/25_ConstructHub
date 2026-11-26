@@ -2,7 +2,7 @@
 # Runs every automated check against a FRESH copy of the demo data, one suite at a time.
 #   cd back-end && npm run build && bash scripts/run-all-checks.sh
 # Needs: node, python3. The UI flow tests also run if vitest is installed in ../frontend-react
-#   (cd ../frontend-react && npm i --no-save vitest jsdom @testing-library/react @testing-library/dom).
+#   (cd ../frontend-react && npm install: vitest and testing-library are dev dependencies).
 # The suites use port 3000 and DELETE data/db first, so stop your own backend before running this.
 set -u
 cd "$(dirname "$0")/.."
@@ -36,6 +36,14 @@ run "route audit (public routes, roles)"               node scripts/audit-routes
 
 echo; echo "== backend unit tests =="
 if npm test --silent > /tmp/ch-check-out.txt 2>&1; then echo "PASS  jest"; else echo "FAIL  jest"; tail -15 /tmp/ch-check-out.txt; FAILED=1; fi
+
+echo; echo "== Redux store unit tests (no server needed) =="
+if [ -x ../frontend-react/node_modules/.bin/vitest ]; then
+  if (cd ../frontend-react && npx vitest run tests/store > /tmp/ch-check-out.txt 2>&1); then echo "PASS  store: reducers, selectors, thunks, listener"
+  else echo "FAIL  store"; sed 's/\x1b\[[0-9;]*m//g' /tmp/ch-check-out.txt | grep -E "×|Error|expected" | head -8 | sed 's/^/      /'; FAILED=1; fi
+else
+  echo "skipped (vitest is not installed in frontend-react)"
+fi
 
 echo; echo "== UI flow tests =="
 if [ -x ../frontend-react/node_modules/.bin/vitest ]; then

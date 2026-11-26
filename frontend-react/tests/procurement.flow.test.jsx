@@ -3,15 +3,14 @@
  * UI flow test for procurement & stock, run against the REAL backend (fresh data/db, http://localhost:3000):
  * site engineer requests -> PM approves -> procurement orders -> finance approves (limit lowered by the
  * company admin) -> partial deliveries incl. a refused over-delivery -> stock -> issue -> engineer sees stock.
- *   cd frontend-react && npm i --no-save vitest jsdom @testing-library/react @testing-library/dom
+ *   cd frontend-react && npm install (vitest and testing-library are dev dependencies)
  *   npx vitest run tests/procurement.flow.test.jsx
  */
 import { describe, test, expect, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, Outlet } from 'react-router-dom';
-import { AuthProvider } from '../src/context/AuthContext';
-import { ToastProvider } from '../src/context/ToastContext';
-import { api } from '../src/services/api';
+import TestProviders from './TestProviders';
+import { api } from './testApi';
 import SiteEngineerMaterialRequests from '../src/actors/site-engineer/pages/SiteEngineerMaterialRequests';
 import ProjectManagerMaterialRequests from '../src/actors/project-manager/pages/ProjectManagerMaterialRequests';
 import FinanceManagerPurchaseOrders from '../src/actors/finance-manager/pages/FinanceManagerPurchaseOrders';
@@ -27,8 +26,7 @@ function WithUser() {
 function App({ at }) {
   return (
     <MemoryRouter initialEntries={[at]}>
-      <AuthProvider>
-        <ToastProvider>
+      <TestProviders>
           <Routes>
             <Route element={<WithUser />}>
               <Route path="/se/requests" element={<SiteEngineerMaterialRequests />} />
@@ -41,8 +39,7 @@ function App({ at }) {
               <Route path="/admin/settings" element={<CompanyAdminSettings />} />
             </Route>
           </Routes>
-        </ToastProvider>
-      </AuthProvider>
+      </TestProviders>
     </MemoryRouter>
   );
 }

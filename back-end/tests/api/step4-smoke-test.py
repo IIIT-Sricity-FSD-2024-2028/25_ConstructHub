@@ -26,8 +26,9 @@ prog = lambda tok, pid: call('GET', f'milestones/progress/{pid}', token=tok)
 proj = lambda tok, pid: call('GET', f'projects/{pid}', token=tok)[1]
 
 if len(sys.argv) > 1 and sys.argv[1] == 'phase2':
-    s, d = prog(PM1, 'P002'); check('milestones persisted', s == 200 and d['milestonesTotal'] == 1 and d['weightAllocated'] == 50, d)
-    check('derived progress persisted on project', proj(AD1, 'P002')['progress'] == d['physicalProgress'], (proj(AD1,'P002')['progress'], d['physicalProgress']))
+    tp = [p for p in call('GET','projects',token=AD1)[1] if p['name'] == 'SMOKE Fit-out'][0]
+    s, d = prog(PM1, tp['id']); check('milestones persisted', s == 200 and d['milestonesTotal'] == 1 and d['weightAllocated'] == 50, d)
+    check('derived progress persisted on project', tp['progress'] == d['physicalProgress'], (tp['progress'], d['physicalProgress']))
     np = [p for p in call('GET','projects',token=AD2)[1] if p['name'] == 'SMOKE manual project'][0]
     s, d = prog(PM2, np['id']); check('manual mode persisted after deleting milestones', d['mode'] == 'manual' and np['progress'] == 55, (d, np))
     print('PHASE2 ALL PASS' if ok else 'PHASE2 SOME FAILED'); sys.exit(0 if ok else 1)
@@ -60,105 +61,122 @@ s, d = call('GET', 'milestones', token=C1); check('client list scoped to own pro
 check('unknown project 404', prog(AD1, 'P999')[0] == 404)
 
 # ---- 4. write permissions
-new = {'projectId': 'P002', 'name': 'Handover', 'deadline': iso(TODAY + datetime.timedelta(days=60)), 'weight': 10}
+# Contract projects (awarded in the marketplace) keep the quotation's stages: no new milestones, names and weights fixed.
+check('no milestone can be added to a contract project', call('POST','milestones',{'projectId':'P002','name':'Handover','deadline':iso(TODAY+datetime.timedelta(days=60)),'weight':10},PM1)[0] == 409)
+check('a contract stage weight cannot change', call('PATCH','milestones/MS004',{'weight':30},PM1)[0] == 409)
+check('a contract stage cannot be renamed', call('PATCH','milestones/MS004',{'name':'Finishing works'},PM1)[0] == 409)
+check('a contract stage cannot be deleted', call('DELETE','milestones/MS004',token=PM1)[0] == 409)
+s, d = call('PATCH','milestones/MS004',{'description':'Flooring, glazing and interiors.','deadline':iso(TODAY+datetime.timedelta(days=90))},PM1)
+check('its description and deadline can still be updated', s == 200 and d['description'] == 'Flooring, glazing and interiors.', (s, d))
+
+# Hand-made milestones are tested on a project that did not come from the marketplace (platform test data).
+SU = login('super@ch.com')
+s, tp = call('POST','projects',{'name':'SMOKE Fit-out','companyId':'COMP001','location':'Pune','clientId':'U011','clientName':'Suresh Shah','managerId':'U002','financeManagerId':'U004','budget':5000000,'progress':0,'status':'On Track','startDate':iso(TODAY-datetime.timedelta(days=30)),'endDate':iso(TODAY+datetime.timedelta(days=300)),'teamSize':3,'allocations':{'Other':5000000},'description':'Fit-out test project'},SU)
+check('platform admin creates a test project', s == 201, (s, tp)); TP = tp['id']
+s, ma = call('POST','milestones',{'projectId':TP,'name':'Rough-in','deadline':iso(TODAY+datetime.timedelta(days=60)),'weight':50},PM1)
+s2, mb = call('POST','milestones',{'projectId':TP,'name':'Finishing','deadline':iso(TODAY+datetime.timedelta(days=120)),'weight':50},PM1)
+check('PM plans two milestones on a non-contract project', s == 201 and s2 == 201, (s, ma, s2, mb)); MA, MB = ma['id'], mb['id']
+new = {'projectId': TP, 'name': 'Handover', 'deadline': iso(TODAY + datetime.timedelta(days=60)), 'weight': 10}
 check('client cannot create', call('POST','milestones',new,C2)[0] == 403)
 check('site engineer cannot create', call('POST','milestones',new,SE1)[0] == 403)
 check('finance manager cannot create', call('POST','milestones',new,FM1)[0] == 403)
 check("other company's PM cannot create", call('POST','milestones',new,PM2)[0] == 404)
-check('platform admin cannot create', call('POST','milestones',new,login('super@ch.com'))[0] == 403)
+check('platform admin cannot create', call('POST','milestones',new,SU)[0] == 403)
 check('weights over 100 rejected with a helpful message', (lambda r: r[0] == 400 and 'at most 0%' in json.dumps(r[1]))(call('POST','milestones',new,PM1)), call('POST','milestones',new,PM1))
-s, d = call('PATCH', 'milestones/MS004', {'weight': 30}, PM1); check('PM lowers a weight', s == 200 and d['weight'] == 30, (s, d))
+s, d = call('PATCH', f'milestones/{MB}', {'weight': 30}, PM1); check('PM lowers a weight', s == 200 and d['weight'] == 30, (s, d))
 check('weight 21 would exceed 100', call('POST','milestones',{**new,'weight':21},PM1)[0] == 400)
 check('duplicate name rejected (case-insensitive)', call('POST','milestones',{**new,'name':'FINISHING','weight':5},PM1)[0] == 409)
 check('deadline before project start rejected', call('POST','milestones',{**new,'deadline':'2020-01-01'},PM1)[0] == 400)
 check('bad weight type rejected', call('POST','milestones',{**new,'weight':0},PM1)[0] == 400 and call('POST','milestones',{**new,'weight':'x'},PM1)[0] == 400)
 check('short name rejected', call('POST','milestones',{**new,'name':'ab'},PM1)[0] == 400)
 s, hand = call('POST', 'milestones', new, PM1); check('PM creates milestone', s == 201 and hand['status'] == 'Pending' and hand['delayed'] is False and hand['weight'] == 10, (s, hand)); HID = hand['id']
-check('weight allocation now 90%', prog(PM1,'P002')[1]['weightAllocated'] == 90)
+check('weight allocation now 90%', prog(PM1,TP)[1]['weightAllocated'] == 90)
 check('PM edits milestone', call('PATCH',f'milestones/{HID}',{'weight':20,'name':'Final handover'},PM1)[1]['weight'] == 20)
 check('other company cannot edit', call('PATCH',f'milestones/{HID}',{'weight':1},PM2)[0] in (403, 404))
 check('empty milestone cannot be approved', (lambda r: r[0] == 400 and 'at least one task' in json.dumps(r[1]))(call('POST',f'milestones/{HID}/approve',token=PM1)))
 
 # ---- 5. task integrity
-task = {'title':'Tile work','projectId':'P002','projectName':'Apex Commercial Complex','assignedTo':'U003','priority':'Medium','status':'Pending','progress':0,'startDate':iso(TODAY),'deadline':iso(TODAY+datetime.timedelta(days=20)),'description':'Floor tiling','milestoneId':'MS004'}
-s, t1 = call('POST','tasks',task,PM1); check('PM creates task inside milestone', s == 201 and t1['milestoneId'] == 'MS004', (s,t1)); T1 = t1['id']
-d = prog(PM1,'P002')[1]; ms4 = [m for m in d['milestones'] if m['id']=='MS004'][0]
-check('milestone counts the new task', ms4['taskCount'] == 1 and ms4['progress'] == 0, ms4)
+task = {'title':'Tile work','projectId':TP,'projectName':'SMOKE Fit-out','assignedTo':'U003','priority':'Medium','status':'Pending','progress':0,'startDate':iso(TODAY),'deadline':iso(TODAY+datetime.timedelta(days=20)),'description':'Floor tiling','milestoneId':MB}
+s, t1 = call('POST','tasks',task,PM1); check('PM creates task inside milestone', s == 201 and t1['milestoneId'] == MB, (s,t1)); T1 = t1['id']
+d = prog(PM1,TP)[1]; msb = [m for m in d['milestones'] if m['id']==MB][0]
+check('milestone counts the new task', msb['taskCount'] == 1 and msb['progress'] == 0, msb)
 check("task cannot point at another project's milestone", call('POST','tasks',{**task,'title':'Wrong ms','milestoneId':'MS001'},PM1)[0] == 400)
 check('task cannot use unknown milestone', call('POST','tasks',{**task,'title':'Ghost ms','milestoneId':'MS999'},PM1)[0] == 400)
 check("other company's PM cannot file tasks under our project", call('POST','tasks',{**task,'title':'Intruder','assignedTo':'U008'},PM2)[0] == 403)
+check('task cannot start before the project', call('POST','tasks',{**task,'title':'Too early','startDate':'2020-01-01'},PM1)[0] == 400)
+check('task cannot end after the project', call('POST','tasks',{**task,'title':'Too late','deadline':iso(TODAY+datetime.timedelta(days=400))},PM1)[0] == 400)
 check('completed task must be 100%', call('PATCH',f'tasks/{T1}',{'status':'Completed','progress':90},SE1)[0] == 400)
 check('100% task must be Completed', call('PATCH',f'tasks/{T1}',{'status':'In Progress','progress':100},SE1)[0] == 400)
-s, d = call('PATCH',f'tasks/{T1}',{'status':'In Progress','progress':50,'remarks':'half way','title':'HACKED','milestoneId':'MS003','priority':'Low'},SE1)
-check('SE updates status/progress/remarks only (other fields ignored)', s == 200 and d['progress'] == 50 and d['title'] == 'Tile work' and d['milestoneId'] == 'MS004' and d['priority'] == 'Medium', (s,d))
-d = prog(PM1,'P002')[1]
-check('P002 physical = 50%x100 + 30%x50 + 20%x0 = 65', d['physicalProgress'] == 65 and proj(AD1,'P002')['progress'] == 65, d)
+s, d = call('PATCH',f'tasks/{T1}',{'status':'In Progress','progress':50,'remarks':'half way','title':'HACKED','milestoneId':MA,'priority':'Low'},SE1)
+check('SE updates status/progress/remarks only (other fields ignored)', s == 200 and d['progress'] == 50 and d['title'] == 'Tile work' and d['milestoneId'] == MB and d['priority'] == 'Medium', (s,d))
+d = prog(PM1,TP)[1]
+check('physical = 50%x0 + 30%x50 + 20%x0 = 15', d['physicalProgress'] == 15 and proj(AD1,TP)['progress'] == 15, d)
 check('a task of a milestone project must have a milestone', call('POST','tasks',{**task,'title':'No milestone','milestoneId':None},PM1)[0] == 400)
 s, tx = call('POST','tasks',{**task,'title':'Not mine','assignedTo':'U004'},PM1); check('PM creates a task for someone else', s == 201, (s,tx))
 check("SE cannot update someone else's task", call('PATCH',f"tasks/{tx['id']}",{'progress':10,'status':'In Progress'},SE1)[0] == 403)
 check("other company's SE cannot update our task", call('PATCH',f'tasks/{T1}',{'progress':10,'status':'In Progress'},SE2)[0] in (403, 404))
 
 # ---- 6. approval workflow
-check('cannot approve while tasks unfinished', (lambda r: r[0] == 400 and '0 of 2' in json.dumps(r[1]))(call('POST','milestones/MS004/approve',token=PM1)), call('POST','milestones/MS004/approve',token=PM1))
+check('cannot approve while tasks unfinished', (lambda r: r[0] == 400 and '0 of 2' in json.dumps(r[1]))(call('POST',f'milestones/{MB}/approve',token=PM1)), call('POST',f'milestones/{MB}/approve',token=PM1))
 s, d = call('PATCH',f'tasks/{T1}',{'status':'Completed','progress':100},SE1); check('SE finishes task', s == 200)
 call('PATCH',f"tasks/{tx['id']}",{'status':'Completed','progress':100},PM1)
-d = prog(PM1,'P002')[1]; check('milestone is Ready for Review; completion still 1 of 3', [m for m in d['milestones'] if m['id']=='MS004'][0]['status'] == 'Ready for Review' and d['milestoneCompletion'] == 33 and d['physicalProgress'] == 80, d)
-check('MS003 is already approved -> 409', call('POST','milestones/MS003/approve',token=PM1)[0] == 409)
-check('site engineer cannot approve', call('POST','milestones/MS004/approve',token=SE1)[0] == 403)
-check('client cannot approve', call('POST','milestones/MS004/approve',token=C2)[0] == 403)
-check('other company cannot approve', call('POST','milestones/MS004/approve',token=PM2)[0] in (403, 404))
-check('approval needs at least one linked site report (evidence)', (lambda r: r[0] == 400 and 'site report' in json.dumps(r[1]))(call('POST','milestones/MS004/approve',token=PM1)))
-call('POST','reports',{'title':'MS004 evidence','projectId':'P002','submittedBy':'U002','date':iso(TODAY),'progress':100,'status':'Completed','workDone':'Finishing complete','priority':'Low','materials':[],'photos':0,'milestoneId':'MS004','weather':'Sunny','laborCount':8},PM1)
-s, d = call('POST','milestones/MS004/approve',token=PM1); check('PM approves milestone', s == 201 and d['status'] == 'Completed' and d['approvedBy'] == 'U002', (s,d))
-d = prog(PM1,'P002')[1]; check('milestone completion now 2 of 3 = 67%', d['milestoneCompletion'] == 67 and d['milestonesApproved'] == 2, d)
+d = prog(PM1,TP)[1]; check('milestone is Ready for Review; completion still 0 of 3', [m for m in d['milestones'] if m['id']==MB][0]['status'] == 'Ready for Review' and d['milestoneCompletion'] == 0 and d['physicalProgress'] == 30, d)
+check('a milestone without tasks cannot be approved', call('POST',f'milestones/{MA}/approve',token=PM1)[0] == 400)
+check('site engineer cannot approve', call('POST',f'milestones/{MB}/approve',token=SE1)[0] == 403)
+check('client cannot approve', call('POST',f'milestones/{MB}/approve',token=C2)[0] == 403)
+check('other company cannot approve', call('POST',f'milestones/{MB}/approve',token=PM2)[0] in (403, 404))
+check('approval needs at least one linked site report (evidence)', (lambda r: r[0] == 400 and 'site report' in json.dumps(r[1]))(call('POST',f'milestones/{MB}/approve',token=PM1)))
+s, rep = call('POST','reports',{'title':'Finishing evidence','projectId':TP,'submittedBy':'U002','date':iso(TODAY),'progress':100,'status':'Completed','workDone':'Finishing complete','priority':'Low','materials':[],'photos':0,'milestoneId':MB,'weather':'Sunny','laborCount':8},PM1)
+check('PM files the evidence report', s == 201, (s, rep))
+s, d = call('POST',f'milestones/{MB}/approve',token=PM1); check('PM approves milestone', s == 201 and d['status'] == 'Completed' and d['approvedBy'] == 'U002', (s,d))
+d = prog(PM1,TP)[1]; check('milestone completion now 1 of 3 = 33%', d['milestoneCompletion'] == 33 and d['milestonesApproved'] == 1, d)
 n = call('GET','notifications',token=C2)[1]; check('client notified of approved milestone', any(x['title'] == 'Milestone completed' for x in n), n[:2])
-check('approve twice -> 409', call('POST','milestones/MS004/approve',token=PM1)[0] == 409)
-check('approved milestone cannot be edited', call('PATCH','milestones/MS004',{'weight':5},PM1)[0] == 409)
-check('approved milestone cannot be deleted', call('DELETE','milestones/MS004',token=PM1)[0] == 409)
+check('approve twice -> 409', call('POST',f'milestones/{MB}/approve',token=PM1)[0] == 409)
+check('approved milestone cannot be edited', call('PATCH',f'milestones/{MB}',{'weight':5},PM1)[0] == 409)
+check('approved milestone cannot be deleted', call('DELETE',f'milestones/{MB}',token=PM1)[0] == 409)
 check('cannot add tasks to an approved milestone', call('POST','tasks',{**task,'title':'Late addition'},PM1)[0] == 409)
 s, d = call('PATCH',f'tasks/{T1}',{'status':'In Progress','progress':80},SE1)
 check('tasks of an approved milestone are frozen (reopen first)', s == 409, (s, d))
-check('the approved milestone stays approved', [m for m in prog(PM1,'P002')[1]['milestones'] if m['id']=='MS004'][0]['status'] == 'Completed')
+check('the approved milestone stays approved', [m for m in prog(PM1,TP)[1]['milestones'] if m['id']==MB][0]['status'] == 'Completed')
 check('a billed milestone cannot be reopened', call('POST','milestones/MS003/reopen',token=PM1)[0] == 409)
-s, d = call('POST','milestones/MS004/reopen',token=PM1); check('PM reopens approved milestone', s == 201 and d['status'] == 'Ready for Review' and not d.get('approvedAt'), (s,d))
-check('cannot reopen a milestone that is not approved', call('POST','milestones/MS004/reopen',token=PM1)[0] == 400)
+s, d = call('POST',f'milestones/{MB}/reopen',token=PM1); check('PM reopens approved milestone', s == 201 and d['status'] == 'Ready for Review' and not d.get('approvedAt'), (s,d))
+check('cannot reopen a milestone that is not approved', call('POST',f'milestones/{MB}/reopen',token=PM1)[0] == 400)
 
 # ---- 7. project-level controls
-before = proj(AD1,'P002')['progress']
-s, d = call('PATCH','projects/P002',{'progress':99},PM1); check('typed-in progress is ignored for milestone projects', proj(AD1,'P002')['progress'] == before, (s, d))
-s, d = call('PATCH','projects/P002',{'progress':100,'status':'Completed'},PM1); check('cannot mark project completed while progress < 100', s == 400, (s,d))
-s, d = call('PATCH','projects/P002',{'description':'Updated description text'},PM1); check('other project edits still work', s == 200 and d['description'] == 'Updated description text', (s,d))
+before = proj(AD1,TP)['progress']
+s, d = call('PATCH',f'projects/{TP}',{'progress':99},PM1); check('typed-in progress is ignored for milestone projects', proj(AD1,TP)['progress'] == before, (s, d))
+s, d = call('PATCH',f'projects/{TP}',{'progress':100,'status':'Completed'},PM1); check('cannot mark project completed while progress < 100', s == 400, (s,d))
+s, d = call('PATCH',f'projects/{TP}',{'description':'Updated description text'},PM1); check('other project edits still work', s == 200 and d['description'] == 'Updated description text', (s,d))
+check('project responses say what the caller may do', d.get('allowed', {}).get('canAddMilestones') is True and proj(PM1,'P002')['allowed']['canAddMilestones'] is False, d.get('allowed'))
 
 # ---- 8. deleting
 s, d = call('DELETE',f'milestones/{HID}',token=PM1); check('PM deletes empty milestone', s == 200)
-check('weights freed after delete', prog(PM1,'P002')[1]['weightAllocated'] == 80)
+check('weights freed after delete', prog(PM1,TP)[1]['weightAllocated'] == 80)
 check('a billed milestone cannot be deleted', call('DELETE','milestones/MS003',token=PM1)[0] == 409)
 check('tasks and site reports of an approved milestone cannot be deleted', call('DELETE','tasks/T003',token=PM1)[0] == 409 and call('DELETE','reports/R002',token=PM1)[0] == 409)
-s, d = call('DELETE','milestones/MS004',token=PM1); check('deleting a milestone keeps its tasks', s == 200, (s, d))
+s, d = call('DELETE',f'milestones/{MB}',token=PM1); check('deleting a milestone keeps its tasks', s == 200, (s, d))
 tasks = call('GET','tasks',token=PM1)[1]; t4 = [t for t in tasks if t['id'] in (T1, tx['id'])]
 check('tasks of deleted milestone are unassigned, not deleted', len(t4) == 2 and all(t.get('milestoneId') in (None,) for t in t4), t4)
-d = prog(PM1,'P002')[1]; check('progress recalculated after delete (only MS003 left: 50%x100)', d['physicalProgress'] == 50, d)
-check('deleting an unassigned task keeps progress', call('DELETE',f'tasks/{T1}',token=PM1)[0] == 200 and prog(PM1,'P002')[1]['physicalProgress'] == 50)
+d = prog(PM1,TP)[1]; check('progress recalculated after delete (only the empty Rough-in left: 0)', d['physicalProgress'] == 0, d)
+check('deleting an unassigned task keeps progress', call('DELETE',f'tasks/{T1}',token=PM1)[0] == 200 and prog(PM1,TP)[1]['physicalProgress'] == 0)
 
 # ---- 9. dynamic delay detection + back to manual mode
-s, fut = call('POST','milestones',{'projectId':'P003','name':'Future milestone','deadline':iso(TODAY+datetime.timedelta(days=30)),'weight':0+1},PM2)
-check('weights full on P003 so extra milestone rejected', s == 400, (s,fut))
-call('PATCH','milestones/MS006',{'weight':40},PM2)
-s, fut = call('POST','milestones',{'projectId':'P003','name':'Future milestone','deadline':iso(TODAY+datetime.timedelta(days=30)),'weight':10},PM2)
-check('future milestone is not delayed', s == 201 and fut['delayed'] is False and fut['daysLate'] == 0, (s,fut))
+check('no milestone can be added to the contract project P003', call('POST','milestones',{'projectId':'P003','name':'Future milestone','deadline':iso(TODAY+datetime.timedelta(days=30)),'weight':1},PM2)[0] == 409)
 check('the approved, billed MS005 cannot be deleted', call('DELETE','milestones/MS005',token=PM2)[0] == 409)
+s, fut = call('POST','milestones',{'projectId':TP,'name':'Future milestone','deadline':iso(TODAY+datetime.timedelta(days=30)),'weight':10},PM1)
+check('future milestone is not delayed', s == 201 and fut['delayed'] is False and fut['daysLate'] == 0, (s,fut))
+call('DELETE',f"milestones/{fut['id']}",token=PM1)
 # manual mode: a fresh project whose only milestone is removed again
 np = {'name':'SMOKE manual project','location':'Chennai','clientId':'U010','clientName':'Anand Mahindra','managerId':'U007','financeManagerId':'U009','budget':1000000,'progress':0,'status':'On Track','startDate':iso(TODAY),'endDate':iso(TODAY+datetime.timedelta(days=90)),'teamSize':3,'allocations':{'Other':1000000},'description':'Manual progress project'}
 check('a company admin cannot create projects by hand (they come from awarded quotations)', call('POST','projects',np,AD2)[0] == 403)
 check('a project manager cannot create projects by hand', call('POST','projects',np,PM2)[0] == 403)
-s, npr = call('POST','projects',{**np,'companyId':'COMP002'},login('super@ch.com')); check('platform admin creates a test project', s == 201, (s, npr)); NPID = npr['id']
+s, npr = call('POST','projects',{**np,'companyId':'COMP002'},SU); check('platform admin creates a test project', s == 201, (s, npr)); NPID = npr['id']
 s, m1 = call('POST','milestones',{'projectId':NPID,'name':'Only stage','deadline':iso(TODAY+datetime.timedelta(days=30)),'weight':100},PM2)
 check('milestone mode on', prog(PM2,NPID)[1]['mode'] == 'milestones', m1)
 call('DELETE',f"milestones/{m1['id']}",token=PM2)
 d = prog(PM2,NPID)[1]; check('no milestones left -> manual progress mode', d['mode'] == 'manual' and d['milestonesTotal'] == 0, d)
 s, d = call('PATCH',f'projects/{NPID}',{'progress':55},PM2); check('manual progress can be typed in again', s == 200 and d['progress'] == 55, (s,d))
 check('a site engineer cannot lower or set status on a project', call('PATCH',f'projects/{NPID}',{'progress':60,'status':'Completed'},login('site@ltinfra.com'))[0] == 403)
-for mid in [fut['id']]: call('DELETE',f'milestones/{mid}',token=PM2)
 
 print('PHASE1 ALL PASS' if ok else 'PHASE1 SOME FAILED')
 sys.exit(0 if ok else 1)
