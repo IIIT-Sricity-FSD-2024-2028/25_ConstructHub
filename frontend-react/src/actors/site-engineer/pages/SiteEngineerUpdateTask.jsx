@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import { fetchTasks, updateTask, selectTasksAssignedTo, selectTaskById } from '../../../features/tasks/tasksSlice';
+import { fetchProjects, selectAllProjects } from '../../../features/projects/projectsSlice';
+import { sendNotification } from '../../../features/notifications/notificationsSlice';
 import { useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 
@@ -14,63 +17,30 @@ export default function SiteEngineerUpdateTask() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const [tasks, setTasks] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [selectedTaskId, setSelectedTaskId] = useState(searchParams.get('id') || '');
-  const [selectedTask, setSelectedTask] = useState(null);
+  const dispatch = useAppDispatch();
+  const assigned = useAppSelector((state) => selectTasksAssignedTo(state, user?.id));
+  const tasks = useMemo(() => assigned.filter((t) => t.status !== 'Completed'), [assigned]);
+  const projects = useAppSelector(selectAllProjects);
+  useLoad([fetchTasks, fetchProjects]);
 
-  const [progress, setProgress] = useState('');
-  const [status, setStatus] = useState('');
-  const [remarks, setRemarks] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState(searchParams.get('id') || '');
+  const selectedTask = useAppSelector((state) => (selectedTaskId ? selectTaskById(state, selectedTaskId) : null)) || null;
+
+  // The form starts from the task's saved values until the engineer changes them.
+  const [edits, setEdits] = useState({});
+  const progress = edits.progress ?? (selectedTask ? String(selectedTask.progress || 0) : '');
+  const status = edits.status ?? (selectedTask ? selectedTask.status || 'In Progress' : '');
+  const remarks = edits.remarks ?? (selectedTask ? selectedTask.remarks || '' : '');
+  const setProgress = (v) => setEdits((e) => ({ ...e, progress: v }));
+  const setStatus = (v) => setEdits((e) => ({ ...e, status: v }));
+  const setRemarks = (v) => setEdits((e) => ({ ...e, remarks: v }));
   const [errors, setErrors] = useState({});
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
 
-  async function loadData() {
-    if (!user) return;
-    const [allTasks, allProjects] = await Promise.all([
-      api.getTasks(user.companyId),
-      api.getProjects(user.companyId)
-    ]);
-    const myTasks = (allTasks || []).filter(
-      (t) => t.assignedTo === user.id && t.status !== 'Completed'
-    );
-    setTasks(myTasks);
-    setProjects(allProjects || []);
-
-    const initialId = searchParams.get('id');
-    if (initialId) {
-      const target = (allTasks || []).find((t) => t.id === initialId);
-      if (target) {
-        setSelectedTaskId(target.id);
-        setSelectedTask(target);
-        setProgress(String(target.progress || 0));
-        setStatus(target.status || 'In Progress');
-        setRemarks(target.remarks || '');
-      }
-    }
-  }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadData());
-  }, [user]);
-
   function handleTaskSelect(id) {
     setSelectedTaskId(id);
+    setEdits({});
     setErrors({});
-    if (!id) {
-      setSelectedTask(null);
-      setProgress('');
-      setStatus('');
-      setRemarks('');
-      return;
-    }
-    const t = tasks.find((item) => item.id === id);
-    if (t) {
-      setSelectedTask(t);
-      setProgress(String(t.progress || 0));
-      setStatus(t.status || 'In Progress');
-      setRemarks(t.remarks || '');
-    }
   }
 
   async function handleSubmit(e) {
@@ -103,34 +73,31 @@ export default function SiteEngineerUpdateTask() {
     if (Object.keys(errs).length > 0) return;
 
     try {
-      const result = await api.updateTask(selectedTaskId, {
+      const completedTask = selectedTask;
+      await dispatch(updateTask({ id: selectedTaskId, changes: {
         progress: numProg,
         status,
         remarks: remarks.trim()
-      });
-      if (result && result.error) {
-        setErrors({ form: result.message });
-        return;
-      }
+      } })).unwrap();
+      setEdits({});
 
       if (status === 'Completed') {
-        const completedTask = selectedTask;
         if (completedTask) {
           const proj = projects.find((p) => p.id === completedTask.projectId);
           if (proj && proj.managerId) {
-            await api.createNotification({
+            dispatch(sendNotification({
               userId: proj.managerId,
               type: 'task',
               title: 'Task Completed',
               body: `${user.name} has completed the task "${completedTask.title}" on project ${completedTask.projectName}.`
-            });
+            }));
           }
         }
       }
 
       setIsSuccessOpen(true);
     } catch (err) {
-      setErrors({ form: err.message || 'Failed to update task status' });
+      setErrors({ form: errorText(err, 'Failed to update task status') });
     }
   }
 

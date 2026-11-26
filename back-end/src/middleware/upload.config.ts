@@ -1,5 +1,5 @@
 import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { BadRequestException } from '@nestjs/common';
 import { today } from '../utils/ids';
@@ -9,6 +9,8 @@ const UPLOADS_DIR = join(process.cwd(), 'uploads');
 if (!existsSync(UPLOADS_DIR)) {
   mkdirSync(UPLOADS_DIR, { recursive: true });
 }
+
+const IMAGE_EXTENSIONS: Record<string, string> = { 'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif' };
 
 // ─── Allowed MIME types & limits ─────────────────────────────────────────────
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -33,8 +35,9 @@ export const multerConfig = {
     },
     filename: (_req: any, file: any, cb: (e: Error | null, name: string) => void) => {
       const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-      const ext = extname(file.originalname).toLowerCase();
-      cb(null, `${unique}${ext}`);
+      // The extension comes from the accepted image type, never from the uploaded name
+      // (otherwise "page.html" sent as image/png would be served back as a web page).
+      cb(null, `${unique}${IMAGE_EXTENSIONS[file.mimetype] || '.img'}`);
     },
   }),
 

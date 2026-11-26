@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef, ConflictException } from '@nestjs/common';
 import { CompaniesRepository, CompanyRecord } from './companies.repository';
 import { RegisterCompanyDto } from './register-company.dto';
 import { UsersRepository } from '../users/users.repository';
@@ -501,7 +501,14 @@ export class CompaniesService {
   static readonly SELF_SERVICE_FIELDS = ['name', 'phone', 'plan', 'billingCycle'];
 
   remove(id: string): boolean {
-    this.findOne(id);
+    const company = this.findOne(id);
+    // Projects carry bills, payments and the clients' history: a company that still has them cannot disappear.
+    const projects = this.projectsRepo.findByCompanyId(id);
+    if (projects.length > 0) {
+      throw new ConflictException(`${company.name} still has ${projects.length} project(s). Deactivate the company instead, so its records stay intact.`);
+    }
+    // No projects yet: its staff accounts go with it (nobody is left pointing at a company that no longer exists).
+    this.usersRepo.findByCompanyId(id).forEach((u: any) => this.usersRepo.remove(u.id));
     return this.repo.remove(id);
   }
 }

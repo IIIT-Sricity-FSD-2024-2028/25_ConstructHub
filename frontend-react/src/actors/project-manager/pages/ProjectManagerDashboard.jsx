@@ -1,12 +1,18 @@
 import LiveSummary from '../../../components/dashboard/LiveSummary';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import { fetchProjects, selectProjectsManagedBy, projectDisplayStatus } from '../../../features/projects/projectsSlice';
+import { fetchUsers, selectUsersByRole } from '../../../features/users/usersSlice';
+import { fetchMilestones, selectMilestoneList, selectMilestoneListStatus } from '../../../features/milestones/milestonesSlice';
+import { fetchFeedback, selectAllFeedback } from '../../../features/finance/financeSlice';
+import { createTask } from '../../../features/tasks/tasksSlice';
+import { sendNotification } from '../../../features/notifications/notificationsSlice';
 import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import {
   Folder,
   Users,
   AlertCircle
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import {
   formatCurrency,
   formatDate,
@@ -20,11 +26,16 @@ export default function ProjectManagerDashboard() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
 
-  const [projects, setProjects] = useState([]);
-  const [milestones, setMilestones] = useState([]);
-  const [milestonesFailed, setMilestonesFailed] = useState(false);
-  const [feedbacks, setFeedbacks] = useState([]);
-  const [engineers, setEngineers] = useState([]);
+  const dispatch = useAppDispatch();
+  const projects = useAppSelector((state) => selectProjectsManagedBy(state, user?.id));
+  // New tasks only go to projects that are running (not waiting for the advance, not finished).
+  const taskProjects = projects.filter((p) => p.allowed?.canManageTasks);
+  const milestones = useAppSelector(selectMilestoneList);
+  const milestonesFailed = useAppSelector(selectMilestoneListStatus) === 'failed';
+  // Client feedback records on this PM's projects (the server only returns those).
+  const feedbacks = useAppSelector(selectAllFeedback);
+  const engineers = useAppSelector((state) => selectUsersByRole(state, 'site_engineer')).filter((u) => u.status === 'active');
+  useLoad([fetchProjects, fetchUsers, fetchMilestones, fetchFeedback]);
 
   // Modals
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
@@ -43,39 +54,6 @@ export default function ProjectManagerDashboard() {
     description: ''
   });
   const [taskErrors, setTaskErrors] = useState({});
-
-  useEffect(() => {
-    loadData();
-  }, [user]);
-
-  async function loadData() {
-    if (!user) return;
-    const [allProjects, allNotifs, allUsers, allMilestones] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getNotifications(user.id),
-      api.getUsers(user.companyId),
-      api.getMilestones()
-    ]);
-
-    setMilestonesFailed(!Array.isArray(allMilestones));
-    setMilestones(Array.isArray(allMilestones) ? allMilestones : []);
-
-    const myProjects = (allProjects || []).filter(
-      (p) => p.managerId === user.id || !p.managerId || user.role === 'superuser'
-    );
-    setProjects(myProjects);
-
-
-    const myFeedbacks = (allNotifs || [])
-      .filter((n) => n.userId === user.id && n.title === 'Client Feedback')
-      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-    setFeedbacks(myFeedbacks);
-
-    const activeEngineers = (allUsers || []).filter(
-      (u) => u.role === 'site_engineer' && u.status === 'active'
-    );
-    setEngineers(activeEngineers);
-  }
 
   // Stats calculation
   const totalBudget = projects.reduce((s, p) => s + (Number(p.budget) || 0), 0);
@@ -106,7 +84,7 @@ export default function ProjectManagerDashboard() {
       const proj = projects.find((p) => p.id === taskForm.projectId);
       const eng = engineers.find((e) => e.id === taskForm.engineerId);
 
-      const newTask = await api.createTask({
+      const newTask = await dispatch(createTask({
         milestoneId: taskForm.milestoneId || null,
         title: taskForm.title.trim(),
         projectId: taskForm.projectId,
@@ -120,19 +98,15 @@ export default function ProjectManagerDashboard() {
         deadline: taskForm.deadline,
         description: taskForm.description.trim(),
         remarks: ''
-      });
-      if (newTask && newTask.error) {
-        setTaskErrors({ form: newTask.message });
-        return;
-      }
+      })).unwrap();
 
       // Notify engineer
-      await api.createNotification({
+      dispatch(sendNotification({
         userId: taskForm.engineerId,
         type: 'task',
         title: 'New Task Assigned',
         body: `You have been assigned to: ${newTask.title} for ${newTask.projectName}.`
-      });
+      }));
 
       setIsAddTaskOpen(false);
       setTaskForm({
@@ -145,9 +119,8 @@ export default function ProjectManagerDashboard() {
         priority: 'Medium',
         description: ''
       });
-      loadData();
     } catch (err) {
-      setTaskErrors({ form: err.message || 'Failed to assign task' });
+      setTaskErrors({ form: errorText(err, 'Failed to assign task') });
     }
   }
 
@@ -325,7 +298,7 @@ export default function ProjectManagerDashboard() {
                         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{p.progress || 0}%</span>
                       </div>
                     </td>
-                    <td><span className={`badge ${statusBadge(p.status)}`}>{p.status}</span></td>
+                    <td><span className={`badge ${statusBadge(projectDisplayStatus(p))}`}>{projectDisplayStatus(p)}</span></td>
                     <td>{formatCurrency(p.budget)}</td>
                     <td>{formatDate(p.endDate)}</td>
                     <td>
@@ -380,7 +353,7 @@ export default function ProjectManagerDashboard() {
                 {n.category ? ` · ${n.category}` : ''}
               </p>
               <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                {(n.body || '').length > 80 ? (n.body || '').substring(0, 80) + '...' : n.body}
+                {(n.message || '').length > 80 ? n.message.substring(0, 80) + '...' : n.message}
               </p>
               <div style={{ fontSize: '11px', color: 'var(--text-light)' }}>{n.time || formatDate(n.createdAt)}</div>
             </div>
@@ -405,7 +378,7 @@ export default function ProjectManagerDashboard() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', fontSize: '12.5px' }}>
               <div><strong>Category:</strong> {selectedFeedback.category || 'General'}</div>
               <div><strong>Priority:</strong> {selectedFeedback.priority || 'Medium'}</div>
-              <div><strong>Client:</strong> {selectedFeedback.clientName || 'Vikram Patel (Client)'}</div>
+              <div><strong>Client:</strong> {selectedFeedback.clientName || 'Client'}</div>
               <div><strong>Date:</strong> {selectedFeedback.time || formatDate(selectedFeedback.createdAt)}</div>
             </div>
             <div>
@@ -413,7 +386,7 @@ export default function ProjectManagerDashboard() {
                 Message
               </div>
               <p style={{ background: 'var(--bg)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', margin: 0 }}>
-                {selectedFeedback.body}
+                {selectedFeedback.message}
               </p>
             </div>
           </div>
@@ -459,8 +432,8 @@ export default function ProjectManagerDashboard() {
                   setTaskForm({ ...taskForm, projectId: nextPid, milestoneId: firstOpenMs ? firstOpenMs.id : '' });
                 }}
               >
-                <option value="">Select project</option>
-                {projects.map((p) => (
+                <option value="">{taskProjects.length ? 'Select project' : 'No running project can take new tasks'}</option>
+                {taskProjects.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>

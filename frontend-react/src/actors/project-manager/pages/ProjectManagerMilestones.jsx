@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, isFirstLoad, errorText } from '../../../store/hooks';
+import { fetchProjects, selectProjectsManagedBy, selectProjectsStatus } from '../../../features/projects/projectsSlice';
+import { fetchTasks, createTask, updateTask, selectTasksByProject } from '../../../features/tasks/tasksSlice';
+import { fetchReports, selectReportsByProject } from '../../../features/reports/reportsSlice';
+import { fetchUsers, selectUsersByRole } from '../../../features/users/usersSlice';
+import {
+  fetchProjectProgress, createMilestone, updateMilestone, deleteMilestone, approveMilestone, reopenMilestone, selectProgressEntry
+} from '../../../features/milestones/milestonesSlice';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Pencil, Trash2, CheckCircle2, RotateCcw } from 'lucide-react';
-import { api } from '../../../services/api';
+import { Plus, Pencil, Trash2, CheckCircle2, RotateCcw, Lock } from 'lucide-react';
 import { formatDate, localDateISO } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import Modal from '../../../components/common/Modal';
@@ -14,14 +21,24 @@ export default function ProjectManagerMilestones() {
   const { user } = useOutletContext();
   const toast = useToast();
 
-  const [projects, setProjects] = useState([]);
-  const [projectId, setProjectId] = useState('');
-  const [summary, setSummary] = useState(null);
-  const [tasks, setTasks] = useState([]);
-  const [reports, setReports] = useState([]);
-  const [engineers, setEngineers] = useState([]);
-  const [error, setError] = useState('');
+  const dispatch = useAppDispatch();
+  const projects = useAppSelector((state) => selectProjectsManagedBy(state, user?.id));
+  const projectsStatus = useAppSelector(selectProjectsStatus);
+  const [pickedProjectId, setProjectId] = useState('');
+  const projectId = pickedProjectId || projects[0]?.id || '';
+  const project = projects.find((p) => p.id === projectId) || null;
+  const allowed = project?.allowed || {};
+
+  const progressEntry = useAppSelector((state) => selectProgressEntry(state, projectId));
+  const summary = progressEntry.data;
+  const error = progressEntry.error || '';
+  const tasks = useAppSelector((state) => selectTasksByProject(state, projectId));
+  const reports = useAppSelector((state) => selectReportsByProject(state, projectId));
+  const engineers = useAppSelector((state) => selectUsersByRole(state, 'site_engineer')).filter((x) => x.status !== 'inactive');
   const [busy, setBusy] = useState(false);
+
+  useLoad([fetchProjects, fetchTasks, fetchReports, fetchUsers]);
+  useLoad([projectId && [fetchProjectProgress, projectId]], [projectId]);
 
   const [editing, setEditing] = useState(null); // null | 'new' | milestone
   const [form, setForm] = useState(emptyForm);
@@ -33,49 +50,19 @@ export default function ProjectManagerMilestones() {
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
   const [taskError, setTaskError] = useState('');
 
-  // Projects this manager runs
-  useEffect(() => {
-    if (!user) return;
-    api.getProjects(user.companyId).then((all) => {
-      const mine = (all || []).filter((p) => p.managerId === user.id);
-      setProjects(mine);
-      setProjectId((cur) => cur || mine[0]?.id || '');
-    });
-  }, [user?.id, user?.companyId]);
-
-  const load = useCallback(async () => {
-    if (!projectId) return;
-    const [s, t, r, u] = await Promise.all([
-      api.getProjectProgress(projectId),
-      api.getTasks(user.companyId),
-      api.getReports(user.companyId),
-      api.getUsers(user.companyId),
-    ]);
-    if (s && s.error) {
-      setError(s.message);
-      return;
-    }
-    setError('');
-    setSummary(s);
-    setTasks((Array.isArray(t) ? t : []).filter((x) => x.projectId === projectId));
-    setReports((Array.isArray(r) ? r : []).filter((x) => x.projectId === projectId));
-    setEngineers((Array.isArray(u) ? u : []).filter((x) => x.role === 'site_engineer' && x.status !== 'inactive'));
-  }, [projectId, user?.id, user?.companyId]);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
-
+  /** Runs one thunk, shows the result, and reloads the milestone summary (task changes move progress). */
   async function run(action, okMessage) {
     setBusy(true);
-    const res = await action();
-    setBusy(false);
-    if (res && res.error) {
-      toast.error(res.message);
+    try {
+      await dispatch(action).unwrap();
+    } catch (err) {
+      toast.error(errorText(err));
       return false;
+    } finally {
+      setBusy(false);
     }
     if (okMessage) toast.success(okMessage);
-    await load();
+    dispatch(fetchProjectProgress(projectId));
     return true;
   }
 
@@ -117,7 +104,9 @@ export default function ProjectManagerMilestones() {
     const proj = projects.find((p) => p.id === projectId);
     const eng = engineers.find((x) => x.id === taskForm.engineerId);
     setBusy(true);
-    const created = await api.createTask({
+    let created;
+    try {
+      created = await dispatch(createTask({
       milestoneId: taskForm.milestoneId,
       title: taskForm.title.trim(),
       projectId,
@@ -131,12 +120,15 @@ export default function ProjectManagerMilestones() {
       deadline: taskForm.deadline,
       description: taskForm.description.trim(),
       remarks: '',
-    });
-    setBusy(false);
-    if (created && created.error) return setTaskError(created.message);
+      })).unwrap();
+    } catch (err) {
+      return setTaskError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
     toast.success(`Task "${created.title}" added to ${taskModalMs?.name}.`);
     setTaskModalMs(null);
-    await load();
+    dispatch(fetchProjectProgress(projectId));
   }
 
   async function save(e) {
@@ -146,22 +138,31 @@ export default function ProjectManagerMilestones() {
     if (form.name.trim().length < 3) return setFormError('Name must be at least 3 characters.');
     if (!form.deadline) return setFormError('Choose a deadline.');
     if (!Number.isInteger(weight) || weight < 1 || weight > 100) return setFormError('Weight must be a whole number from 1 to 100.');
-    const payload = { name: form.name.trim(), description: form.description.trim(), deadline: form.deadline, weight };
     const isNew = editing === 'new';
+    // A contract stage keeps the name and weight of the accepted quotation: only its description and deadline change.
+    const payload = editingContractStage
+      ? { description: form.description.trim(), deadline: form.deadline }
+      : { name: form.name.trim(), description: form.description.trim(), deadline: form.deadline, weight };
     setBusy(true);
-    const res = isNew ? await api.createMilestone({ ...payload, projectId }) : await api.updateMilestone(editing.id, payload);
-    setBusy(false);
-    if (res && res.error) return setFormError(res.message);
+    try {
+      await dispatch(isNew
+        ? createMilestone({ ...payload, projectId })
+        : updateMilestone({ id: editing.id, projectId, changes: payload })).unwrap(); // the thunk reloads the summary
+    } catch (err) {
+      return setFormError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
     toast.success(isNew ? 'Milestone created.' : 'Milestone updated.');
     setEditing(null);
-    await load();
   }
 
   async function assignTask(task, milestoneId) {
-    await run(() => api.updateTask(task.id, { milestoneId: milestoneId || null }), milestoneId ? 'Task added to milestone.' : 'Task removed from milestone.');
+    await run(updateTask({ id: task.id, changes: { milestoneId: milestoneId || null } }), milestoneId ? 'Task added to milestone.' : 'Task removed from milestone.');
   }
 
   if (!user) return null;
+  if (isFirstLoad(projectsStatus, projects.length > 0)) return <div className="card">Loading...</div>;
   if (projects.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: 40 }}>
@@ -176,7 +177,13 @@ export default function ProjectManagerMilestones() {
   const remaining = summary ? Math.max(0, 100 - summary.weightAllocated) : 100;
   const editableMilestones = milestones.filter((m) => m.status !== 'Completed');
   const maxWeightForForm = editing && editing !== 'new' ? remaining + editing.weight : remaining;
-  const isContractLocked = milestones.length > 0 && milestones.every((m) => m.stageIndex !== undefined && m.stageIndex !== null) && remaining === 0;
+  // Stages of an awarded quotation are fixed by the contract: no new milestones, no deleting, no renaming or re-weighting.
+  const isContractStage = (m) => m.stageIndex !== undefined && m.stageIndex !== null;
+  const isContractLocked = project?.source === 'marketplace' || (milestones.length > 0 && milestones.every(isContractStage));
+  const editingContractStage = Boolean(editing && editing !== 'new' && isContractStage(editing));
+  const tasksLockedReason = allowed.awaitingAdvance
+    ? 'Tasks can be added once the client pays the mobilization advance.'
+    : allowed.completed ? 'This project is completed.' : '';
 
   return (
     <div>
@@ -191,19 +198,24 @@ export default function ProjectManagerMilestones() {
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           )}
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={busy || isContractLocked || remaining <= 0}
-            onClick={openNew}
-            title={isContractLocked ? 'Stages come from the awarded quotation and cannot be added' : remaining <= 0 ? 'All 100% weight is already allocated' : 'Add a milestone'}
-          >
-            <Plus size={15} /> Add milestone
-          </button>
+          {allowed.canAddMilestones && !isContractLocked && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy || remaining <= 0}
+              onClick={openNew}
+              title={remaining <= 0 ? 'All 100% weight is already allocated' : 'Add a milestone'}
+            >
+              <Plus size={15} /> Add milestone
+            </button>
+          )}
         </div>
       </div>
 
       {error && <div className="error-msg" style={{ display: 'block' }}>{error}</div>}
+      {tasksLockedReason && (
+        <div className="notice-warn" data-testid="tasks-locked-note"><Lock size={14} /> {tasksLockedReason}</div>
+      )}
 
       {summary && (
         <div className="card" style={{ marginBottom: 20 }}>
@@ -226,7 +238,7 @@ export default function ProjectManagerMilestones() {
         {milestones.map((m) => {
           const mTasks = tasks.filter((t) => t.milestoneId === m.id);
           const mReports = reports.filter((r) => r.milestoneId === m.id);
-          const stageLocked = m.stageIndex !== undefined && m.stageIndex !== null && remaining === 0;
+          const stageLocked = isContractStage(m);
           const canApprove = m.status === 'Ready for Review' && mReports.length > 0;
           return (
             <div className="hairline-row" key={m.id} data-testid={`milestone-${m.id}`}>
@@ -261,7 +273,7 @@ export default function ProjectManagerMilestones() {
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 {m.status === 'Completed' ? (
-                  <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => run(() => api.reopenMilestone(m.id), 'Milestone reopened.')}>
+                  <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => run(reopenMilestone({ id: m.id, projectId }), 'Milestone reopened.')}>
                     <RotateCcw size={13} /> Reopen
                   </button>
                 ) : (
@@ -283,26 +295,34 @@ export default function ProjectManagerMilestones() {
                           toast.error(`Cannot approve "${m.name}" yet: the Site Engineer must submit at least 1 Site Report linked to this milestone as proof of work.`);
                           return;
                         }
-                        void run(() => api.approveMilestone(m.id), `"${m.name}" verified and approved. The client and Finance Manager were notified.`);
+                        void run(approveMilestone({ id: m.id, projectId }), `"${m.name}" verified and approved. The client and Finance Manager were notified.`);
                       }}
                     >
                       <CheckCircle2 size={13} /> Verify & approve
                     </button>
-                    <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => openNewTask(m)}>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      disabled={busy || !allowed.canManageTasks}
+                      title={tasksLockedReason || 'Add a task to this milestone'}
+                      onClick={() => openNewTask(m)}
+                    >
                       <Plus size={13} /> Add task
                     </button>
                     <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => openEdit(m)}>
                       <Pencil size={13} /> Edit
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      disabled={busy || stageLocked}
-                      onClick={() => setDeleteTarget(m)}
-                      title={stageLocked ? 'Contract stages cannot be deleted' : 'Delete milestone'}
-                    >
-                      <Trash2 size={13} /> Delete
-                    </button>
+                    {!stageLocked && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={busy}
+                        onClick={() => setDeleteTarget(m)}
+                        title="Delete milestone"
+                      >
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    )}
                     <span style={{ fontSize: 12, color: canApprove ? '#166534' : 'var(--text-muted)', marginLeft: 4 }}>
                       {m.taskCount === 0
                         ? 'Requires: ≥1 task completed (100%) + ≥1 Site Report'
@@ -403,7 +423,7 @@ export default function ProjectManagerMilestones() {
           {formError && <div className="error-msg" style={{ display: 'block', marginBottom: 12 }}>{formError}</div>}
           <div className="form-group">
             <label className="form-label">Name <span className="req">*</span></label>
-            <input className="form-input" maxLength={100} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Foundation" />
+            <input className="form-input" maxLength={100} value={form.name} disabled={editingContractStage} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Foundation" />
           </div>
           <div className="form-group">
             <label className="form-label">Description</label>
@@ -416,8 +436,10 @@ export default function ProjectManagerMilestones() {
             </div>
             <div className="form-group">
               <label className="form-label">Weight (% of project) <span className="req">*</span></label>
-              <input className="form-input" type="number" min="1" max={Math.max(1, maxWeightForForm)} value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} />
-              <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Up to {maxWeightForForm}% available</span>
+              <input className="form-input" type="number" min="1" max={Math.max(1, maxWeightForForm)} value={form.weight} disabled={editingContractStage} onChange={(e) => setForm({ ...form, weight: e.target.value })} />
+              <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                {editingContractStage ? 'Name and weight come from the contract.' : `Up to ${maxWeightForForm}% available`}
+              </span>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -441,7 +463,7 @@ export default function ProjectManagerMilestones() {
               onClick={async () => {
                 const target = deleteTarget;
                 setDeleteTarget(null);
-                await run(() => api.deleteMilestone(target.id), 'Milestone deleted.');
+                await run(deleteMilestone({ id: target.id, projectId }), 'Milestone deleted.');
               }}
             >
               Delete

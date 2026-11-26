@@ -1,4 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
+import { useAppSelector, useLoad } from '../../../store/hooks';
+import { fetchTasks, selectTasksAssignedTo } from '../../../features/tasks/tasksSlice';
+import { fetchProjects, selectAllProjects, projectDisplayStatus } from '../../../features/projects/projectsSlice';
+import { fetchReports, selectAllReports } from '../../../features/reports/reportsSlice';
 import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import {
   CheckSquare,
@@ -7,7 +11,6 @@ import {
   Edit3,
   Calendar
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import {
   formatDate,
   statusBadge,
@@ -19,39 +22,17 @@ export default function SiteEngineerDashboard() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
 
-  const [myTasks, setMyTasks] = useState([]);
-  const [myReports, setMyReports] = useState([]);
-  const [myProjects, setMyProjects] = useState([]);
+  const myTasks = useAppSelector((state) => selectTasksAssignedTo(state, user?.id));
+  const allProjects = useAppSelector(selectAllProjects);
+  const allReports = useAppSelector(selectAllReports);
+  useLoad([fetchTasks, fetchReports, fetchProjects]);
 
-
-
-  async function loadData() {
-    if (!user) return;
-    const [allTasks, allReports, allProjects] = await Promise.all([
-      api.getTasks(user.companyId),
-      api.getReports(user.companyId),
-      api.getProjects(user.companyId)
-    ]);
-
-    const tasks = (allTasks || []).filter((t) => t.assignedTo === user.id);
-    setMyTasks(tasks);
-
-    // Derive active projects from assigned tasks (Option 2 pool-based)
-    const taskProjIds = new Set(tasks.map((t) => t.projectId));
-    let projectsInvolved = (allProjects || []).filter((p) => taskProjIds.has(p.id));
-    if (projectsInvolved.length === 0 && tasks.length === 0) {
-      projectsInvolved = (allProjects || []).filter((p) => p.siteEngineerId === user.id);
-    }
-    setMyProjects(projectsInvolved);
-
-    const reports = (allReports || []).filter((r) => r.submittedBy === user.id);
-    reports.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-    setMyReports(reports);
-  }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadData());
-  }, [user]);
+  // Active sites = all projects where this engineer has assigned tasks (including completed ones).
+  const assignedProjectIds = useMemo(() => new Set(myTasks.map((t) => t.projectId).filter(Boolean)), [myTasks]);
+  const myProjects = useMemo(() => allProjects.filter((p) => assignedProjectIds.has(p.id)), [allProjects, assignedProjectIds]);
+  const myReports = useMemo(() => allReports
+    .filter((r) => r.submittedBy === user?.id)
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)), [allReports, user]);
 
   const completedCount = myTasks.filter((t) => t.status === 'Completed').length;
 
@@ -151,7 +132,7 @@ export default function SiteEngineerDashboard() {
                           {proj.location || 'Active Site'} · PM: {proj.managerName || 'Operations Manager'}
                         </div>
                       </div>
-                      <span className={`badge ${statusBadge(proj.status)}`}>{proj.status}</span>
+                      <span className={`badge ${statusBadge(projectDisplayStatus(proj))}`}>{projectDisplayStatus(proj)}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
                       <svg width="60" height="60" viewBox="0 0 60 60" style={{ flexShrink: 0, transform: 'rotate(-90deg)' }} aria-hidden="true">

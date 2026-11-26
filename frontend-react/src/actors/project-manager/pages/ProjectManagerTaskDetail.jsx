@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useAppSelector, useLoad, isFirstLoad } from '../../../store/hooks';
+import { fetchTasks, selectTaskById, selectTasksStatus } from '../../../features/tasks/tasksSlice';
 import {
   ArrowLeft
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import {
   formatDate,
   statusBadge,
@@ -16,22 +16,14 @@ export default function ProjectManagerTaskDetail() {
   const [searchParams] = useSearchParams();
   const id = paramId || searchParams.get('id');
   const navigate = useNavigate();
-  const { user } = useOutletContext();
+  const task = useAppSelector((state) => (id ? selectTaskById(state, id) : null)) || null;
+  const tasksStatus = useAppSelector(selectTasksStatus);
+  const loading = isFirstLoad(tasksStatus, Boolean(task));
+  useLoad([fetchTasks], [id]);
 
-  const [task, setTask] = useState(null);
-
-
-
-  async function loadTask() {
-    if (!id || !user) return;
-    const allTasks = await api.getTasks(user.companyId);
-    const found = (allTasks || []).find((t) => t.id === id);
-    setTask(found || null);
+  if (loading) {
+    return <div className="page-container"><div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div></div>;
   }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadTask());
-  }, [id, user]);
 
   if (!task) {
     return (

@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useMemo, useRef, useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import {
+  fetchExpenseClaims, fetchExpenseClaim, submitExpense, resubmitExpense, withdrawExpense, uploadExpenseReceipts,
+  selectAllExpenses, selectExpenseById
+} from '../../../features/expenses/expensesSlice';
+import { fetchProjects, selectSiteWorkProjects } from '../../../features/projects/projectsSlice';
+import { fetchProjectProgress, selectProjectProgress } from '../../../features/milestones/milestonesSlice';
 import { Plus, Paperclip } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate, localDateISO } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
@@ -15,48 +20,27 @@ const PETTY_CAP = 10000; // bulk purchases go through Procurement POs
 const blank = (projectId = '') => ({ projectId, milestoneId: '', category: 'Materials', amount: '', date: today(), description: '' });
 
 export default function SiteEngineerExpenses() {
-  const { user } = useOutletContext();
   const toast = useToast();
   const fileInput = useRef(null);
-  const [claims, setClaims] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [error, setError] = useState('');
+  const dispatch = useAppDispatch();
+  const claims = useAppSelector(selectAllExpenses);
+  const error = useAppSelector((state) => state.expenses.error) || '';
+  // Only projects where this engineer still has unfinished work on a running project (the server enforces the same rule).
+  const projects = useAppSelector(selectSiteWorkProjects);
   const [form, setForm] = useState(null); // null | { ...fields, editingId? }
   const [files, setFiles] = useState([]);
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [detail, setDetail] = useState(null);
-  const [milestones, setMilestones] = useState([]);
+  const [detailId, setDetailId] = useState(null);
+  const detail = useAppSelector((state) => (detailId ? selectExpenseById(state, detailId) : null)) || null;
+  const setDetail = (e) => setDetailId(e ? e.id : null);
   const formProjectId = form?.projectId || '';
+  // Open milestones of the project chosen in the form (an expense is booked against one of them).
+  const formProgress = useAppSelector((state) => selectProjectProgress(state, formProjectId));
+  const milestones = useMemo(() => (formProjectId && formProgress?.milestones ? formProgress.milestones.filter((m) => m.status !== 'Completed') : []), [formProjectId, formProgress]);
 
-  const load = useCallback(async () => {
-    const res = await api.getExpenseClaims();
-    if (res && res.error) return setError(res.message);
-    setError('');
-    setClaims(res || []);
-  }, []);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
-
-  useEffect(() => {
-    if (!user) return;
-    Promise.all([api.getProjects(user.companyId), api.getTasks(user.companyId)]).then(([ps, ts]) => {
-      // only projects where this engineer still has unfinished work (the server enforces the same rule)
-      const mine = new Set((ts || []).filter((t) => t.assignedTo === user.id && t.status !== 'Completed').map((t) => t.projectId));
-      setProjects((ps || []).filter((p) => mine.has(p.id) && p.status !== 'Completed'));
-    });
-  }, [user]);
-
-  useEffect(() => {
-    if (!formProjectId) return;
-    let live = true;
-    api.getProjectProgress(formProjectId).then((p) => {
-      if (live) setMilestones(p && !p.error ? (p.milestones || []).filter((m) => m.status !== 'Completed') : []);
-    });
-    return () => { live = false; };
-  }, [formProjectId]);
+  useLoad([fetchExpenseClaims, fetchProjects]);
+  useLoad([formProjectId && [fetchProjectProgress, formProjectId]], [formProjectId]);
 
   function openNew() {
     setForm(blank(projects[0]?.id || ''));
@@ -83,42 +67,47 @@ export default function SiteEngineerExpenses() {
     if (form.description.trim().length < 3) return setFormError('Describe what the money was spent on.');
     const payload = { projectId: form.projectId, milestoneId: form.milestoneId || undefined, category: form.category, amount, date: form.date, description: form.description.trim() };
     setBusy(true);
-    const res = form.editingId ? await api.resubmitExpense(form.editingId, payload) : await api.submitExpense(payload);
-    if (res && res.error) {
+    let res;
+    try {
+      res = await dispatch(form.editingId
+        ? resubmitExpense({ id: form.editingId, changes: payload })
+        : submitExpense(payload)).unwrap();
+      if (files.length > 0) {
+        await dispatch(uploadExpenseReceipts({ id: res.id, files })).unwrap()
+          .catch((err) => toast.error(`Saved, but the receipt could not be attached: ${errorText(err)}`));
+      }
+    } catch (err) {
+      return setFormError(errorText(err));
+    } finally {
       setBusy(false);
-      return setFormError(res.message);
     }
-    if (files.length > 0) {
-      const up = await api.uploadExpenseReceipts(res.id, files);
-      if (up && up.error) toast.error(`Saved, but the receipt could not be attached: ${up.message}`);
-    }
-    setBusy(false);
     toast.success(form.editingId ? `${res.id} corrected and resubmitted.` : `${res.id} sent to your project manager.`);
     setForm(null);
-    load();
   }
 
   async function withdraw(e) {
-    const res = await api.withdrawExpense(e.id);
-    if (res && res.error) return toast.error(res.message);
+    try {
+      await dispatch(withdrawExpense(e.id)).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    }
     toast.success('Expense withdrawn.');
     setDetail(null);
-    load();
   }
 
   async function addReceipts(e, list) {
     if (!list || list.length === 0) return;
-    const res = await api.uploadExpenseReceipts(e.id, list);
-    if (res && res.error) return toast.error(res.message);
+    try {
+      await dispatch(uploadExpenseReceipts({ id: e.id, files: list })).unwrap(); // the open detail shows it at once
+    } catch (err) {
+      return toast.error(errorText(err));
+    }
     toast.success('Receipt attached.');
-    const fresh = await api.getExpenseClaim(e.id);
-    setDetail(fresh && !fresh.error ? fresh : null);
-    load();
   }
 
   async function open(e) {
-    const full = await api.getExpenseClaim(e.id);
-    setDetail(full && !full.error ? full : e);
+    setDetail(e);
+    dispatch(fetchExpenseClaim(e.id));
   }
 
   const columns = [

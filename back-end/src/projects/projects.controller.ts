@@ -17,6 +17,7 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, UserContext } from '../auth/current-user.decorator';
 import { TenantHelper } from '../auth/tenant-helper';
 import { UsersService } from '../users/users.service';
+import { today } from '../utils/ids';
 
 @ApiTags('projects')
 @ApiHeader({ name: 'Authorization', required: true, description: 'Bearer JWT token' })
@@ -103,7 +104,72 @@ export class ProjectsController {
    */
   private clientView(p: any) {
     const { allocations, spent, internalBaseCost, markupPercent, ...rest } = p;
-    return { ...rest, budget: Number(p.contractValue ?? p.budget) || 0 };
+    return { ...rest, budget: Number(p.contractValue ?? p.budget) || 0, ...this.delayInfo(p) };
+  }
+
+  /**
+   * Overdue milestones and the status every screen should show: a project stored as "On Track" or "In Progress"
+   * that has an open milestone past its deadline is shown as "Delayed", so all roles see the same story.
+   */
+  private delayInfo(p: any) {
+    const now = today();
+    const milestones = this.moduleRef.get(MilestonesRepository, { strict: false }).findByProjectId(p.id);
+    const delayedMilestones = milestones.filter((m: any) => m.status !== 'Completed' && m.deadline && m.deadline < now).length;
+    const running = p.status === 'On Track' || p.status === 'In Progress';
+    return { delayedMilestones, displayStatus: running && delayedMilestones > 0 ? 'Delayed' : p.status };
+  }
+
+  /** Records that keep a project from being deleted (bills, payments, expenses, POs, contracts, site reports). */
+  private deleteBlockers(id: string): string[] {
+    const get = <T>(cls: any): T => this.moduleRef.get(cls, { strict: false });
+    const blockers: string[] = [];
+    const count = (n: number, label: string) => { if (n > 0) blockers.push(`${n} ${label}`); };
+    count(get<BillsRepository>(BillsRepository).findAll().filter((b: any) => b.projectId === id).length, 'bill(s)');
+    count(get<PaymentsRepository>(PaymentsRepository).findAll().filter((p: any) => p.projectId === id).length, 'payment(s)');
+    count(get<ExpensesRepository>(ExpensesRepository).findByProjectId(id).filter((e: any) => e.status !== 'cancelled').length, 'expense claim(s)');
+    count(get<PurchaseOrdersRepository>(PurchaseOrdersRepository).findAll().filter((p: any) => p.projectId === id && p.status !== 'cancelled').length, 'purchase order(s)');
+    count(get<ContractsRepository>(ContractsRepository).findAll().filter((c: any) => c.projectId === id).length, 'contract(s)');
+    count(get<ReportsRepository>(ReportsRepository).findAll().filter((r: any) => r.projectId === id).length, 'site report(s)');
+    return blockers;
+  }
+
+  /**
+   * What the caller may do with this project right now. The screens read these flags instead of
+   * re-implementing the rules, so a button is never offered for an action the API would refuse.
+   */
+  /** Finished tasks of this engineer whose milestone is not yet completed (proof report still to be filed). */
+  private awaitsProof(tasks: TasksRepository, userId: string, projectId: string): boolean {
+    const ms = this.moduleRef.get(MilestonesRepository, { strict: false });
+    return tasks.findAll().some((t: any) => t.projectId === projectId && t.assignedTo === userId && t.status === 'Completed'
+      && t.milestoneId && ms.findById(t.milestoneId)?.status !== 'Completed');
+  }
+
+  private allowedActions(user: UserContext | undefined, p: any) {
+    const role = user?.role;
+    const awaitingAdvance = p.status === 'Awaiting Advance';
+    const completed = p.status === 'Completed';
+    const manages = role === 'superuser' || role === 'company_admin' || (role === 'project_manager' && p.managerId === user?.userId);
+    const tasks = this.moduleRef.get(TasksRepository, { strict: false });
+    const openWork = role === 'site_engineer' && !!user && tasks.hasOpenTask(user.userId, p.id);
+    // Finished all own tasks but a milestone is still waiting for approval: the engineer may still file its proof report.
+    const proofWork = role === 'site_engineer' && !!user && !openWork && this.awaitsProof(tasks, user.userId, p.id);
+    return {
+      awaitingAdvance,
+      completed,
+      contractProject: p.source === 'marketplace',
+      canEdit: manages,
+      canDelete: manages && this.deleteBlockers(p.id).length === 0,
+      canAddMilestones: manages && role !== 'superuser' && p.source !== 'marketplace' && !completed,
+      canManageTasks: manages && role !== 'superuser' && !awaitingAdvance && !completed,
+      canRaiseBill: !awaitingAdvance && ((role === 'finance_manager' && p.financeManagerId === user?.userId) || role === 'company_admin'),
+      canDoSiteWork: openWork && !awaitingAdvance && !completed,
+      canSubmitProofReport: proofWork && !awaitingAdvance && !completed,
+      canOrderMaterials: role === 'procurement_storekeeper' && !awaitingAdvance && !completed,
+    };
+  }
+
+  private withAllowed(user: UserContext | undefined, p: any) {
+    return { ...p, ...this.delayInfo(p), allowed: this.allowedActions(user, p) };
   }
 
   @Get()
@@ -112,15 +178,15 @@ export class ProjectsController {
   @ApiResponse({ status: 200, description: 'List of projects.' })
   findAll(@CurrentUser() user?: UserContext) {
     if (TenantHelper.isSuperuser(user) || !user) {
-      return this.service.findAll();
+      return this.service.findAll().map((p) => this.withAllowed(user, p));
     }
     if (TenantHelper.isClient(user)) {
       return this.service.findAll().filter((p) => p.clientId === user.userId).map((p) => this.clientView(p));
     }
     if (user.role === 'finance_manager') {
-      return this.service.findByCompanyId(user.companyId).filter((p) => p.financeManagerId === user.userId);
+      return this.service.findByCompanyId(user.companyId).filter((p) => p.financeManagerId === user.userId).map((p) => this.withAllowed(user, p));
     }
-    return this.service.findByCompanyId(user.companyId);
+    return this.service.findByCompanyId(user.companyId).map((p) => this.withAllowed(user, p));
   }
 
   @Get(':id')
@@ -146,7 +212,7 @@ export class ProjectsController {
         TenantHelper.validateCompanyAccess(user, project.companyId);
       }
     }
-    return project;
+    return this.withAllowed(user, project);
   }
 
   @Post()
@@ -227,7 +293,7 @@ export class ProjectsController {
     this.validateProjectUserAssignments(changes, companyId, id);
 
     const payload = { ...changes, companyId };
-    return this.service.update(id, payload);
+    return this.withAllowed(user, this.service.update(id, payload));
   }
 
   @Delete(':id')
@@ -242,15 +308,8 @@ export class ProjectsController {
       }
     }
     // Money and site records must never point at a project that no longer exists.
+    const blockers = this.deleteBlockers(id);
     const get = <T>(cls: any): T => this.moduleRef.get(cls, { strict: false });
-    const blockers: string[] = [];
-    const count = (n: number, label: string) => { if (n > 0) blockers.push(`${n} ${label}`); };
-    count(get<BillsRepository>(BillsRepository).findAll().filter((b: any) => b.projectId === id).length, 'bill(s)');
-    count(get<PaymentsRepository>(PaymentsRepository).findAll().filter((p: any) => p.projectId === id).length, 'payment(s)');
-    count(get<ExpensesRepository>(ExpensesRepository).findByProjectId(id).filter((e: any) => e.status !== 'cancelled').length, 'expense claim(s)');
-    count(get<PurchaseOrdersRepository>(PurchaseOrdersRepository).findAll().filter((p: any) => p.projectId === id && p.status !== 'cancelled').length, 'purchase order(s)');
-    count(get<ContractsRepository>(ContractsRepository).findAll().filter((c: any) => c.projectId === id).length, 'contract(s)');
-    count(get<ReportsRepository>(ReportsRepository).findAll().filter((r: any) => r.projectId === id).length, 'site report(s)');
     if (blockers.length > 0) {
       throw new ConflictException(`"${existing.name}" cannot be deleted because it has ${blockers.join(', ')}. Mark it Completed or On Hold instead.`);
     }

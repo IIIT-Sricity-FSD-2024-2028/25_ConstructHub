@@ -1,7 +1,15 @@
 import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { BadRequestException } from '@nestjs/common';
+
+// The stored extension comes from the accepted file type, never from the uploaded name.
+const SAFE_EXTENSIONS: Record<string, string> = {
+  'application/pdf': '.pdf', 'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif',
+  'application/msword': '.doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.ms-excel': '.xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+};
+
 
 /**
  * Requirement documents (drawings, specifications) are commercially sensitive, so they are stored
@@ -35,7 +43,7 @@ export const requirementUploadConfig = {
     },
     filename: (_req: any, file: any, cb: (e: Error | null, name: string) => void) => {
       const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-      cb(null, `${unique}${extname(file.originalname).toLowerCase().replace(/[^.a-z0-9]/g, '')}`);
+      cb(null, `${unique}${SAFE_EXTENSIONS[file.mimetype] || '.bin'}`);
     },
   }),
   fileFilter: (_req: any, file: any, cb: (error: Error | null, acceptFile: boolean) => void) => {

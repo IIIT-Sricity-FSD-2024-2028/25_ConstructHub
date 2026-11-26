@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import {
+  fetchMaterialRequests, fetchStock, approveMaterialRequest, rejectMaterialRequest, selectAllMaterialRequests, selectStock
+} from '../../../features/procurement/procurementSlice';
 import { CheckCircle2, XCircle } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
@@ -11,44 +14,41 @@ import { PRIORITY_BADGE } from '../../../components/procurement/procurementUiDat
 export default function ProjectManagerMaterialRequests() {
   const toast = useToast();
   const [tab, setTab] = useState('review');
-  const [requests, setRequests] = useState([]);
-  const [stock, setStock] = useState([]);
-  const [error, setError] = useState('');
+  const dispatch = useAppDispatch();
+  const requests = useAppSelector(selectAllMaterialRequests);
+  const stock = useAppSelector(selectStock);
+  const error = useAppSelector((state) => state.procurement.requests.error) || '';
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState(null);
   const [reason, setReason] = useState('');
 
-  const load = useCallback(async () => {
-    const [r, s] = await Promise.all([api.getMaterialRequests(), api.getStock()]);
-    if (r && r.error) return setError(r.message);
-    setError('');
-    setRequests(r || []);
-    setStock(s && !s.error ? s : []);
-  }, []);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+  useLoad([fetchMaterialRequests, fetchStock]);
 
   async function approve(r) {
     setBusy(true);
-    const res = await api.approveMaterialRequest(r.id);
-    setBusy(false);
-    if (res && res.error) return toast.error(res.message);
+    try {
+      await dispatch(approveMaterialRequest({ id: r.id })).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    } finally {
+      setBusy(false);
+    }
     toast.success(`${r.id} approved and sent to Procurement & Stores.`);
-    load();
   }
 
   async function reject() {
     if (reason.trim().length < 3) return toast.error('Please give a reason for rejecting.');
     setBusy(true);
-    const res = await api.rejectMaterialRequest(rejecting.id, reason.trim());
-    setBusy(false);
-    if (res && res.error) return toast.error(res.message);
+    try {
+      await dispatch(rejectMaterialRequest({ id: rejecting.id, note: reason.trim() })).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    } finally {
+      setBusy(false);
+    }
     toast.success(`${rejecting.id} rejected.`);
     setRejecting(null);
     setReason('');
-    load();
   }
 
   const pending = requests.filter((r) => r.status === 'submitted');

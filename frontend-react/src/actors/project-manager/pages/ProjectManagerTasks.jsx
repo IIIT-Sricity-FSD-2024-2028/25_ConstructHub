@@ -1,4 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import { fetchProjects, selectProjectsManagedBy } from '../../../features/projects/projectsSlice';
+import { fetchTasks, createTask, updateTask, deleteTask, selectAllTasks } from '../../../features/tasks/tasksSlice';
+import { fetchUsers, selectUsersByRole } from '../../../features/users/usersSlice';
+import { fetchMilestones, selectMilestoneList } from '../../../features/milestones/milestonesSlice';
+import { sendNotification } from '../../../features/notifications/notificationsSlice';
 import { useToast } from '../../../hooks/useToast';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
@@ -7,7 +13,6 @@ import {
   Calendar,
   AlertCircle
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import {
   formatDate,
   statusBadge,
@@ -21,10 +26,19 @@ export default function ProjectManagerTasks() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
 
-  const [tasks, setTasks] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [milestones, setMilestones] = useState([]);
-  const [engineers, setEngineers] = useState([]);
+  const dispatch = useAppDispatch();
+  const projects = useAppSelector((state) => selectProjectsManagedBy(state, user?.id));
+  const allTasks = useAppSelector(selectAllTasks);
+  const milestones = useAppSelector(selectMilestoneList);
+  const engineers = useAppSelector((state) => selectUsersByRole(state, 'site_engineer')).filter((u) => u.status === 'active');
+  useLoad([fetchProjects, fetchTasks, fetchUsers, fetchMilestones]);
+
+  // Tasks of this PM's projects; new tasks only on projects that are running (advance paid, not completed).
+  const tasks = useMemo(() => {
+    const ids = new Set(projects.map((p) => p.id));
+    return allTasks.filter((t) => ids.has(t.projectId));
+  }, [projects, allTasks]);
+  const taskProjects = projects.filter((p) => p.allowed?.canManageTasks);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -51,47 +65,18 @@ export default function ProjectManagerTasks() {
   });
   const [errors, setErrors] = useState({});
 
-  useEffect(() => {
-    loadData();
-  }, [user]);
-
-  async function loadData() {
-    if (!user) return;
-    const [allProjects, allTasks, allUsers, allMilestones] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getTasks(user.companyId),
-      api.getUsers(user.companyId),
-      api.getMilestones()
-    ]);
-    setMilestones(Array.isArray(allMilestones) ? allMilestones : []);
-
-    const myProjects = (allProjects || []).filter(
-      (p) => p.managerId === user.id || !p.managerId || user.role === 'superuser'
-    );
-    setProjects(myProjects);
-
-    const myProjectIds = myProjects.map((p) => p.id);
-    const myTasks = (allTasks || []).filter((t) => myProjectIds.includes(t.projectId));
-    setTasks(myTasks);
-
-    const activeEngineers = (allUsers || []).filter(
-      (u) => u.role === 'site_engineer' && u.status === 'active'
-    );
-    setEngineers(activeEngineers);
-  }
-
   function openAddModal() {
     setEditingTask(null);
     setForm({
       title: '',
-      projectId: projects[0]?.id || '',
+      projectId: taskProjects[0]?.id || '',
       engineerId: engineers[0]?.id || '',
       startDate: '',
       deadline: '',
       priority: 'Medium',
       status: 'Pending',
       progress: 0,
-      milestoneId: (milestones.find((m) => m.projectId === (projects[0]?.id || '') && m.status !== 'Completed')?.id) || '',
+      milestoneId: (milestones.find((m) => m.projectId === (taskProjects[0]?.id || '') && m.status !== 'Completed')?.id) || '',
       description: ''
     });
     setErrors({});
@@ -146,7 +131,7 @@ export default function ProjectManagerTasks() {
       const eng = engineers.find((e) => e.id === form.engineerId);
 
       if (editingTask) {
-        const updated = await api.updateTask(editingTask.id, {
+        await dispatch(updateTask({ id: editingTask.id, changes: {
           milestoneId: form.milestoneId || null,
           title: form.title.trim(),
           projectId: form.projectId,
@@ -159,13 +144,9 @@ export default function ProjectManagerTasks() {
           startDate: form.startDate,
           deadline: form.deadline,
           description: form.description.trim()
-        });
-        if (updated && updated.error) {
-          setErrors({ form: updated.message });
-          return;
-        }
+        } })).unwrap();
       } else {
-        const newTask = await api.createTask({
+        const newTask = await dispatch(createTask({
           milestoneId: form.milestoneId || null,
           title: form.title.trim(),
           projectId: form.projectId,
@@ -179,39 +160,28 @@ export default function ProjectManagerTasks() {
           deadline: form.deadline,
           description: form.description.trim(),
           remarks: ''
-        });
-        if (newTask && newTask.error) {
-          setErrors({ form: newTask.message });
-          return;
-        }
+        })).unwrap();
 
-        await api.createNotification({
+        dispatch(sendNotification({
           userId: form.engineerId,
           type: 'task',
           title: 'New Task Assigned',
           body: `You have been assigned to: ${newTask.title} for ${newTask.projectName}.`
-        });
+        }));
       }
-
       setIsModalOpen(false);
-      loadData();
     } catch (err) {
-      setErrors({ form: err.message || 'Error saving task' });
+      setErrors({ form: errorText(err, 'Error saving task') });
     }
   }
 
   async function handleDeleteConfirm() {
     if (!deleteTarget) return;
     try {
-      const del = await api.deleteTask(deleteTarget.id);
-      if (del && del.error) {
-        toast.error('Failed to delete task: ' + del.message);
-        return;
-      }
+      await dispatch(deleteTask(deleteTarget.id)).unwrap();
       setDeleteTarget(null);
-      loadData();
     } catch (err) {
-      toast.error('Failed to delete task: ' + err.message);
+      toast.error('Failed to delete task: ' + errorText(err));
     }
   }
 
@@ -234,7 +204,12 @@ export default function ProjectManagerTasks() {
           <h1 className="page-title">Task Management</h1>
           <p className="page-subtitle">Manage and track all project tasks</p>
         </div>
-        <Button variant="primary" onClick={openAddModal}>
+        <Button
+          variant="primary"
+          onClick={openAddModal}
+          disabled={taskProjects.length === 0}
+          title={taskProjects.length === 0 ? 'None of your projects can take new tasks (advance not paid yet, or completed)' : 'Assign a new task'}
+        >
           + New Task
         </Button>
       </div>
@@ -398,7 +373,7 @@ export default function ProjectManagerTasks() {
                 }}
               >
                 <option value="">Select project</option>
-                {projects.map((p) => (
+                {(editingTask ? projects : taskProjects).map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>

@@ -1,4 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, isFirstLoad, errorText } from '../../../store/hooks';
+import { fetchProjects, updateProject, selectProjectById, selectProjectsStatus, projectDisplayStatus } from '../../../features/projects/projectsSlice';
+import { fetchTasks, selectTasksByProject } from '../../../features/tasks/tasksSlice';
+import { fetchReports, selectReportsByProject } from '../../../features/reports/reportsSlice';
+import { fetchUsers, selectUserById } from '../../../features/users/usersSlice';
+import { fetchProjectProgress, selectProjectProgress } from '../../../features/milestones/milestonesSlice';
 import { useToast } from '../../../hooks/useToast';
 import { useParams, useSearchParams, useNavigate, Link, useOutletContext } from 'react-router-dom';
 import {
@@ -9,10 +15,8 @@ import {
   DollarSign,
   Wallet,
   Edit3,
-  Plus,
   Camera
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import {
   formatCurrency,
   formatDate,
@@ -31,11 +35,15 @@ export default function ProjectManagerProjectDetail() {
   const navigate = useNavigate();
   const { user } = useOutletContext();
 
-  const [project, setProject] = useState(null);
-  const [tasks, setTasks] = useState([]);
-  const [reports, setReports] = useState([]);
-  const [client, setClient] = useState(null);
-  const [progressSummary, setProgressSummary] = useState(null);
+  const dispatch = useAppDispatch();
+  const project = useAppSelector((state) => (id ? selectProjectById(state, id) : null)) || null;
+  const projectsStatus = useAppSelector(selectProjectsStatus);
+  const loading = isFirstLoad(projectsStatus, Boolean(project));
+  const tasks = useAppSelector((state) => selectTasksByProject(state, id));
+  const reports = useAppSelector((state) => selectReportsByProject(state, id));
+  const client = useAppSelector((state) => (project?.clientId ? selectUserById(state, project.clientId) : null)) || null;
+  const progressSummary = useAppSelector((state) => selectProjectProgress(state, id));
+  useLoad([fetchProjects, fetchTasks, fetchReports, fetchUsers, [fetchProjectProgress, id]], [id]);
 
   // Edit Modal
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -50,54 +58,25 @@ export default function ProjectManagerProjectDetail() {
     description: ''
   });
 
-  useEffect(() => {
-    loadProject();
-  }, [id, user]);
-
-  async function loadProject() {
-    if (!id || !user) return;
-    const [allProjects, allTasks, allReports, allUsers, prog] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getTasks(user.companyId),
-      api.getReports(user.companyId),
-      api.getUsers(user.companyId),
-      api.getProjectProgress(id)
-    ]);
-    setProgressSummary(prog && !prog.error ? prog : null);
-
-    const proj = (allProjects || []).find((p) => p.id === id);
-    if (!proj) {
-      setProject(null);
-      return;
-    }
-    setProject(proj);
-
-    const projTasks = (allTasks || []).filter((t) => t.projectId === proj.id);
-    setTasks(projTasks);
-
-    const projReports = (allReports || []).filter((r) => r.projectId === proj.id);
-    setReports(projReports);
-
-    const clientUser = (allUsers || []).find((u) => u.id === proj.clientId);
-    setClient(clientUser || null);
-
+  function openEdit() {
     setEditForm({
-      name: proj.name || '',
-      location: proj.location || '',
-      status: proj.status || 'On Track',
-      startDate: proj.startDate || '',
-      endDate: proj.endDate || '',
-      budget: proj.budget || '',
-      progress: proj.progress || 0,
-      description: proj.description || ''
+      name: project.name || '',
+      location: project.location || '',
+      status: project.status || 'On Track',
+      startDate: project.startDate || '',
+      endDate: project.endDate || '',
+      budget: project.budget || '',
+      progress: project.progress || 0,
+      description: project.description || ''
     });
+    setIsEditOpen(true);
   }
 
   async function handleUpdateProject(e) {
     e.preventDefault();
     if (!project) return;
     try {
-      const updated = await api.updateProject(project.id, {
+      await dispatch(updateProject({ id: project.id, changes: {
         name: editForm.name.trim(),
         location: editForm.location.trim(),
         status: editForm.status,
@@ -106,16 +85,15 @@ export default function ProjectManagerProjectDetail() {
         budget: Number(editForm.budget),
         progress: Number(editForm.progress) || 0,
         description: editForm.description.trim()
-      });
-      if (updated && updated.error) {
-        toast.error('Failed to update project: ' + updated.message);
-        return;
-      }
+      } })).unwrap();
       setIsEditOpen(false);
-      loadProject();
     } catch (err) {
-      toast.error('Failed to update project: ' + err.message);
+      toast.error('Failed to update project: ' + errorText(err));
     }
+  }
+
+  if (loading) {
+    return <div className="page-container"><div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading project...</div></div>;
   }
 
   if (!project) {
@@ -133,14 +111,14 @@ export default function ProjectManagerProjectDetail() {
   }
 
   const completedTasksCount = tasks.filter((t) => t.status === 'Completed').length;
-  const clientName = project.clientName || client?.name || 'Vikram Patel';
-  const clientEmail = client?.email || project.clientEmail || 'client1@gmail.com';
-  const clientPhone = client?.phone || project.clientPhone || '+91 98765 43213';
-  const fmName = project.financeManagerName || 'Amit Verma';
+  const clientName = project.clientName || client?.name || 'Not set';
+  const clientEmail = client?.email || project.clientEmail || '-';
+  const clientPhone = client?.phone || project.clientPhone || '-';
+  const fmName = project.financeManagerName || 'Not assigned';
   const assignedEngineerNames = [...new Set((tasks || []).map((t) => t.assignedName).filter(Boolean))];
   const seDisplay = assignedEngineerNames.length > 0
     ? `${assignedEngineerNames.join(', ')} (Assigned via Tasks)`
-    : (project.siteEngineerName || 'Assigned per task (Pool)');
+    : (project.siteEngineerName || 'Assigned per task');
 
   return (
     <div className="page-container">
@@ -168,17 +146,19 @@ export default function ProjectManagerProjectDetail() {
           <h1 className="page-title">{project.name}</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Package size={16} /> {project.location || 'Mumbai, Maharashtra'}
+              <Package size={16} /> {project.location || '-'}
             </span>
-            <span className={`badge ${statusBadge(project.status)}`}>{project.status}</span>
+            <span className={`badge ${statusBadge(projectDisplayStatus(project))}`}>{projectDisplayStatus(project)}</span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <Button variant="secondary" onClick={() => setIsEditOpen(true)}>
-            <Edit3 size={15} style={{ marginRight: '4px' }} /> Edit Project
-          </Button>
+          {project.allowed?.canEdit && (
+            <Button variant="secondary" onClick={openEdit}>
+              <Edit3 size={15} style={{ marginRight: '4px' }} /> Edit Project
+            </Button>
+          )}
           <Button variant="primary" onClick={() => navigate('/project-manager/tasks')}>
-            <Plus size={15} style={{ marginRight: '4px' }} /> Add Task
+            Go to Tasks
           </Button>
         </div>
       </div>
@@ -217,7 +197,7 @@ export default function ProjectManagerProjectDetail() {
             <div className="detail-item"><label>Client Name</label><span>{clientName}</span></div>
             <div className="detail-item"><label>Client Email</label><span>{clientEmail}</span></div>
             <div className="detail-item"><label>Client Phone</label><span>{clientPhone}</span></div>
-            <div className="detail-item"><label>Location</label><span>{project.location || 'Mumbai, Maharashtra'}</span></div>
+            <div className="detail-item"><label>Location</label><span>{project.location || '-'}</span></div>
             <div className="detail-item"><label>Project Manager</label><span>{project.managerName || user.name}</span></div>
             <div className="detail-item"><label>Finance Manager</label><span>{fmName}</span></div>
             <div className="detail-item"><label>Site Engineer(s)</label><span>{seDisplay}</span></div>
@@ -244,7 +224,7 @@ export default function ProjectManagerProjectDetail() {
             <div className="detail-item"><label>Total Budget</label><span style={{ fontWeight: 700, color: 'var(--primary)' }}>{formatCurrency(project.budget)}</span></div>
             <div className="detail-item"><label>Utilized / Spent</label><span>{formatCurrency(project.spent || 0)}</span></div>
             <div className="detail-item"><label>Remaining Budget</label><span>{formatCurrency(Math.max(0, (project.budget || 0) - (project.spent || 0)))}</span></div>
-            <div className="detail-item"><label>Status</label><span><span className={`badge ${statusBadge(project.status)}`}>{project.status}</span></span></div>
+            <div className="detail-item"><label>Status</label><span><span className={`badge ${statusBadge(projectDisplayStatus(project))}`}>{projectDisplayStatus(project)}</span></span></div>
           </div>
           <div style={{ marginTop: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12.5px' }}>

@@ -333,6 +333,13 @@ export class ProcurementService {
     const budget = this.budgetCheck({ projectId: project.id, id: '', totalAmount: total });
     const reasons: string[] = [];
     if (total > limit) reasons.push(`Above the company approval limit (${inr(limit)})`);
+    // Splitting one request into several smaller orders must not dodge the limit: count what is already ordered for it.
+    const alreadyOrdered = round2(this.orders.findAll()
+      .filter((o) => o.requestId === req.id && !['rejected', 'cancelled'].includes(o.status))
+      .reduce((s, o) => s + o.totalAmount, 0));
+    if (total <= limit && alreadyOrdered + total > limit) {
+      reasons.push(`Together with the ${inr(alreadyOrdered)} already ordered for ${req.id}, this request is above the company approval limit (${inr(limit)})`);
+    }
     if (budget.exceedsBudget) reasons.push(`Exceeds the available project budget (${inr(Math.max(0, budget.available))} left)`);
     const requiresApproval = reasons.length > 0;
 

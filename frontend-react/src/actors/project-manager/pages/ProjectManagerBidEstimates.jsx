@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, isFirstLoad, errorText } from '../../../store/hooks';
+import { fetchEstimates, submitPmEstimate, selectAllEstimates, selectEstimatesStatus } from '../../../features/marketplace/marketplaceSlice';
 import { Plus, Trash2, Send } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import { EstimationStepper } from '../../../components/marketplace/EstimationUi';
@@ -9,6 +10,7 @@ const blankStage = () => ({ name: '', durationDays: '', materialScope: '' });
 
 function StageEditor({ estimate, onSaved }) {
   const toast = useToast();
+  const dispatch = useAppDispatch();
   const [stages, setStages] = useState(
     estimate.milestoneStages?.length
       ? estimate.milestoneStages.map((s) => ({ name: s.name, durationDays: String(s.durationDays), materialScope: s.materialScope }))
@@ -31,12 +33,16 @@ function StageEditor({ estimate, onSaved }) {
       if (!s.materialScope.trim()) return setError(`Stage ${i + 1}: describe the material scope.`);
     }
     setSaving(true);
-    const res = await api.submitPmEstimate(estimate.id, {
-      milestoneStages: stages.map((s) => ({ name: s.name.trim(), durationDays: parseInt(s.durationDays, 10), materialScope: s.materialScope.trim() })),
-      notes: notes.trim() || undefined,
-    });
-    setSaving(false);
-    if (res && res.error) return setError(res.message);
+    try {
+      await dispatch(submitPmEstimate({ id: estimate.id, data: {
+        milestoneStages: stages.map((s) => ({ name: s.name.trim(), durationDays: parseInt(s.durationDays, 10), materialScope: s.materialScope.trim() })),
+        notes: notes.trim() || undefined,
+      } })).unwrap();
+    } catch (err) {
+      return setError(errorText(err));
+    } finally {
+      setSaving(false);
+    }
     toast.success('Stages submitted to the Finance Manager.');
     onSaved();
   }
@@ -88,23 +94,14 @@ function StageEditor({ estimate, onSaved }) {
 }
 
 export default function ProjectManagerBidEstimates() {
-  const [estimates, setEstimates] = useState(null);
-  const [error, setError] = useState('');
-
-  const load = useCallback(async () => {
-    const res = await api.getEstimates();
-    if (res && res.error) {
-      setError(res.message);
-      setEstimates([]);
-      return;
-    }
-    setError('');
-    setEstimates(res || []);
-  }, []);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+  const dispatch = useAppDispatch();
+  const list = useAppSelector(selectAllEstimates);
+  const status = useAppSelector(selectEstimatesStatus);
+  const error = useAppSelector((state) => state.marketplace.estimates.error) || '';
+  const estimates = isFirstLoad(status, list.length > 0) ? null : list;
+  useLoad([fetchEstimates]);
+  // After saving, reload the list: the estimate moves to its next stage (and may leave this list).
+  const load = () => dispatch(fetchEstimates());
 
   return (
     <div>

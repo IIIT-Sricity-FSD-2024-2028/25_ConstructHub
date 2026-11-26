@@ -203,7 +203,11 @@ export class BillsService implements OnModuleInit {
 
     // New bills always start undecided and unpaid, whatever the caller sent.
     const record = { ...data, id: data.id || randomUUID(), status: 'Pending Decision', paidAmount: 0, outstanding: Number(data.amount) || 0, paymentStatus: 'n/a' };
-    return this.repo.create(record);
+    const saved = this.repo.create(record);
+    // The client hears about a new bill from the server, so no screen has to remember to tell them.
+    this.notify(saved.clientId, saved.companyId, 'New Bill Pending',
+      `Invoice ${saved.billNumber || saved.id} for ${saved.projectName} (${inr(Number(saved.amount) || 0)}) requires your decision.`);
+    return saved;
   }
 
   /** Next server-side invoice number for a company, e.g. INV-APEX-005. */
@@ -439,6 +443,7 @@ export class BillsService implements OnModuleInit {
       if (dto.paidAt) {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dto.paidAt)) throw new BadRequestException('Payment date must be YYYY-MM-DD.');
         if (dto.paidAt > today()) throw new BadRequestException('Payment date cannot be in the future.');
+        if (bill.date && dto.paidAt < bill.date) throw new BadRequestException(`Payment date cannot be before the bill date (${bill.date}).`);
         paidAt = dto.paidAt;
       }
     }

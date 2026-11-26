@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import {
+  fetchMaterialRequests, fetchStock, createMaterialRequest, cancelMaterialRequest, selectAllMaterialRequests, selectStock
+} from '../../../features/procurement/procurementSlice';
+import { fetchProjects, selectSiteWorkProjects } from '../../../features/projects/projectsSlice';
 import { Plus } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate, localDateISO } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
@@ -15,40 +18,21 @@ const blankItem = () => ({ description: '', unit: '', quantity: '', specificatio
 const today = () => localDateISO();
 
 export default function SiteEngineerMaterialRequests() {
-  const { user } = useOutletContext();
   const toast = useToast();
+  const dispatch = useAppDispatch();
   const [tab, setTab] = useState('requests');
-  const [requests, setRequests] = useState([]);
-  const [stock, setStock] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [loadError, setLoadError] = useState('');
+  const requests = useAppSelector(selectAllMaterialRequests);
+  const stock = useAppSelector(selectStock);
+  // Projects the engineer works on (the server only accepts requests for those)
+  const projects = useAppSelector(selectSiteWorkProjects);
+  const loadError = useAppSelector((state) => state.procurement.requests.error) || '';
   const [showForm, setShowForm] = useState(false);
   const [detail, setDetail] = useState(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState({ projectId: '', items: [blankItem()], neededBy: '', priority: 'Medium', notes: '' });
 
-  const load = useCallback(async () => {
-    const [r, s] = await Promise.all([api.getMaterialRequests(), api.getStock()]);
-    if (r && r.error) return setLoadError(r.message);
-    setLoadError('');
-    setRequests(r || []);
-    setStock(s && !s.error ? s : []);
-  }, []);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
-
-  // Projects the engineer works on (the server only accepts requests for those)
-  useEffect(() => {
-    if (!user) return;
-    Promise.all([api.getProjects(user.companyId), api.getTasks(user.companyId)]).then(([ps, ts]) => {
-      // only projects where this engineer still has unfinished work (the server enforces the same rule)
-      const mine = new Set((ts || []).filter((t) => t.assignedTo === user.id && t.status !== 'Completed').map((t) => t.projectId));
-      setProjects((ps || []).filter((p) => mine.has(p.id) && p.status !== 'Completed'));
-    });
-  }, [user]);
+  useLoad([fetchMaterialRequests, fetchStock, fetchProjects]);
 
   function openForm() {
     setForm({ projectId: projects[0]?.id || '', items: [blankItem()], neededBy: '', priority: 'Medium', notes: '' });
@@ -67,26 +51,32 @@ export default function SiteEngineerMaterialRequests() {
     }
     if (form.neededBy && form.neededBy < today()) return setFormError('"Needed by" cannot be in the past.');
     setSaving(true);
-    const res = await api.createMaterialRequest({
+    let res;
+    try {
+      res = await dispatch(createMaterialRequest({
       projectId: form.projectId,
       items: form.items.map((i) => ({ description: i.description.trim(), unit: i.unit.trim(), quantity: Number(i.quantity), specification: i.specification.trim() || undefined })),
       neededBy: form.neededBy || undefined,
       priority: form.priority,
       notes: form.notes.trim() || undefined
-    });
-    setSaving(false);
-    if (res && res.error) return setFormError(res.message);
+      })).unwrap();
+    } catch (err) {
+      return setFormError(errorText(err));
+    } finally {
+      setSaving(false);
+    }
     toast.success(`Request ${res.id} sent to your project manager.`);
     setShowForm(false);
-    load();
   }
 
   async function cancel(r) {
-    const res = await api.cancelMaterialRequest(r.id);
-    if (res && res.error) return toast.error(res.message);
+    try {
+      await dispatch(cancelMaterialRequest(r.id)).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    }
     toast.success('Request cancelled.');
     setDetail(null);
-    load();
   }
 
   const columns = [

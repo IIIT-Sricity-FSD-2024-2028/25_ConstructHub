@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { useAppSelector, useLoad } from '../../../store/hooks';
+import { fetchTasks, selectTasksAssignedTo } from '../../../features/tasks/tasksSlice';
+import { fetchProjects, selectAllProjects } from '../../../features/projects/projectsSlice';
+import { fetchMilestones, selectMilestoneList } from '../../../features/milestones/milestonesSlice';
 import { useOutletContext, useNavigate, Link } from 'react-router-dom';
 import {
   CheckSquare,
   Calendar,
   Edit3
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import {
   formatDate,
   statusBadge,
@@ -15,38 +18,28 @@ export default function SiteEngineerMyTasks() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
 
-  const [tasks, setTasks] = useState([]);
-  const [projects, setProjects] = useState([]);
+  const myTasks = useAppSelector((state) => selectTasksAssignedTo(state, user?.id));
+  const allProjects = useAppSelector(selectAllProjects);
+  const allMilestones = useAppSelector(selectMilestoneList);
   const [search, setSearch] = useState('');
   const [filterProject, setFilterProject] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
+  useLoad([fetchTasks, fetchProjects, fetchMilestones]);
 
-
-
-  async function loadTasks() {
-    if (!user) return;
-    const [allTasks, allProjects, allMilestones] = await Promise.all([
-      api.getTasks(user.companyId),
-      api.getProjects(user.companyId),
-      api.getMilestones()
-    ]);
-    const msById = Object.fromEntries((Array.isArray(allMilestones) ? allMilestones : []).map((m) => [m.id, m]));
-    const myTasks = (allTasks || []).filter((t) => t.assignedTo === user.id);
-    const enrichedTasks = myTasks.map((t) => ({
+  // Each task with its milestone and project name filled in.
+  const tasks = useMemo(() => {
+    const msById = Object.fromEntries(allMilestones.map((m) => [m.id, m]));
+    return myTasks.map((t) => ({
       ...t,
       milestone: t.milestoneId ? msById[t.milestoneId] : null,
-      projectName: t.projectName || (allProjects || []).find((p) => p.id === t.projectId)?.name || 'Commercial Construction Project'
+      projectName: t.projectName || allProjects.find((p) => p.id === t.projectId)?.name || t.projectId
     }));
-    setTasks(enrichedTasks);
-
-    const myProjectIds = new Set(myTasks.map((t) => t.projectId));
-    setProjects((allProjects || []).filter((p) => myProjectIds.has(p.id)));
-  }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadTasks());
-  }, [user]);
+  }, [myTasks, allMilestones, allProjects]);
+  const projects = useMemo(() => {
+    const ids = new Set(myTasks.map((t) => t.projectId));
+    return allProjects.filter((p) => ids.has(p.id));
+  }, [myTasks, allProjects]);
 
   const filteredTasks = tasks.filter((t) => {
     const matchesSearch =

@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import {
+  fetchExpenseClaims, fetchExpenseClaim, verifyExpense, pmReturnExpense, pmRejectExpense, selectAllExpenses, selectExpenseById
+} from '../../../features/expenses/expensesSlice';
 import { CheckCircle2, CornerUpLeft, XCircle } from 'lucide-react';
-import { api } from '../../../services/api';
 import { formatDate } from '../../../services/utils';
 import { useToast } from '../../../hooks/useToast';
 import DataTable from '../../../components/common/DataTable';
@@ -11,48 +14,48 @@ import { ExpenseStatusBadge, ExpenseDetail, DuplicateWarning, ReceiptList } from
 export default function ProjectManagerExpenses() {
   const toast = useToast();
   const [tab, setTab] = useState('review');
-  const [claims, setClaims] = useState([]);
-  const [error, setError] = useState('');
+  const dispatch = useAppDispatch();
+  const claims = useAppSelector(selectAllExpenses);
+  const error = useAppSelector((state) => state.expenses.error) || '';
   const [busy, setBusy] = useState(false);
   const [decision, setDecision] = useState(null); // { expense, action: 'return' | 'reject' }
   const [note, setNote] = useState('');
-  const [detail, setDetail] = useState(null);
-
-  const load = useCallback(async () => {
-    const res = await api.getExpenseClaims();
-    if (res && res.error) return setError(res.message);
-    setError('');
-    setClaims(res || []);
-  }, []);
-
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+  const [detailId, setDetailId] = useState(null);
+  const detail = useAppSelector((state) => (detailId ? selectExpenseById(state, detailId) : null)) || null;
+  const setDetail = (e) => setDetailId(e ? e.id : null);
+  useLoad([fetchExpenseClaims]);
 
   async function verify(e) {
     setBusy(true);
-    const res = await api.verifyExpense(e.id);
-    setBusy(false);
-    if (res && res.error) return toast.error(res.message);
+    try {
+      await dispatch(verifyExpense({ id: e.id })).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    } finally {
+      setBusy(false);
+    }
     toast.success(`${e.id} verified and sent to finance.`);
-    load();
   }
 
   async function confirmDecision() {
     if (note.trim().length < 3) return toast.error('Please give a reason.');
     setBusy(true);
-    const res = decision.action === 'return' ? await api.pmReturnExpense(decision.expense.id, note.trim()) : await api.pmRejectExpense(decision.expense.id, note.trim());
-    setBusy(false);
-    if (res && res.error) return toast.error(res.message);
+    const step = decision.action === 'return' ? pmReturnExpense : pmRejectExpense;
+    try {
+      await dispatch(step({ id: decision.expense.id, note: note.trim() })).unwrap();
+    } catch (err) {
+      return toast.error(errorText(err));
+    } finally {
+      setBusy(false);
+    }
     toast.success(`${decision.expense.id} ${decision.action === 'return' ? 'returned to the engineer' : 'rejected'}.`);
     setDecision(null);
     setNote('');
-    load();
   }
 
   async function open(e) {
-    const full = await api.getExpenseClaim(e.id);
-    setDetail(full && !full.error ? full : e);
+    setDetail(e);
+    dispatch(fetchExpenseClaim(e.id)); // fills in receipts and the budget check
   }
 
   const pending = claims.filter((c) => c.status === 'submitted');

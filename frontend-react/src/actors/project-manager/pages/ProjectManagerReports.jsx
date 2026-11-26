@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
+import { useAppDispatch, useAppSelector, useLoad } from '../../../store/hooks';
+import { fetchProjects, selectProjectsManagedBy } from '../../../features/projects/projectsSlice';
+import { fetchReports, selectAllReports } from '../../../features/reports/reportsSlice';
 import {
   FileText,
   File,
@@ -10,7 +13,6 @@ import {
   Eye,
   RefreshCw
 } from 'lucide-react';
-import { api } from '../../../services/api';
 import {
   formatDate,
   statusBadge
@@ -19,28 +21,17 @@ import Button from '../../../components/common/Button';
 
 export default function ProjectManagerReports() {
   const { user } = useOutletContext();
-  const [reports, setReports] = useState([]);
+  const dispatch = useAppDispatch();
+  const myProjects = useAppSelector((state) => selectProjectsManagedBy(state, user?.id));
+  const allReports = useAppSelector(selectAllReports);
   const [activeFilter, setActiveFilter] = useState('');
+  useLoad([fetchProjects, fetchReports]);
 
-  useEffect(() => {
-    loadReports();
-  }, [user]);
-
-  async function loadReports() {
-    if (!user) return;
-    const [allProjects, allReports] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getReports(user.companyId)
-    ]);
-
-    const myProjects = (allProjects || []).filter(
-      (p) => p.managerId === user.id || !p.managerId || user.role === 'superuser'
-    );
-    const myProjectIds = myProjects.map((p) => p.id);
-    const myReports = (allReports || []).filter((r) => myProjectIds.includes(r.projectId));
-    myReports.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-    setReports(myReports);
-  }
+  // Site reports of the projects this PM manages, newest first.
+  const reports = useMemo(() => {
+    const ids = new Set(myProjects.map((p) => p.id));
+    return allReports.filter((r) => ids.has(r.projectId)).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }, [myProjects, allReports]);
 
   const filteredReports = activeFilter
     ? reports.filter((r) => r.status === activeFilter)
@@ -79,7 +70,7 @@ export default function ProjectManagerReports() {
         <Button
           variant="secondary"
           size="sm"
-          onClick={loadReports}
+          onClick={() => dispatch(fetchReports())}
         >
           <RefreshCw size={13} style={{ marginRight: '4px' }} /> Refresh
         </Button>

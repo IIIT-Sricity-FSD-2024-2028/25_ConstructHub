@@ -128,9 +128,17 @@ export class MilestonesService {
 
   // ───────────── writes ─────────────
 
+  /** Stages that came from the accepted quotation are part of the contract (their price is what the client agreed to). */
+  static isContractStage(m: MilestoneRecord) {
+    return m.stageIndex !== undefined && m.stageIndex !== null;
+  }
+
   create(user: UserContext, dto: CreateMilestoneDto) {
     const project = this.mustGetProject(dto.projectId);
     this.assertCanManage(user, project);
+    if (project.source === 'marketplace') {
+      throw new ConflictException('The milestones of this project are the stages of the accepted quotation, so no milestones can be added. Add tasks to the existing stages instead.');
+    }
     if (project.status === 'Completed') throw new BadRequestException('This project is completed; milestones can no longer be added.');
     if (this.repo.findByProjectId(project.id).length >= MAX_MILESTONES_PER_PROJECT) {
       throw new BadRequestException(`A project can have at most ${MAX_MILESTONES_PER_PROJECT} milestones.`);
@@ -171,6 +179,11 @@ export class MilestonesService {
     this.assertCanManage(user, project);
     if (m.status === 'Completed') throw new ConflictException('An approved milestone cannot be edited. Reopen it first.');
     this.assertNotBilled(m, 'edited');
+    if (MilestonesService.isContractStage(m)) {
+      if ((dto.name !== undefined && dto.name.trim() !== m.name) || (dto.weight !== undefined && dto.weight !== m.weight)) {
+        throw new ConflictException(`"${m.name}" is a stage of the accepted quotation: its name and weight are fixed by the contract. Only the description and deadline can change.`);
+      }
+    }
     this.validateInput(project, { deadline: dto.deadline, weight: dto.weight, name: dto.name }, id);
     const patch: Partial<MilestoneRecord> = { updatedAt: today() };
     if (dto.name !== undefined) patch.name = dto.name.trim();
@@ -188,6 +201,9 @@ export class MilestonesService {
     this.assertCanManage(user, project);
     if (m.status === 'Completed') throw new ConflictException('An approved milestone cannot be deleted. Reopen it first.');
     this.assertNotBilled(m, 'deleted');
+    if (MilestonesService.isContractStage(m)) {
+      throw new ConflictException(`"${m.name}" is a stage of the accepted quotation and cannot be deleted.`);
+    }
     // Tasks are kept; they just no longer belong to a milestone.
     this.tasks.findAll().filter((t) => t.milestoneId === id).forEach((t) => this.tasks.update(t.id, { milestoneId: null }));
     this.repo.remove(id);

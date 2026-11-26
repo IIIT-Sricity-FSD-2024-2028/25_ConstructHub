@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useAppSelector, useLoad, isFirstLoad } from '../../../store/hooks';
+import { fetchReports, selectReportById, selectReportsStatus } from '../../../features/reports/reportsSlice';
 import {
   ArrowLeft,
   Camera,
   AlertTriangle
 } from 'lucide-react';
-import { api, API_ORIGIN } from '../../../services/api';
+import { API_ORIGIN } from '../../../services/api';
 import {
   formatDate,
   statusBadge,
@@ -18,22 +19,14 @@ export default function ProjectManagerReportDetail() {
   const [searchParams] = useSearchParams();
   const id = paramId || searchParams.get('id');
   const navigate = useNavigate();
-  const { user } = useOutletContext();
+  const report = useAppSelector((state) => (id ? selectReportById(state, id) : null)) || null;
+  const reportsStatus = useAppSelector(selectReportsStatus);
+  const loading = isFirstLoad(reportsStatus, Boolean(report));
+  useLoad([fetchReports], [id]);
 
-  const [report, setReport] = useState(null);
-
-
-
-  async function loadReport() {
-    if (!id || !user) return;
-    const allReports = await api.getReports(user.companyId);
-    const found = (allReports || []).find((r) => r.id === id);
-    setReport(found || null);
+  if (loading) {
+    return <div className="page-container"><div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div></div>;
   }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadReport());
-  }, [id, user]);
 
   if (!report) {
     return (

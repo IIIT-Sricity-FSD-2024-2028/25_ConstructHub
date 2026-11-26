@@ -6,3 +6,6 @@ data/db
 private-uploads
 logs
 *.corrupt-*
+# photos uploaded while the app runs
+uploads/*
+!uploads/.gitkeep

@@ -7,6 +7,7 @@ import { ProgressService } from '../milestones/progress.service';
 import { UsersRepository } from '../users/users.repository';
 import { UserContext } from '../auth/current-user.decorator';
 import { randomUUID } from 'crypto';
+import { today, addDays } from '../utils/ids';
 
 @Injectable()
 export class TasksService {
@@ -58,9 +59,30 @@ export class TasksService {
     }
   }
 
+  /**
+   * Task dates must fit the project: not before it starts, and not after its end date
+   * (a project already past its end date can schedule up to a year ahead while it catches up).
+   */
+  private assertDatesFitProject(data: any) {
+    const project = this.projects.findById(data.projectId);
+    if (!project) return;
+    if (project.startDate && data.startDate && data.startDate < project.startDate) {
+      throw new BadRequestException(`The task cannot start before the project starts (${project.startDate}).`);
+    }
+    if (data.deadline && project.endDate) {
+      const latest = project.endDate >= today() ? project.endDate : addDays(today(), 365);
+      if (data.deadline > latest) {
+        throw new BadRequestException(project.endDate >= today()
+          ? `The task deadline cannot be after the project end date (${project.endDate}).`
+          : `The project is past its end date; schedule tasks within the next year (by ${latest}).`);
+      }
+    }
+  }
+
   create(data: any) {
     if (!data || Object.keys(data).length === 0) throw new BadRequestException('Payload cannot be empty.');
     this.validateBusinessRules(data);
+    this.assertDatesFitProject(data);
     this.assertProjectBelongsToCompany(data);
     this.assertAdvancePaid(data.projectId);
     const project = this.projects.findById(data.projectId);
@@ -99,6 +121,7 @@ export class TasksService {
 
     const merged = { ...existing, ...data };
     this.validateBusinessRules(merged);
+    if (data.startDate !== undefined || data.deadline !== undefined || data.projectId !== undefined) this.assertDatesFitProject(merged);
     this.assertProjectBelongsToCompany(merged);
     this.assertAdvancePaid(merged.projectId);
     // Only (re)validate the milestone when the task is being moved to one, or its project changed.

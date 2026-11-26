@@ -1,4 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import { fetchProjects, updateProject, deleteProject, selectProjectsManagedBy, projectDisplayStatus } from '../../../features/projects/projectsSlice';
+import { fetchUsers, selectAllUsers } from '../../../features/users/usersSlice';
 import { useToast } from '../../../hooks/useToast';
 import { useOutletContext, Link } from 'react-router-dom';
 import {
@@ -10,7 +13,6 @@ import {
   Calendar,
   AlertCircle
 } from 'lucide-react';
-import { api, unwrap } from '../../../services/api';
 import {
   formatCurrency,
   formatDate,
@@ -23,8 +25,9 @@ import Button from '../../../components/common/Button';
 export default function ProjectManagerProjects() {
   const toast = useToast();
   const { user } = useOutletContext();
-  const [projects, setProjects] = useState([]);
-  const [users, setUsers] = useState([]);
+  const dispatch = useAppDispatch();
+  const projects = useAppSelector((state) => selectProjectsManagedBy(state, user?.id));
+  const users = useAppSelector(selectAllUsers);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
@@ -53,22 +56,7 @@ export default function ProjectManagerProjects() {
   });
   const [errors, setErrors] = useState({});
 
-  useEffect(() => {
-    loadData();
-  }, [user]);
-
-  async function loadData() {
-    if (!user) return;
-    const [allProjects, allUsers] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getUsers(user.companyId)
-    ]);
-    const myProjects = (allProjects || []).filter(
-      (p) => p.managerId === user.id || !p.managerId || user.role === 'superuser'
-    );
-    setProjects(myProjects);
-    setUsers(allUsers || []);
-  }
+  useLoad([fetchProjects, fetchUsers]);
 
   function openEditModal(proj) {
     setEditingProject(proj);
@@ -124,7 +112,7 @@ export default function ProjectManagerProjects() {
 
       // Projects are created when a client awards a quotation (Marketplace); here the PM edits their own projects.
       if (!editingProject) return;
-      unwrap(await api.updateProject(editingProject.id, {
+      await dispatch(updateProject({ id: editingProject.id, changes: {
         name: form.name.trim(),
         location: form.location.trim(),
         startDate: form.startDate,
@@ -135,28 +123,21 @@ export default function ProjectManagerProjects() {
         progress: Number(form.progress) || 0,
         description: form.description.trim(),
         ...(financeManagerId ? { financeManagerId, financeManagerName } : {})
-      }));
-
+      } })).unwrap();
       setIsModalOpen(false);
-      loadData();
     } catch (err) {
-      setErrors({ form: err.message || 'Error saving project' });
+      setErrors({ form: errorText(err, 'Error saving project') });
     }
   }
 
   async function handleDeleteConfirm() {
     if (!deleteTarget) return;
     try {
-      unwrap(await api.deleteProject(deleteTarget.id));
-      // Only remove the client's account when this was their last project (clients can own several now).
-      const sharesClient = projects.some((p) => p.id !== deleteTarget.id && p.clientId === deleteTarget.clientId);
-      if (deleteTarget.clientId && !sharesClient && (user?.role === 'company_admin' || user?.role === 'superuser')) {
-        await api.deleteUser(deleteTarget.clientId).catch(() => {});
-      }
+      // The server refuses projects that already have work, bills or a contract, and decides about the client's account.
+      await dispatch(deleteProject(deleteTarget.id)).unwrap();
       setDeleteTarget(null);
-      loadData();
     } catch (err) {
-      toast.error('Failed to delete project: ' + err.message);
+      toast.error('Failed to delete project: ' + errorText(err));
     }
   }
 
@@ -220,7 +201,7 @@ export default function ProjectManagerProjects() {
         ) : (
           filteredProjects.map((p) => {
             const client = users.find((u) => u.id === p.clientId);
-            const clientDisplayName = p.clientName || client?.name || 'Vikram Patel';
+            const clientDisplayName = p.clientName || client?.name || 'Not set';
             return (
               <div key={p.id} className="project-card">
                 <div className="project-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -237,7 +218,7 @@ export default function ProjectManagerProjects() {
                   >
                     <Building2 size={20} />
                   </div>
-                  <span className={`badge ${statusBadge(p.status)}`}>{p.status}</span>
+                  <span className={`badge ${statusBadge(projectDisplayStatus(p))}`}>{projectDisplayStatus(p)}</span>
                 </div>
 
                 <div className="project-name" style={{ fontSize: '17px', fontWeight: 700, margin: '12px 0 4px' }}>
@@ -312,12 +293,16 @@ export default function ProjectManagerProjects() {
                     <Link to={`/project-manager/projects/${p.id}`} className="btn btn-outline btn-sm">
                       View
                     </Link>
-                    <Button variant="secondary" size="sm" onClick={() => openEditModal(p)}>
-                      Edit
-                    </Button>
-                    <Button variant="danger" size="sm" onClick={() => setDeleteTarget(p)}>
-                      Delete
-                    </Button>
+                    {p.allowed?.canEdit && (
+                      <Button variant="secondary" size="sm" onClick={() => openEditModal(p)}>
+                        Edit
+                      </Button>
+                    )}
+                    {p.allowed?.canDelete && (
+                      <Button variant="danger" size="sm" onClick={() => setDeleteTarget(p)}>
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -61,6 +61,22 @@ export class ReportsService {
     }));
   }
 
+  /** An engineer can only report material as used if it was issued to them from Site Stock and not reported yet. */
+  private assertMaterialsFromIssuedStock(data: any, project: any, user?: UserContext, excludeReportId?: string) {
+    if (user?.role !== 'site_engineer') return;
+    const availList = this.stockAvailable(user, project.id, excludeReportId);
+    // If no issued stock is available for this engineer on this project, allow free-text material entries.
+    if (!availList.some((a) => a.available > 0)) return;
+    const avail = new Map(availList.map((a) => [materialKey(a.description, a.unit), a]));
+    for (const m of data.materials || []) {
+      const a = avail.get(materialKey(String(m.name), String(m.unit)));
+      if (!a) throw new BadRequestException(`"${m.name}" (${m.unit}) was not issued to you from Site Stock, so it cannot be reported as used.`);
+      if (Number(m.qty) > a.available) {
+        throw new BadRequestException(`"${m.name}": you reported ${m.qty} ${m.unit} but only ${a.available} ${a.unit} of the stock issued to you is still unreported.`);
+      }
+    }
+  }
+
   /** Milestone-linked reports: the server owns the link, the progress figure and the stock numbers. */
   private linkToMilestone(data: any, project: any, user?: UserContext, excludeReportId?: string) {
     if (project.status === 'Awaiting Advance') {
@@ -85,16 +101,7 @@ export class ReportsService {
       throw new BadRequestException('Enter the number of workers on site (0 or more).');
     }
 
-    if (user?.role === 'site_engineer') {
-      const avail = new Map(this.stockAvailable(user, project.id, excludeReportId).map((a) => [materialKey(a.description, a.unit), a]));
-      for (const m of data.materials || []) {
-        const a = avail.get(materialKey(String(m.name), String(m.unit)));
-        if (!a) throw new BadRequestException(`"${m.name}" (${m.unit}) was not issued to you from Site Stock, so it cannot be reported as used.`);
-        if (Number(m.qty) > a.available) {
-          throw new BadRequestException(`"${m.name}": you reported ${m.qty} ${m.unit} but only ${a.available} ${a.unit} of the stock issued to you is still unreported.`);
-        }
-      }
-    }
+    this.assertMaterialsFromIssuedStock(data, project, user, excludeReportId);
     return {
       milestoneId: ms.id, milestoneName: ms.name,
       taskId: task ? task.id : undefined, taskTitle: task ? task.title : undefined,
@@ -132,6 +139,8 @@ export class ReportsService {
     let link = {};
     if (project.progressMode === 'milestones') {
       link = this.linkToMilestone(data, project, user);
+    } else {
+      this.assertMaterialsFromIssuedStock(data, project, user);
     }
     const record = { ...data, ...link, id: data.id || randomUUID() };
     return this.repo.create(record);
@@ -159,6 +168,8 @@ export class ReportsService {
         this.linkToMilestone({ ...existing, ...data }, project, { ...user }, id);
       }
       if (Object.keys(data).length === 0) return existing;
+    } else if (data.materials && user?.role === 'site_engineer') {
+      this.assertMaterialsFromIssuedStock({ ...existing, ...data }, this.projects.findById(existing.projectId), user, id);
     }
     return this.repo.update(id, data);
   }

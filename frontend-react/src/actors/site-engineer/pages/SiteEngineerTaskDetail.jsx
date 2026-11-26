@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, useNavigate, Link, useOutletContext } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
   Edit3
 } from 'lucide-react';
-import { api } from '../../../services/api';
+import { useAppSelector, useLoad, isFirstLoad } from '../../../store/hooks';
+import { fetchTasks, selectTaskById, selectTasksStatus } from '../../../features/tasks/tasksSlice';
+import { fetchProjects, selectProjectById } from '../../../features/projects/projectsSlice';
 import {
   formatDate,
   statusBadge,
@@ -15,28 +16,14 @@ export default function SiteEngineerTaskDetail() {
   const [searchParams] = useSearchParams();
   const id = paramId || searchParams.get('id');
   const navigate = useNavigate();
-  const { user } = useOutletContext();
+  const task = useAppSelector((state) => (id ? selectTaskById(state, id) : null)) || null;
+  const project = useAppSelector((state) => (task ? selectProjectById(state, task.projectId) : null)) || null;
+  const tasksStatus = useAppSelector(selectTasksStatus);
+  useLoad([fetchTasks, fetchProjects], [id]);
 
-  const [task, setTask] = useState(null);
-  const [project, setProject] = useState(null);
-
-  async function loadTask() {
-    if (!id || !user) return;
-    const [allTasks, allProjects] = await Promise.all([
-      api.getTasks(user.companyId),
-      api.getProjects(user.companyId)
-    ]);
-    const foundTask = (allTasks || []).find((t) => t.id === id);
-    setTask(foundTask || null);
-    if (foundTask) {
-      const foundProject = (allProjects || []).find((p) => p.id === foundTask.projectId);
-      setProject(foundProject || null);
-    }
+  if (isFirstLoad(tasksStatus, Boolean(task))) {
+    return <div className="page-container"><div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div></div>;
   }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadTask());
-  }, [id, user]);
 
   if (!task) {
     return (
@@ -56,9 +43,9 @@ export default function SiteEngineerTaskDetail() {
     );
   }
 
-  const resolvedProjectName = task.projectName || project?.name || 'Commercial Construction Project';
-  const resolvedSupervisor = project?.managerName || 'Operations Director';
-  const resolvedLocation = project?.location || 'Central Site Sector, Main Campus';
+  const resolvedProjectName = task.projectName || project?.name || task.projectId;
+  const resolvedSupervisor = project?.managerName || '-';
+  const resolvedLocation = project?.location || '-';
 
   return (
     <div className="page-container">
@@ -102,7 +89,7 @@ export default function SiteEngineerTaskDetail() {
             <div className="detail-item"><label>Associated Project</label><span>{resolvedProjectName}</span></div>
             <div className="detail-item"><label>Site Location</label><span>{resolvedLocation}</span></div>
             <div className="detail-item"><label>Supervising Manager</label><span>{resolvedSupervisor}</span></div>
-            <div className="detail-item"><label>Assigned Engineer</label><span>{task.assignedName || user.name || 'Site Field Engineer'}</span></div>
+            <div className="detail-item"><label>Assigned Engineer</label><span>{task.assignedName || '-'}</span></div>
             <div className="detail-item"><label>Start Date</label><span>{formatDate(task.startDate)}</span></div>
             <div className="detail-item"><label>Deadline</label><span>{formatDate(task.deadline)}</span></div>
             <div className="detail-item"><label>Priority Rating</label><span><span className={`badge ${priorityBadge(task.priority)}`}>{task.priority}</span></span></div>

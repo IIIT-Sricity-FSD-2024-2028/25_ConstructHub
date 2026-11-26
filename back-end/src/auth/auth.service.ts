@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ForbiddenException, HttpException, HttpStatus } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { CompaniesService } from '../companies/companies.service';
@@ -16,9 +16,33 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
+  /** Password guessing guard: after 5 wrong passwords an account is locked for 5 minutes. */
+  private static readonly failures = new Map<string, { count: number; lockedUntil: number }>();
+  static readonly MAX_FAILED_LOGINS = 5;
+  static readonly LOCK_MS = 5 * 60 * 1000;
+
+  private static assertNotLocked(email: string) {
+    const f = AuthService.failures.get(email);
+    if (f && f.lockedUntil > Date.now()) {
+      const minutes = Math.ceil((f.lockedUntil - Date.now()) / 60000);
+      throw new HttpException(`Too many wrong passwords. This account is locked for ${minutes} more minute(s).`, HttpStatus.TOO_MANY_REQUESTS);
+    }
+  }
+
+  private static recordFailure(email: string) {
+    const f = AuthService.failures.get(email) || { count: 0, lockedUntil: 0 };
+    if (f.lockedUntil && f.lockedUntil <= Date.now()) { f.count = 0; f.lockedUntil = 0; }
+    f.count += 1;
+    if (f.count >= AuthService.MAX_FAILED_LOGINS) f.lockedUntil = Date.now() + AuthService.LOCK_MS;
+    AuthService.failures.set(email, f);
+  }
+
   async validateUser(email: string, pass: string): Promise<any> {
+    const key = String(email || '').trim().toLowerCase();
+    AuthService.assertNotLocked(key);
     const user = this.usersService.findByEmail(email);
     if (!user) {
+      AuthService.recordFailure(key);
       throw new UnauthorizedException('Invalid email or password.');
     }
 
@@ -33,8 +57,10 @@ export class AuthService {
       !!user.password && /^\$2[aby]\$/.test(user.password) && bcrypt.compareSync(pass, user.password);
 
     if (!isValidPassword) {
+      AuthService.recordFailure(key);
       throw new UnauthorizedException('Invalid email or password.');
     }
+    AuthService.failures.delete(key);
 
     // Company checks (not for platform superuser or platform-level clients):
     // the company must be approved by the platform admin and active.

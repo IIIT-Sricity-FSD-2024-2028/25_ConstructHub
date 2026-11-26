@@ -1,4 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
+import { fetchProjects, updateProject, selectReportProjects } from '../../../features/projects/projectsSlice';
+import { fetchTasks, selectTasksAssignedTo } from '../../../features/tasks/tasksSlice';
+import { fetchProjectProgress, selectProjectProgress } from '../../../features/milestones/milestonesSlice';
+import { createReport, uploadReportPhotos, fetchStockAvailable, selectStockAvailable } from '../../../features/reports/reportsSlice';
+import { sendNotification } from '../../../features/notifications/notificationsSlice';
 import { useToast } from '../../../hooks/useToast';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
@@ -13,7 +19,7 @@ import {
   AlertCircle,
   X
 } from 'lucide-react';
-import { api, API_ORIGIN } from '../../../services/api';
+import { API_ORIGIN } from '../../../services/api';
 import { formatDate, localDateISO } from '../../../services/utils';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
@@ -23,10 +29,15 @@ export default function SiteEngineerSubmitReport() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
 
-  const [projects, setProjects] = useState([]);
+  const dispatch = useAppDispatch();
+  // Reports can only be filed for projects where this engineer still has unfinished work (enforced by the server too).
+  const projects = useAppSelector(selectReportProjects);
+  const engineerTasks = useAppSelector((state) => selectTasksAssignedTo(state, user?.id));
+  useLoad([fetchProjects, fetchTasks]);
 
   // Form State
-  const [projectId, setProjectId] = useState('');
+  const [pickedProjectId, setPickedProjectId] = useState('');
+  const projectId = pickedProjectId || projects[0]?.id || '';
   const [reportDate, setReportDate] = useState(localDateISO());
   const [workDone, setWorkDone] = useState('');
   const [progress, setProgress] = useState('');
@@ -47,56 +58,27 @@ export default function SiteEngineerSubmitReport() {
 
   const [errors, setErrors] = useState({});
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
-  const [engineerTasks, setEngineerTasks] = useState([]);
 
-  // Milestone projects: the report is tied to a milestone (and task), records weather and labor,
-  // and may only declare material that Site Stock issued to this engineer. Progress is not typed in.
-  const [milestones, setMilestones] = useState([]);
+  // Milestone projects: the report is tied to a milestone (and task), records weather and labor.
+  // Every project: material can only be declared from what Site Stock issued to this engineer. Progress is not typed in.
+  const progressData = useAppSelector((state) => selectProjectProgress(state, projectId));
+  const milestones = useMemo(() => (progressData?.milestones || []).filter((m) => m.status !== 'Completed'), [progressData]);
+  const stockItems = useAppSelector((state) => selectStockAvailable(state, projectId));
+  const availableStock = stockItems.filter((i) => i.available > 0);
   const [milestoneId, setMilestoneId] = useState('');
   const [taskId, setTaskId] = useState('');
   const [weather, setWeather] = useState('');
   const [laborCount, setLaborCount] = useState('');
-  const [stockItems, setStockItems] = useState([]);
   const milestoneMode = milestones.length > 0;
+  useLoad([projectId && [fetchProjectProgress, projectId], projectId && [fetchStockAvailable, projectId]], [projectId]);
 
-  async function loadProjects() {
-    if (!user) return;
-    const [allProjects, allTasks] = await Promise.all([
-      api.getProjects(user.companyId),
-      api.getTasks(user.companyId)
-    ]);
-
-    // Option 2 (Pool-based): Engineer's projects are those where the engineer has assigned tasks
-    const myTasks = (allTasks || []).filter((t) => t.assignedTo === user.id);
-    setEngineerTasks(myTasks);
-
-    // Reports can only be filed for projects where this engineer still has an unfinished task (enforced by the server too).
-    const myProjectIds = new Set(myTasks.filter((t) => t.status !== 'Completed').map((t) => t.projectId));
-    const assignedProjects = (allProjects || []).filter((p) => myProjectIds.has(p.id));
-
-    setProjects(assignedProjects || []);
-    if (assignedProjects && assignedProjects.length > 0) {
-      setProjectId(assignedProjects[0].id);
-    }
+  // Switching project clears the parts of the form that belonged to the old one.
+  function setProjectId(id) {
+    setPickedProjectId(id);
+    setMilestoneId('');
+    setTaskId('');
+    setMaterials([{ name: '', qty: '', unit: '' }]);
   }
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadProjects());
-  }, [user]);
-
-  useEffect(() => {
-    if (!projectId) return;
-    let live = true;
-    Promise.all([api.getProjectProgress(projectId), api.getStockAvailable(projectId)]).then(([prog, stock]) => {
-      if (!live) return;
-      setMilestones(prog && !prog.error ? (prog.milestones || []).filter((m) => m.status !== 'Completed') : []);
-      setStockItems(Array.isArray(stock) ? stock : []);
-      setMilestoneId('');
-      setTaskId('');
-      setMaterials([{ name: '', qty: '', unit: '' }]);
-    });
-    return () => { live = false; };
-  }, [projectId]);
 
   const milestoneTasks = engineerTasks.filter((t) => t.projectId === projectId && t.milestoneId === milestoneId);
   const linkedProgress = (() => {
@@ -142,11 +124,13 @@ export default function SiteEngineerSubmitReport() {
     setUploadStatus('Uploading photos...');
 
     try {
-      const result = await api.uploadReportPhotos(files);
-      if (!result || result.error) {
+      let result;
+      try {
+        result = await dispatch(uploadReportPhotos(files)).unwrap();
+      } catch (err) {
         // Never attach browser-only links: they would be broken for everyone else who opens the report.
         setUploadStatus('');
-        toast.error(result?.message || 'Photos could not be uploaded. Please try again.');
+        toast.error(errorText(err, 'Photos could not be uploaded. Please try again.'));
         return;
       }
       const urls = result.photoUrls || [];
@@ -208,7 +192,7 @@ export default function SiteEngineerSubmitReport() {
 
     try {
       const proj = projects.find((p) => p.id === projectId);
-      const newReport = await api.createReport({
+      const newReport = await dispatch(createReport({
         title: `Site Report - ${formatDate(reportDate)}`,
         projectId: projectId,
         projectName: proj ? proj.name : '',
@@ -226,32 +210,28 @@ export default function SiteEngineerSubmitReport() {
         photoUrls: uploadedPhotos,
         photoDescription: photoDesc.trim(),
         remarks: remarks.trim()
-      });
-
-      if (newReport && newReport.error) {
-        setErrors({ form: newReport.message || 'Report could not be submitted' });
-        return;
-      }
+      })).unwrap();
 
       // Projects without milestones still use the typed progress. Milestone projects calculate it from tasks.
       if (!milestoneMode && proj && Number(progress) > (proj.progress || 0)) {
         // Only the progress figure is reported; the project manager decides when the project is completed.
-        await api.updateProject(projectId, { progress: Number(progress) });
+        await dispatch(updateProject({ id: projectId, changes: { progress: Number(progress) } }));
       }
 
       // Notify project manager
       if (proj && proj.managerId) {
-        await api.createNotification({
+        dispatch(sendNotification({
           userId: proj.managerId,
           type: 'report',
           title: 'New Site Report',
           body: `${user.name} submitted ${newReport.title} for ${newReport.projectName}`
-        });
+        }));
       }
 
+      dispatch(fetchStockAvailable(projectId)); // the reported material is no longer available
       setIsSuccessOpen(true);
     } catch (err) {
-      setErrors({ form: err.message || 'Report could not be submitted' });
+      setErrors({ form: errorText(err, 'Report could not be submitted') });
     }
   }
 
@@ -446,14 +426,16 @@ export default function SiteEngineerSubmitReport() {
           </div>
         </div>
 
-        {/* Section 4: Materials Used */}
+        {/* Section 4: Materials Used (only what Site Stock issued to this engineer, on every project) */}
         <div className="card" style={{ marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div className="icon-box icon-box-green">
                 <Wrench size={18} />
               </div>
-              <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Materials Consumed{milestoneMode ? ' (from your issued stock)' : ''}</h3>
+              <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
+                {availableStock.length > 0 ? 'Materials Consumed (from your Site Stock issues)' : 'Materials Consumed'}
+              </h3>
             </div>
             <Button variant="secondary" size="sm" type="button" onClick={addMaterialRow}>
               + Add Material
@@ -466,20 +448,70 @@ export default function SiteEngineerSubmitReport() {
             </div>
           )}
 
-          {milestoneMode && stockItems.length === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>No material has been issued to you on this project yet, so there is nothing to report as consumed.</p>
-          )}
-          {milestoneMode ? (
+          {availableStock.length === 0 ? (
+            <div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px 0' }} data-testid="no-issued-stock">
+                No issued Site Stock is currently pending on this project — you can log materials used manually below.
+              </p>
+              {materials.map((m, idx) => (
+                <div key={idx} className="report-material-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '10px', marginBottom: '10px', alignItems: 'end' }}>
+                  <div>
+                    <label className="form-label">Material name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Cement, Steel Rods"
+                      value={m.name}
+                      onChange={(e) => updateMaterial(idx, 'name', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Quantity</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      min="0"
+                      step="any"
+                      placeholder="0"
+                      value={m.qty}
+                      onChange={(e) => updateMaterial(idx, 'qty', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Unit</label>
+                    <select
+                      className="form-select"
+                      value={m.unit}
+                      onChange={(e) => updateMaterial(idx, 'unit', e.target.value)}
+                    >
+                      <option value="">Select unit</option>
+                      <option value="Bags">Bags</option>
+                      <option value="Tons">Tons</option>
+                      <option value="Cubic Meters">Cubic Meters</option>
+                      <option value="Kg">Kg</option>
+                      <option value="Meters">Meters</option>
+                      <option value="Liters">Liters</option>
+                      <option value="Pieces">Pieces</option>
+                      <option value="Boxes">Boxes</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Button variant="danger" size="sm" type="button" onClick={() => removeMaterialRow(idx)} disabled={materials.length <= 1}>Remove</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
             <div>
               {materials.map((m, idx) => {
                 const hit = stockItems.find((i) => i.description === m.name && i.unit === m.unit);
                 return (
-                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '10px', marginBottom: '10px', alignItems: 'end' }}>
+                  <div key={idx} className="report-material-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '10px', marginBottom: '10px', alignItems: 'end' }}>
                     <div>
                       <label className="form-label">Issued material</label>
                       <select className="form-select" value={hit ? `${hit.description}|${hit.unit}` : ''} onChange={(e) => pickStock(idx, e.target.value)}>
                         <option value="">Select material</option>
-                        {stockItems.filter((i) => i.available > 0).map((i) => <option key={`${i.description}|${i.unit}`} value={`${i.description}|${i.unit}`}>{i.description} ({i.unit}) - {i.available} available</option>)}
+                        {availableStock.map((i) => <option key={`${i.description}|${i.unit}`} value={`${i.description}|${i.unit}`}>{i.description} ({i.unit}) - {i.available} available</option>)}
                       </select>
                     </div>
                     <div>
@@ -493,71 +525,6 @@ export default function SiteEngineerSubmitReport() {
                 );
               })}
             </div>
-          ) : (
-          <div>
-            {materials.map((m, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr 1fr auto',
-                  gap: '10px',
-                  marginBottom: '10px',
-                  alignItems: 'end'
-                }}
-              >
-                <div>
-                  <label className="form-label">Material Name</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="e.g., Cement"
-                    value={m.name}
-                    onChange={(e) => updateMaterial(idx, 'name', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Quantity</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    placeholder="e.g., 50"
-                    min="0"
-                    value={m.qty}
-                    onChange={(e) => updateMaterial(idx, 'qty', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Unit</label>
-                  <select
-                    className="form-select"
-                    value={m.unit}
-                    onChange={(e) => updateMaterial(idx, 'unit', e.target.value)}
-                  >
-                    <option value="">Select unit</option>
-                    <option value="bags">bags</option>
-                    <option value="kg">kg</option>
-                    <option value="tons">tons</option>
-                    <option value="cubic meters">cubic meters</option>
-                    <option value="liters">liters</option>
-                    <option value="meters">meters</option>
-                    <option value="pieces">pieces</option>
-                  </select>
-                </div>
-                <div>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    type="button"
-                    onClick={() => removeMaterialRow(idx)}
-                    disabled={materials.length <= 1}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
           )}
         </div>
 

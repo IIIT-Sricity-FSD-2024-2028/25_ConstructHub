@@ -172,6 +172,12 @@ export class ExpensesService implements OnModuleInit {
     return { milestoneId: ms.id, milestoneName: ms.name };
   }
 
+  private assertWithinProject(project: any, date: string) {
+    if (project?.startDate && date < project.startDate) {
+      throw new BadRequestException(`The expense date cannot be before the project started (${project.startDate}).`);
+    }
+  }
+
   private assertNotFuture(date: string) {
     if (date > today()) throw new BadRequestException('The expense date cannot be in the future.');
   }
@@ -179,6 +185,7 @@ export class ExpensesService implements OnModuleInit {
   submit(user: UserContext, dto: CreateExpenseDto) {
     const project = this.assertEngineerProject(user, dto.projectId);
     this.assertNotFuture(dto.date);
+    this.assertWithinProject(project, dto.date);
     this.assertPettyCap(dto.amount);
     const link = this.resolveMilestone(project, dto.milestoneId);
     const created = this.repo.create({
@@ -203,6 +210,7 @@ export class ExpensesService implements OnModuleInit {
       next.projectName = p.name;
     }
     this.assertNotFuture(next.date);
+    this.assertWithinProject(this.projects.findById(next.projectId), next.date);
     next.amount = round2(next.amount);
     this.assertPettyCap(next.amount);
     const link = this.resolveMilestone(this.projects.findById(next.projectId), dto.milestoneId ?? (dto.projectId && dto.projectId !== e.projectId ? undefined : e.milestoneId));
