@@ -521,6 +521,24 @@ export default function SuperuserDashboard() {
             </span>
           </div>
 
+          {pendingCount > 0 && (
+            <div
+              role="status"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+                margin: '0 0 14px', padding: '10px 14px', borderRadius: 10,
+                background: 'var(--primary-light, #fff4ec)', border: '1px solid var(--primary)', fontSize: 13.5
+              }}
+            >
+              <span>
+                <strong>{pendingCount}</strong> {pendingCount === 1 ? 'firm is' : 'firms are'} waiting for approval
+              </span>
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => handleTabChange('approvals')}>
+                <ClipboardCheck size={14} /> Review
+              </button>
+            </div>
+          )}
+
           <DataTable
             data={companies}
             columns={[

@@ -441,15 +441,6 @@ export default function LiveSummary({ refreshKey = 0 }) {
           <LinearPortfolio rows={d.projects} mode="finance" />
         </>
       )}
-
-      {d.role === 'superuser' && (
-        <Grid>
-          <Card label="Open requirements" value={d.marketplace.openRequirements} sub={`${d.marketplace.awardedRequirements} awarded · ${d.marketplace.closedRequirements} closed`} />
-          <Card label="Quotations submitted" value={d.marketplace.quotationsSubmitted} sub="Across all firms" />
-          <Card label="Active contracts" value={d.marketplace.contracts} sub={formatINRCompact(d.marketplace.contractValue)} title={inr(d.marketplace.contractValue)} />
-          <Card label="Marketplace projects" value={d.projects.fromMarketplace} sub={`${d.projects.active} active globally`} />
-        </Grid>
-      )}
     </div>
   );
 }
