@@ -3,6 +3,7 @@ import { SUBSCRIPTION_PLANS, OVERAGE_RATES, SubscriptionPlanConfig } from './sub
 import { attachStore } from '../utils/json-store';
 import { UpdatePlanDto } from './update-plan.dto';
 import { UpdateOverageRatesDto } from './update-overage-rates.dto';
+import { CompaniesRepository } from './companies.repository';
 
 export interface PlansFile {
   plans: SubscriptionPlanConfig[];
@@ -18,7 +19,7 @@ export interface PlansFile {
  */
 @Injectable()
 export class PlansService {
-  constructor() {
+  constructor(private readonly companiesRepo: CompaniesRepository) {
     attachStore<PlansFile>(
       'plans',
       this.snapshot(),
@@ -55,7 +56,27 @@ export class PlansService {
       throw new BadRequestException('Annual price cannot be higher than 12 times the monthly price.');
     }
     SUBSCRIPTION_PLANS[name] = next;
+    this.syncCompanyLimits(name, plan, next);
     return next;
+  }
+
+  /**
+   * Every company keeps its own copy of the seat / project limit (customUserLimit / customProjectLimit), which the
+   * limit checks and the Subscription page read. A company whose copy still equals the old plan figure has not been
+   * customised, so it follows the plan when the platform admin changes it. A deliberately different figure is kept.
+   */
+  private syncCompanyLimits(planName: string, before: SubscriptionPlanConfig, after: SubscriptionPlanConfig) {
+    for (const c of this.companiesRepo.findAll()) {
+      if (c.plan !== planName || !c.id) continue;
+      const changes: { customUserLimit?: number; customProjectLimit?: number } = {};
+      if (after.userLimit !== before.userLimit && (c.customUserLimit === undefined || c.customUserLimit === before.userLimit)) {
+        changes.customUserLimit = after.userLimit;
+      }
+      if (after.projectLimit !== before.projectLimit && (c.customProjectLimit === undefined || c.customProjectLimit === before.projectLimit)) {
+        changes.customProjectLimit = after.projectLimit;
+      }
+      if (Object.keys(changes).length) this.companiesRepo.update(c.id, changes);
+    }
   }
 
   updateOverageRates(dto: UpdateOverageRatesDto) {
