@@ -517,7 +517,7 @@ export default function SuperuserDashboard() {
           <div className="section-header">
             <h3 className="section-title">Registered Construction Firms</h3>
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              {companies.length} Tenants Active
+              {companies.filter((c) => c.status === 'active' && (c.approvalStatus || 'approved') === 'approved').length} Tenants Active
             </span>
           </div>
 
