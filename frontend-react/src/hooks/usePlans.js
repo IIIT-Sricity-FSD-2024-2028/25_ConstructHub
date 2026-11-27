@@ -10,6 +10,11 @@ const DEFAULT_PLANS = [
 ];
 const DEFAULT_OVERAGE = { extraUserMonthly: 499, extraProjectMonthly: 1999 };
 
+export const prepaidRates = (r) => ({
+  extraUserMonthly: Math.floor(Number(r.extraUserMonthly) * 0.4),
+  extraProjectMonthly: Math.floor(Number(r.extraProjectMonthly) * 0.4)
+});
+
 export const formatINR = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
 /**
@@ -28,10 +33,13 @@ export function usePlans() {
   }, [dispatch, loaded]);
 
   const list = data?.plans || DEFAULT_PLANS;
+  const rates = data?.overageRates || DEFAULT_OVERAGE;
   const plans = Object.fromEntries(list.map((p) => [p.name, p]));
   return {
     plans,
-    overageRates: data?.overageRates || DEFAULT_OVERAGE,
+    overageRates: rates,
+    // Pre-purchased extra capacity is sold at 40% of the standard overage rate ("saves 60%"), so it follows the live rate.
+    prepaidRates: prepaidRates(rates),
     planPrices: Object.fromEntries(list.map((p) => [p.name, p.monthlyPrice])),
     planLimits: Object.fromEntries(list.map((p) => [p.name, p.userLimit])),
     projLimits: Object.fromEntries(list.map((p) => [p.name, p.projectLimit]))

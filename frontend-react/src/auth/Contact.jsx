@@ -40,7 +40,7 @@ export default function Contact() {
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
 
-  const { planPrices, planLimits, projLimits } = usePlans();
+  const { planPrices, planLimits, projLimits, overageRates, prepaidRates } = usePlans();
   const planDetails = {
     'Basic Plan': { users: planLimits.Basic, projects: projLimits.Basic, baseFee: planPrices.Basic },
     'Pro Plan': { users: planLimits.Pro, projects: projLimits.Pro, baseFee: planPrices.Pro },
@@ -51,7 +51,7 @@ export default function Contact() {
   const extraP = Math.max(0, Number(extraProjects) || 0);
   const totalUsers = activePlanInfo.users + extraU;
   const totalProjects = activePlanInfo.projects + extraP;
-  const estimatedMonthly = activePlanInfo.baseFee + extraU * 199 + extraP * 799;
+  const estimatedMonthly = activePlanInfo.baseFee + extraU * prepaidRates.extraUserMonthly + extraP * prepaidRates.extraProjectMonthly;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -482,7 +482,7 @@ export default function Contact() {
                               style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}
                             >
                               <span style={{ fontWeight: 600 }}>Extra Users</span>
-                              <span style={{ color: 'var(--green)', fontWeight: 700, fontSize: 11 }}>+₹199/user/mo</span>
+                              <span style={{ color: 'var(--green)', fontWeight: 700, fontSize: 11 }}>+{formatINR(prepaidRates.extraUserMonthly)}/user/mo</span>
                             </label>
                             <input
                               type="number"
@@ -495,7 +495,7 @@ export default function Contact() {
                               style={{ background: '#fff' }}
                             />
                             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                              Saves 60% vs ₹499 overage
+                              Saves 60% vs {formatINR(overageRates.extraUserMonthly)} overage
                             </div>
                           </div>
 
@@ -505,7 +505,7 @@ export default function Contact() {
                               style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}
                             >
                               <span style={{ fontWeight: 600 }}>Extra Projects</span>
-                              <span style={{ color: 'var(--green)', fontWeight: 700, fontSize: 11 }}>+₹799/project/mo</span>
+                              <span style={{ color: 'var(--green)', fontWeight: 700, fontSize: 11 }}>+{formatINR(prepaidRates.extraProjectMonthly)}/project/mo</span>
                             </label>
                             <input
                               type="number"
@@ -518,7 +518,7 @@ export default function Contact() {
                               style={{ background: '#fff' }}
                             />
                             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                              Saves 60% vs ₹1,999 overage
+                              Saves 60% vs {formatINR(overageRates.extraProjectMonthly)} overage
                             </div>
                           </div>
                         </div>

@@ -1153,7 +1153,7 @@ export default function SuperuserDashboard() {
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
                   <span>Extra Users Required</span>
-                  <span style={{ color: 'var(--green)', fontWeight: 600 }}>₹199/user/mo</span>
+                  <span style={{ color: 'var(--green)', fontWeight: 600 }}>{formatCurrency(Math.floor(overageRates.extraUserMonthly * 0.4))}/user/mo</span>
                 </label>
                 <input
                   type="number"
@@ -1165,14 +1165,14 @@ export default function SuperuserDashboard() {
                   onChange={(e) => setCompForm({ ...compForm, extraUsers: Math.max(0, parseInt(e.target.value, 10) || 0) })}
                 />
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
-                  Discounted pre-purchased capacity (saves 60% vs ₹499 standard overage)
+                  Discounted pre-purchased capacity (saves 60% vs {formatCurrency(overageRates.extraUserMonthly)} standard overage)
                 </div>
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
                   <span>Extra Projects Required</span>
-                  <span style={{ color: 'var(--green)', fontWeight: 600 }}>₹799/project/mo</span>
+                  <span style={{ color: 'var(--green)', fontWeight: 600 }}>{formatCurrency(Math.floor(overageRates.extraProjectMonthly * 0.4))}/project/mo</span>
                 </label>
                 <input
                   type="number"
@@ -1184,7 +1184,7 @@ export default function SuperuserDashboard() {
                   onChange={(e) => setCompForm({ ...compForm, extraProjects: Math.max(0, parseInt(e.target.value, 10) || 0) })}
                 />
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
-                  Discounted pre-purchased capacity (saves 60% vs ₹1,999 standard overage)
+                  Discounted pre-purchased capacity (saves 60% vs {formatCurrency(overageRates.extraProjectMonthly)} standard overage)
                 </div>
               </div>
             </div>

@@ -16,7 +16,7 @@ export default function CompanyAdminSubscription() {
   const toast = useToast();
   const { user } = useOutletContext();
   // Live plan prices/limits set by the platform admin (shadow the module-level defaults above).
-  const { planPrices, planLimits, projLimits } = usePlans();
+  const { planPrices, planLimits, projLimits, overageRates: liveRates } = usePlans();
   const dispatch = useAppDispatch();
   const companyId = user?.companyId;
   const subData = useAppSelector((state) => selectSubscription(state, companyId));
@@ -117,8 +117,12 @@ export default function CompanyAdminSubscription() {
   // Dynamic overage calculation ensuring tiles and total monthly fee reflect active entities & tier
   const displayExtraUsers = overage ? Math.max(0, userCount - userLimit, subData?.extraUsers || 0) : 0;
   const displayExtraProjects = overage ? Math.max(0, projectCount - projectLimit, subData?.extraProjects || 0) : 0;
-  const displayUserOverageFee = displayExtraUsers * 499;
-  const displayProjectOverageFee = displayExtraProjects * 1999;
+  // Rates come from the server with the subscription (always current), else from the plans list.
+  const rates = subData?.overageRates || liveRates;
+  const userRate = Number(rates.extraUserMonthly) || 0;
+  const projectRate = Number(rates.extraProjectMonthly) || 0;
+  const displayUserOverageFee = displayExtraUsers * userRate;
+  const displayProjectOverageFee = displayExtraProjects * projectRate;
   const displayBaseMonthlyPrice = subData?.baseMonthlyPrice || planPrices[plan] || 4999;
   const displayTotalMonthlyFee = displayBaseMonthlyPrice + displayUserOverageFee + displayProjectOverageFee;
 
@@ -168,8 +172,8 @@ export default function CompanyAdminSubscription() {
             Allow adding team members & projects beyond tier limits without forced plan upgrades.
           </p>
           <div style={{ fontSize: '12px', color: 'var(--text)', marginTop: '8px', display: 'flex', gap: '16px' }}>
-            <span><strong>Extra User:</strong> ₹499 / user / month</span>
-            <span><strong>Extra Project:</strong> ₹1,999 / project / month</span>
+            <span><strong>Extra User:</strong> {formatCurrency(userRate)} / user / month</span>
+            <span><strong>Extra Project:</strong> {formatCurrency(projectRate)} / project / month</span>
           </div>
         </div>
         <div>
@@ -226,7 +230,7 @@ export default function CompanyAdminSubscription() {
               {formatCurrency(displayUserOverageFee)}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-              {displayExtraUsers} Extra Users @ ₹499/mo
+              {displayExtraUsers} Extra Users @ {formatCurrency(userRate)}/mo
             </div>
           </div>
 
@@ -238,7 +242,7 @@ export default function CompanyAdminSubscription() {
               {formatCurrency(displayProjectOverageFee)}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-              {displayExtraProjects} Extra Projects @ ₹1,999/mo
+              {displayExtraProjects} Extra Projects @ {formatCurrency(projectRate)}/mo
             </div>
           </div>
         </div>
@@ -441,10 +445,10 @@ export default function CompanyAdminSubscription() {
                 </p>
                 <div style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
                   {excessProjects > 0 && (
-                    <div>&bull; {excessProjects} Extra Project(s) @ ₹1,999/mo = <strong>{formatCurrency(excessProjects * 1999)}/mo</strong></div>
+                    <div>&bull; {excessProjects} Extra Project(s) @ {formatCurrency(projectRate)}/mo = <strong>{formatCurrency(excessProjects * projectRate)}/mo</strong></div>
                   )}
                   {excessUsers > 0 && (
-                    <div>&bull; {excessUsers} Extra User(s) @ ₹499/mo = <strong>{formatCurrency(excessUsers * 499)}/mo</strong></div>
+                    <div>&bull; {excessUsers} Extra User(s) @ {formatCurrency(userRate)}/mo = <strong>{formatCurrency(excessUsers * userRate)}/mo</strong></div>
                   )}
                 </div>
               </div>
