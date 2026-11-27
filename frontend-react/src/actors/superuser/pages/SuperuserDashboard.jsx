@@ -2,7 +2,7 @@ import LiveSummary from '../../../components/dashboard/LiveSummary';
 import { useState } from 'react';
 import { useAppDispatch, useAppSelector, useLoad, errorText } from '../../../store/hooks';
 import {
-  fetchCompanies, fetchInquiries, fetchPlans, updateCompany, onboardCompany, updateInquiry, deleteInquiry,
+  fetchCompanies, fetchInquiries, fetchPlans, fetchPlatformRevenue, selectPlatformRevenue, updateCompany, onboardCompany, updateInquiry, deleteInquiry,
   selectAllCompanies, selectAllInquiries, selectPlansData
 } from '../../../features/platform/platformSlice';
 import { fetchUsers, selectAllUsers } from '../../../features/users/usersSlice';
@@ -59,6 +59,7 @@ export default function SuperuserDashboard() {
   const projects = useAppSelector(selectAllProjects);
   const inquiries = useAppSelector(selectAllInquiries);
   const plansData = useAppSelector(selectPlansData);
+  const revenue = useAppSelector(selectPlatformRevenue);
 
   // Modals
   const [compModalOpen, setCompModalOpen] = useState(false);
@@ -87,7 +88,7 @@ export default function SuperuserDashboard() {
   const [projectSearch, setProjectSearch] = useState('');
   const [projectStatusFilter, setProjectStatusFilter] = useState('');
 
-  const LOADERS = [fetchCompanies, fetchUsers, fetchProjects, fetchInquiries, fetchPlans];
+  const LOADERS = [fetchCompanies, fetchUsers, fetchProjects, fetchInquiries, fetchPlans, fetchPlatformRevenue];
   useLoad(LOADERS);
   /** Re-reads every platform list (after a change that touches several of them, e.g. onboarding a firm). */
   const loadAllData = () => LOADERS.forEach((thunk) => dispatch(thunk()));
@@ -338,22 +339,21 @@ export default function SuperuserDashboard() {
   });
   const overageRates = plansData?.overageRates || DEFAULT_OVERAGE;
   const planRates = Object.fromEntries(Object.entries(BASE_QUOTAS).map(([name, q]) => [name, q.price]));
+  // Annual discount of the chosen plan, from the live prices (annual price vs 12 months).
+  const chosenPlan = (plansData?.plans || []).find((pl) => pl.name === compForm.plan);
+  const annualSavePct = chosenPlan && chosenPlan.monthlyPrice > 0
+    ? `${Math.round((1 - chosenPlan.annualPrice / (chosenPlan.monthlyPrice * 12)) * 100)}%`
+    : '';
   const pendingCount = companies.filter((c) => c.approvalStatus === 'pending').length;
   // Only approved, active companies count towards revenue.
   const activeComps = companies.filter(
     (c) => c.status === 'active' && (c.approvalStatus || 'approved') === 'approved'
   );
-  const totalBaseMRR = activeComps.reduce(
-    (sum, c) => sum + (planRates[c.plan] || planRates.Basic),
-    0
-  );
-  const totalOverageRevenue = activeComps.reduce((sum, c) => {
-    if (!c.overageEnabled) return sum;
-    const uOverage = (c.extraUsers || 0) * overageRates.extraUserMonthly;
-    const pOverage = (c.extraProjects || 0) * overageRates.extraProjectMonthly;
-    return sum + uOverage + pOverage;
-  }, 0);
-  const grandTotalMRR = totalBaseMRR + totalOverageRevenue;
+  // The server works out revenue (billing cycle, live prices, real usage overage); the browser only shows it.
+  const subById = Object.fromEntries((revenue?.subscriptions || []).map((r) => [r.companyId, r]));
+  const totalBaseMRR = revenue ? revenue.baseMrr : 0;
+  const totalOverageRevenue = revenue ? revenue.overageMrr : 0;
+  const grandTotalMRR = revenue ? revenue.mrr : 0;
 
   // Filtered Global Users
   const filteredUsers = users.filter((u) => {
@@ -674,7 +674,16 @@ export default function SuperuserDashboard() {
                 {
                   key: 'base',
                   label: 'Base Rate',
-                  render: (c) => formatCurrency(planRates[c.plan] || 4999)
+                  render: (c) => {
+                    const r = subById[c.id];
+                    const base = r ? r.monthlyEquivalent : planRates[c.plan] || 0;
+                    return (
+                      <span>
+                        {formatCurrency(base)}
+                        {r?.billingCycle === 'annual' && <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)' }}>billed annually</span>}
+                      </span>
+                    );
+                  }
                 },
                 {
                   key: 'overage',
@@ -698,10 +707,8 @@ export default function SuperuserDashboard() {
                   key: 'total',
                   label: 'Monthly Fee',
                   render: (c) => {
-                    const base = planRates[c.plan] || 4999;
-                    const uO = c.overageEnabled ? (c.extraUsers || 0) * overageRates.extraUserMonthly : 0;
-                    const pO = c.overageEnabled ? (c.extraProjects || 0) * overageRates.extraProjectMonthly : 0;
-                    return <strong style={{ color: 'var(--green)' }}>{formatCurrency(base + uO + pO)}</strong>;
+                    const r = subById[c.id];
+                    return <strong style={{ color: 'var(--green)' }}>{formatCurrency(r ? r.totalMonthlyRevenue : 0)}</strong>;
                   }
                 }
               ]}
@@ -1133,7 +1140,7 @@ export default function SuperuserDashboard() {
                 onChange={(e) => setCompForm({ ...compForm, billingCycle: e.target.value })}
               >
                 <option value="monthly">Monthly</option>
-                <option value="annual">Annual (Save 15%)</option>
+                <option value="annual">{annualSavePct ? `Annual (Save ${annualSavePct})` : 'Annual'}</option>
               </select>
             </div>
           </div>

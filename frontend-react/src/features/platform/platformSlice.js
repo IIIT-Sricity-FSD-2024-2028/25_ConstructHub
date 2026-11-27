@@ -23,6 +23,9 @@ export const fetchPlans = apiThunk('platform/fetchPlans', () => apiRequest('plan
 export const updatePlan = apiThunk('platform/updatePlan', ({ name, changes }) => apiRequest(`plans/${enc(name)}`, json('PATCH', changes)));
 export const updateOverageRates = apiThunk('platform/updateOverageRates', (changes) => apiRequest('plans/overage-rates', json('PATCH', changes)));
 
+/** Platform revenue worked out by the server (billing cycle, live plan prices, real usage overage). */
+export const fetchPlatformRevenue = apiThunk('platform/fetchRevenue', () => apiRequest('companies/platform/revenue'));
+
 export const fetchInquiries = apiThunk('platform/fetchInquiries', () => apiRequest('inquiries'));
 /** Public contact form (no login needed). */
 export const createInquiry = apiThunk('platform/createInquiry', (payload) => apiRequest('inquiries', json('POST', payload)));
@@ -35,6 +38,7 @@ const platformSlice = createSlice({
     companies: companiesAdapter.getInitialState({ status: 'idle', error: null }),
     inquiries: inquiriesAdapter.getInitialState({ status: 'idle', error: null }),
     plans: null,
+    revenue: null,
     subscriptions: {},
   },
   reducers: {},
@@ -48,6 +52,7 @@ const platformSlice = createSlice({
       .addCase(fetchInquiries.rejected, (s, a) => { s.inquiries.status = 'failed'; s.inquiries.error = a.payload || a.error.message; })
       .addCase(updateInquiry.fulfilled, (s, a) => { if (a.payload?.id) inquiriesAdapter.upsertOne(s.inquiries, a.payload); })
       .addCase(deleteInquiry.fulfilled, (s, a) => { inquiriesAdapter.removeOne(s.inquiries, a.meta.arg); })
+      .addCase(fetchPlatformRevenue.fulfilled, (s, a) => { s.revenue = a.payload; })
       .addCase(fetchPlans.fulfilled, (s, a) => { s.plans = a.payload; })
       .addCase(fetchCompanySubscription.fulfilled, (s, a) => { s.subscriptions[a.meta.arg] = a.payload; });
     [fetchCompany, updateCompany, toggleOverage, setCompanyApproval].forEach((t) => builder.addCase(t.fulfilled, (s, a) => {
@@ -64,3 +69,5 @@ export const { selectAll: selectAllInquiries } = inquiriesAdapter.getSelectors((
 export const selectCompaniesStatus = (state) => state.platform.companies.status;
 export const selectPlansData = (state) => state.platform.plans;
 export const selectSubscription = (state, companyId) => state.platform.subscriptions[companyId] || null;
+
+export const selectPlatformRevenue = (state) => state.platform.revenue;
